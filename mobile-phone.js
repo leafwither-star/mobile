@@ -410,7 +410,14 @@ class MobilePhone {
                                                         <div class="app-icon-bg purple">⚙️</div>
                                                         <span class="app-label">设置</span>
                                                     </div>
-
+                                                    <div class="app-icon" data-app="status">
+                                                        <div class="app-icon-bg blue">👤</div>
+                                                        <span class="app-label">状态</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="diary">
+                                                        <div class="app-icon-bg orange">📔</div>
+                                                        <span class="app-label">日记</span>
+                                                    </div>
                                                 </div>
 
                                             </div>
@@ -1488,6 +1495,18 @@ class MobilePhone {
                     </div>
                 `,
             },
+            status: {
+                name: '状态',
+                content: null, // 将由status-app动态生成
+                isCustomApp: true,
+                customHandler: this.handleStatusApp.bind(this),
+            },
+            diary: {
+                name: '日记',
+                content: null, // 将由diary-app动态生成
+                isCustomApp: true,
+                customHandler: this.handleDiaryApp.bind(this),
+            },
             shop: {
                 name: '购物',
                 content: null, // 将由shop-app动态生成
@@ -2269,6 +2288,110 @@ class MobilePhone {
                     <button class="retry-button" onclick="window.MobilePhone.openApp('messages')">
                         重试
                     </button>
+                </div>
+            `;
+        }
+    }
+
+    // 处理状态应用
+    async handleStatusApp() {
+        try {
+            console.log('[Mobile Phone] 开始处理状态应用...');
+
+            // 显示加载状态
+            document.getElementById('app-content').innerHTML = `
+                <div class="loading-placeholder">
+                    <div class="loading-icon">⏳</div>
+                    <div class="loading-text">正在加载状态应用...</div>
+                </div>
+            `;
+
+            // 确保status-app已加载
+            console.log('[Mobile Phone] 加载状态应用模块...');
+            await this.loadStatusApp();
+
+            // 直接使用全局函数获取内容
+            if (!window.getStatusAppContent) {
+                throw new Error('getStatusAppContent 函数未找到');
+            }
+
+            // 获取状态应用内容
+            console.log('[Mobile Phone] 获取状态应用内容...');
+            const content = window.getStatusAppContent();
+
+            if (!content || content.trim() === '') {
+                throw new Error('状态应用内容为空');
+            }
+
+            document.getElementById('app-content').innerHTML = content;
+
+            // 绑定事件
+            console.log('[Mobile Phone] 绑定状态应用事件..');
+            if (window.bindStatusAppEvents) {
+                window.bindStatusAppEvents();
+            }
+
+            console.log('[Mobile Phone] ✅ 状态应用加载完成');
+        } catch (error) {
+            console.error('[Mobile Phone] ❌ 处理状态应用失败:', error);
+            document.getElementById('app-content').innerHTML = `
+                <div class="error-message">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-text">状态应用加载失败</div>
+                    <div class="error-details">${error.message}</div>
+                    <button onclick="window.mobilePhone.handleStatusApp()" class="retry-button">重试</button>
+                </div>
+            `;
+        }
+    }
+
+    // 处理日记应用
+    async handleDiaryApp() {
+        try {
+            console.log('[Mobile Phone] 开始处理日记应用...');
+
+            // 显示加载状态
+            document.getElementById('app-content').innerHTML = `
+                <div class="loading-placeholder">
+                    <div class="loading-icon">⏳</div>
+                    <div class="loading-text">正在加载日记应用...</div>
+                </div>
+            `;
+
+            // 确保diary-app已加载
+            console.log('[Mobile Phone] 加载日记应用模块...');
+            await this.loadDiaryApp();
+
+            // 直接使用全局函数获取内容
+            if (!window.getDiaryAppContent) {
+                throw new Error('getDiaryAppContent 函数未找到');
+            }
+
+            // 获取日记应用内容
+            console.log('[Mobile Phone] 获取日记应用内容...');
+            const content = window.getDiaryAppContent();
+
+            if (!content || content.trim() === '') {
+                throw new Error('日记应用内容为空');
+            }
+
+            document.getElementById('app-content').innerHTML = content;
+
+            // 绑定事件
+            console.log('[Mobile Phone] 绑定日记应用事件...');
+            if (window.bindDiaryAppEvents) {
+                window.bindDiaryAppEvents();
+            }
+
+            console.log('[Mobile Phone] ✅ 日记应用加载完成');
+        } catch (error) {
+            console.error('[Mobile Phone] ❌ 处理日记应用失败:', error);
+            document.getElementById('app-content').innerHTML = `
+                <div class="error-message">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-text">日记应用加载失败</div>
+                    <div class="error-details">${error.message}</div>
+                    <button onclick="window.mobilePhone.handleDiaryApp()" class="retry-button">重试</button>
                 </div>
             `;
         }
@@ -5926,6 +6049,184 @@ class MobilePhone {
         });
 
         return window._messageAppLoading;
+    }
+
+    // 加载状态应用
+    async loadStatusApp() {
+        console.log('[Mobile Phone] 开始加载状态应用模块...');
+
+        // 检查是否已加载
+        if (window.StatusApp && window.getStatusAppContent && window.bindStatusAppEvents) {
+            console.log('[Mobile Phone] Status App 模块已存在，跳过加载');
+            return Promise.resolve();
+        }
+
+        // 检查是否正在加载
+        if (window._statusAppLoading) {
+            console.log('[Mobile Phone] Status App 正在加载中，等待完成');
+            return window._statusAppLoading;
+        }
+
+        // 标记正在加载
+        window._statusAppLoading = new Promise((resolve, reject) => {
+            let loadedCount = 0;
+            const totalFiles = 2; // status-app.css + status-app.js
+
+            const checkComplete = () => {
+                loadedCount++;
+                console.log(`[Mobile Phone] 已加载 ${loadedCount}/${totalFiles} 个状态应用文件`);
+                if (loadedCount === totalFiles) {
+                    console.log('[Mobile Phone] 所有状态应用文件加载完成，等待模块初始化...');
+
+                    setTimeout(() => {
+                        if (window.StatusApp && window.getStatusAppContent && window.bindStatusAppEvents) {
+                            console.log('[Mobile Phone] ✅ Status App 模块加载并初始化完成');
+                            window._statusAppLoading = null;
+                            resolve();
+                        } else {
+                            console.error('[Mobile Phone] ❌ 状态应用模块加载完成但全局变量未正确设置');
+                            window._statusAppLoading = null;
+                            reject(new Error('状态应用模块初始化失败'));
+                        }
+                    }, 500);
+                }
+            };
+
+            const handleError = name => {
+                console.error(`[Mobile Phone] ${name} 加载失败`);
+                window._statusAppLoading = null;
+                reject(new Error(`${name} 加载失败`));
+            };
+
+            // 检查并移除已存在的标签
+            const removeExistingTags = () => {
+                const existingCss = document.querySelector('link[href*="status-app.css"]');
+                if (existingCss) {
+                    console.log('[Mobile Phone] 移除已存在的 status-app.css');
+                    existingCss.remove();
+                }
+
+                const existingScript = document.querySelector('script[src*="status-app.js"]');
+                if (existingScript) {
+                    console.log('[Mobile Phone] 移除已存在的 status-app.js');
+                    existingScript.remove();
+                }
+            };
+
+            removeExistingTags();
+
+            // 加载CSS文件
+            const cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = '/scripts/extensions/third-party/mobile/app/status-app.css';
+            cssLink.onload = () => {
+                console.log('[Mobile Phone] status-app.css 加载完成');
+                checkComplete();
+            };
+            cssLink.onerror = () => handleError('status-app.css');
+            document.head.appendChild(cssLink);
+
+            // 加载JS文件
+            const jsScript = document.createElement('script');
+            jsScript.src = '/scripts/extensions/third-party/mobile/app/status-app.js';
+            jsScript.onload = () => {
+                console.log('[Mobile Phone] status-app.js 加载完成');
+                checkComplete();
+            };
+            jsScript.onerror = () => handleError('status-app.js');
+            document.head.appendChild(jsScript);
+        });
+
+        return window._statusAppLoading;
+    }
+
+    // 加载日记应用
+    async loadDiaryApp() {
+        console.log('[Mobile Phone] 开始加载日记应用模块...');
+
+        // 检查是否已加载
+        if (window.DiaryApp && window.getDiaryAppContent && window.bindDiaryAppEvents) {
+            console.log('[Mobile Phone] Diary App 模块已存在，跳过加载');
+            return Promise.resolve();
+        }
+
+        // 检查是否正在加载
+        if (window._diaryAppLoading) {
+            console.log('[Mobile Phone] Diary App 正在加载中，等待完成');
+            return window._diaryAppLoading;
+        }
+
+        // 标记正在加载
+        window._diaryAppLoading = new Promise((resolve, reject) => {
+            let loadedCount = 0;
+            const totalFiles = 2; // diary-app.css + diary-app.js
+
+            const checkComplete = () => {
+                loadedCount++;
+                console.log(`[Mobile Phone] 已加载 ${loadedCount}/${totalFiles} 个日记应用文件`);
+                if (loadedCount === totalFiles) {
+                    console.log('[Mobile Phone] 所有日记应用文件加载完成，等待模块初始化...');
+
+                    setTimeout(() => {
+                        if (window.DiaryApp && window.getDiaryAppContent && window.bindDiaryAppEvents) {
+                            console.log('[Mobile Phone] ✅ Diary App 模块加载并初始化完成');
+                            window._diaryAppLoading = null;
+                            resolve();
+                        } else {
+                            console.error('[Mobile Phone] ❌ 日记应用模块加载完成但全局变量未正确设置');
+                            window._diaryAppLoading = null;
+                            reject(new Error('日记应用模块初始化失败'));
+                        }
+                    }, 500);
+                }
+            };
+
+            const handleError = name => {
+                console.error(`[Mobile Phone] ${name} 加载失败`);
+                window._diaryAppLoading = null;
+                reject(new Error(`${name} 加载失败`));
+            };
+
+            // 检查并移除已存在的标签
+            const removeExistingTags = () => {
+                const existingCss = document.querySelector('link[href*="diary-app.css"]');
+                if (existingCss) {
+                    console.log('[Mobile Phone] 移除已存在的 diary-app.css');
+                    existingCss.remove();
+                }
+
+                const existingScript = document.querySelector('script[src*="diary-app.js"]');
+                if (existingScript) {
+                    console.log('[Mobile Phone] 移除已存在的 diary-app.js');
+                    existingScript.remove();
+                }
+            };
+
+            removeExistingTags();
+
+            // 加载CSS文件
+            const cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = '/scripts/extensions/third-party/mobile/app/diary-app.css';
+            cssLink.onload = () => {
+                console.log('[Mobile Phone] diary-app.css 加载完成');
+                checkComplete();
+            };
+            cssLink.onerror = () => handleError('diary-app.css');
+            document.head.appendChild(cssLink);
+
+            // 加载JS文件
+            const jsScript = document.createElement('script');
+            jsScript.src = '/scripts/extensions/third-party/mobile/app/diary-app.js';
+            jsScript.onload = () => {
+                console.log('[Mobile Phone] diary-app.js 加载完成');
+                checkComplete();
+            };
+            jsScript.onerror = () => handleError('diary-app.js');
+            document.head.appendChild(jsScript);
+        });
+
+        return window._diaryAppLoading;
     }
 
     // 加载购物应用
