@@ -105,6 +105,10 @@ if (typeof window.MessageApp === 'undefined') {
       this.useIncrementalRender = true; // 默认启用增量渲染
       this.fullRenderMode = false; // 是否使用全量渲染模式
 
+      // 延迟渲染相关
+      this.delayedRenderTimer = null; // 延迟渲染定时器
+      this.delayedRenderDelay = 2000; // 延迟2秒
+
       this.init();
     }
 
@@ -725,11 +729,8 @@ if (typeof window.MessageApp === 'undefined') {
         console.log(`[Message App] ✅ 新消息: ${this.lastMessageCount} → ${currentMessageCount}`);
         this.lastMessageCount = currentMessageCount;
 
-        // 刷新消息显示
-        this.refreshMessages();
-
-        // 触发其他相关更新
-        this.updateTimeDisplay();
+        // 延迟2秒后触发渲染
+        this.scheduleDelayedRender('接收到消息');
       } catch (error) {
         console.error('[Message App] 处理消息接收事件失败:', error);
       }
@@ -1521,6 +1522,37 @@ if (typeof window.MessageApp === 'undefined') {
       }
 
       return stats;
+    }
+
+    /**
+     * 延迟触发渲染（2秒后）
+     * 用于消息发送和接收后的自动刷新
+     */
+    scheduleDelayedRender(reason = '未知原因') {
+      // 清除之前的定时器
+      if (this.delayedRenderTimer) {
+        clearTimeout(this.delayedRenderTimer);
+      }
+
+      console.log(`[Message App] ⏰ 计划在${this.delayedRenderDelay / 1000}秒后渲染 (原因: ${reason})`);
+
+      // 设置新的延迟渲染定时器
+      this.delayedRenderTimer = setTimeout(async () => {
+        console.log(`[Message App] 🎯 执行延迟渲染 (原因: ${reason})`);
+        await this.triggerAutoRender();
+        this.delayedRenderTimer = null;
+      }, this.delayedRenderDelay);
+    }
+
+    /**
+     * 取消延迟渲染
+     */
+    cancelDelayedRender() {
+      if (this.delayedRenderTimer) {
+        clearTimeout(this.delayedRenderTimer);
+        this.delayedRenderTimer = null;
+        console.log('[Message App] ❌ 取消延迟渲染');
+      }
     }
 
     // 加载好友渲染器
@@ -2458,6 +2490,9 @@ if (typeof window.MessageApp === 'undefined') {
                 sendInput.value = '';
                 window.messageSender.adjustTextareaHeight(sendInput);
                 this.updateCharCount(sendInput);
+
+                // 发送成功后延迟2秒触发渲染
+                this.scheduleDelayedRender('发送消息');
               }
             }
           }
@@ -2546,6 +2581,9 @@ if (typeof window.MessageApp === 'undefined') {
                 detailInput.value = '';
                 window.messageSender.adjustTextareaHeight(detailInput);
                 this.updateCharCount(detailInput);
+
+                // 发送成功后延迟2秒触发渲染
+                this.scheduleDelayedRender('发送消息（详情页）');
               }
             }
           }
@@ -6045,6 +6083,9 @@ if (typeof window.MessageApp === 'undefined') {
           clearInterval(this.pollingInterval);
           this.pollingInterval = null;
         }
+
+        // 取消延迟渲染
+        this.cancelDelayedRender();
 
         this.isEventListening = false;
       } catch (error) {
