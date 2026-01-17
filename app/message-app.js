@@ -108,7 +108,23 @@ if (typeof window.MessageApp === 'undefined') {
       // 延迟渲染相关
       this.delayedRenderTimer = null; // 延迟渲染定时器
       this.delayedRenderDelay = 2000; // 延迟2秒
-
+      
+// --- ✨【这是我们要新增的永久好友逻辑】✨ ---
+      // 从浏览器“硬盘”读取永久好友名单
+      const savedFriends = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+      
+      // 如果硬盘是空的，先默认给李至中安排陈一众和曹信（这样你第一次打开就有主角）
+      if (savedFriends.length === 0) {
+          this.friends = [
+              { id: '103', name: '陈一众', avatar: '👤', lastMessage: '[核心层]', time: '18:00' },
+              { id: '102', name: '曹信', avatar: '👤', lastMessage: '[核心层]', time: '昨天' }
+          ];
+      } else {
+          // 如果硬盘里有存过的好友，就直接读取出来
+          this.friends = savedFriends;
+      }
+      // ------------------------------------------
+      
       this.init();
     }
 
@@ -2334,38 +2350,86 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-    // 绑定事件
+// 绑定事件 (魔改版)
     bindEvents() {
       const appContent = document.getElementById('app-content');
       if (!appContent) return;
 
-      // 绑定返回按钮事件
+      // 1. 返回按钮
       const backButton = document.getElementById('back-button');
       if (backButton) {
-        // 移除之前的事件监听器（如果存在）
-        backButton.removeEventListener('click', this.handleBackButtonClick);
+        backButton.onclick = () => {
+          if (this.currentView === 'messageDetail' || this.currentView === 'addFriend') {
+            this.currentView = 'list';
+            this.updateAppContent();
+          }
+        };
+      }
 
-        // 创建事件处理函数
-        this.handleBackButtonClick = () => {
-          // 检查当前是否在消息应用中
-          const currentApp = window.mobilePhone?.currentAppState?.app;
-          if (currentApp !== 'messages') {
-            console.log('[Message App] 当前不在消息应用中，跳过返回按钮处理');
+      // 2. 标签切换
+      const tabBtns = appContent.querySelectorAll('.tab-btn');
+      tabBtns.forEach(btn => {
+        btn.onclick = () => {
+          this.currentTab = btn.getAttribute('data-tab');
+          this.updateAppContent();
+          // 如果切换回添加页面，再次尝试补上勾选框
+          if (this.currentTab === 'add') this.showAddFriend();
+        };
+      });
+
+      // 3. 🔥 第三步核心：点击“✅ 添加好友”时的逻辑
+      const addFriendSubmit = appContent.querySelector('#add-friend-submit');
+      if (addFriendSubmit) {
+        addFriendSubmit.onclick = () => {
+          const name = appContent.querySelector('#friend-name').value;
+          const id = appContent.querySelector('#friend-number').value;
+          // 读取那个强制塞进去的勾选框
+          const isPermanentBtn = document.getElementById('is-permanent-checkbox');
+          const isPermanent = isPermanentBtn ? isPermanentBtn.checked : false;
+
+          if (!name || !id) {
+            alert('请完整填写名称和ID');
             return;
           }
 
-          console.log('[Message App] 返回按钮被点击');
-          if (this.currentView === 'detail' || this.currentView === 'messageDetail') {
-            // 如果当前在消息详情页面，返回到消息列表
-            this.showMessageList();
-          } else if (this.currentView === 'addFriend') {
-            // 如果当前在添加好友页面，返回到消息列表
-            this.showMessageList();
-          } else {
-            // 默认返回到消息列表
-            this.showMessageList();
+          const newFriend = {
+            id: id,
+            name: name,
+            avatar: '👤',
+            lastMessage: isPermanent ? '[永久联系人]' : '新好友',
+            time: '刚刚',
+            isPermanent: isPermanent
+          };
+
+          // 加入内存
+          this.friends.push(newFriend);
+
+          // 如果勾选永久，写入硬盘 (LocalStorage)
+          if (isPermanent) {
+            let saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+            if (!saved.find(f => f.id === id)) {
+              saved.push(newFriend);
+              localStorage.setItem('ltz_permanent_friends', JSON.stringify(saved));
+            }
           }
+
+          alert(`添加成功: ${name}`);
+          this.currentView = 'list';
+          this.updateAppContent();
         };
+      }
+
+      // 4. 列表点击逻辑
+      const friendItems = appContent.querySelectorAll('.friend-item');
+      friendItems.forEach(item => {
+        item.onclick = () => {
+          const id = item.getAttribute('data-id');
+          this.selectedFriend = this.friends.find(f => f.id === id);
+          this.currentView = 'messageDetail';
+          this.updateAppContent();
+        };
+      });
+    }
 
         // 添加新的事件监听器
         backButton.addEventListener('click', this.handleBackButtonClick);
@@ -4544,7 +4608,7 @@ if (typeof window.MessageApp === 'undefined') {
       setTimeout(() => toast.remove(), 2000);
     }
 
-    // 显示添加好友界面
+    // 显示添加好友界面（已加入永久勾选框补丁）
     showAddFriend() {
       this.currentView = 'addFriend';
       this.currentTab = 'add'; // 默认显示添加tab
@@ -4560,6 +4624,25 @@ if (typeof window.MessageApp === 'undefined') {
       }
 
       this.updateAppContent();
+
+      // 🔥【新增补丁逻辑】：强制在页面渲染后塞入勾选框
+      setTimeout(() => {
+        const form = document.querySelector('.add-friend-form');
+        // 如果表单存在，且里面还没加过这个勾选框
+        if (form && !document.getElementById('is-permanent-checkbox')) {
+             const div = document.createElement('div');
+             div.innerHTML = `
+                <div style="margin: 12px 0; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; border: 1px dashed #999;">
+                    <input type="checkbox" id="is-permanent-checkbox" style="width:18px; height:18px; cursor: pointer;">
+                    <label for="is-permanent-checkbox" style="font-size:13px; color:#333; cursor: pointer; font-weight: bold;">保存为永久联系人 (换页面不消失)</label>
+                </div>`;
+             // 把勾选框插在“添加好友”按钮的前面
+             const submitBtn = document.getElementById('add-friend-submit');
+             if (submitBtn) {
+                form.insertBefore(div, submitBtn);
+             }
+        }
+      }, 100); // 延迟0.1秒执行，确保DOM已经生成
     }
 
     // 显示消息列表
