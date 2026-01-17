@@ -450,8 +450,8 @@ if (typeof window.MessageRenderer === 'undefined') {
           console.log('[Message Renderer] 原始提取顺序:');
           allExtractions.forEach((msg, index) => {
             console.log(`消息${index + 1}:`, {
-              content: msg.content?.substring(0, 30) + '...',
-              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              content: msg.(content && content.substring(0, 30) + '...',
+              fullMatch: msg.(fullMatch && fullMatch.substring(0, 50) + '...',
               index: msg.index,
               globalIndex: msg.globalIndex,
               messageIndex: msg.messageIndex,
@@ -504,7 +504,7 @@ if (typeof window.MessageRenderer === 'undefined') {
             (msg.fullMatch.startsWith('[群聊消息') || msg.fullMatch.startsWith('[我方群聊消息'))
           ) {
             console.log(`[Message Renderer] 群聊消息调试:`, {
-              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              fullMatch: msg.(fullMatch && fullMatch.substring(0, 50) + '...',
               number: msg.number,
               sender: msg.sender,
               msgIdentifier: msgIdentifier,
@@ -522,7 +522,7 @@ if (typeof window.MessageRenderer === 'undefined') {
               console.log(
                 `[Message Renderer] 匹配成功: ${msgIdentifier} 在 [${targetIds.join(', ')}] 中, 原始位置: ${
                   msg.globalIndex
-                }, 消息: ${msg.fullMatch?.substring(0, 50)}...`,
+                }, 消息: ${msg.(fullMatch && fullMatch.substring(0, 50)}...`,
               );
             }
 
@@ -539,8 +539,8 @@ if (typeof window.MessageRenderer === 'undefined') {
             friendMessages.map((msg, i) => ({
               index: i,
               globalIndex: msg.globalIndex,
-              content: msg.content?.substring(0, 20) + '...',
-              fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+              content: msg.(content && content.substring(0, 20) + '...',
+              fullMatch: msg.(fullMatch && fullMatch.substring(0, 40) + '...',
             })),
           );
         }
@@ -582,8 +582,8 @@ if (typeof window.MessageRenderer === 'undefined') {
             friendMessages.map((msg, i) => ({
               index: i,
               globalIndex: msg.globalIndex,
-              content: msg.content?.substring(0, 20) + '...',
-              fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+              content: msg.(content && content.substring(0, 20) + '...',
+              fullMatch: msg.(fullMatch && fullMatch.substring(0, 40) + '...',
             })),
           );
         }
@@ -595,8 +595,8 @@ if (typeof window.MessageRenderer === 'undefined') {
             friendMessages.map((msg, index) => ({
               排序位置: index,
               globalIndex: msg.globalIndex,
-              content: msg.content?.substring(0, 30) + '...',
-              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              content: msg.(content && content.substring(0, 30) + '...',
+              fullMatch: msg.(fullMatch && fullMatch.substring(0, 50) + '...',
               isMyMessage: msg.fullMatch?.startsWith('[我方消息'),
               isGroupMessage: msg.fullMatch?.startsWith('[群聊消息'),
               // 🔥 添加name和extra信息，用于统一性检查
@@ -769,10 +769,10 @@ if (typeof window.MessageRenderer === 'undefined') {
         // 修复：只在调试模式下显示最新消息的顺序
         if (window.DEBUG_MESSAGE_RENDERER && latestMessages.length > 0) {
           console.log('[Message Renderer] 最新消息顺序验证:');
-          console.log('第一条显示的消息:', latestMessages[0]?.content?.substring(0, 30) + '...');
+          console.log('第一条显示的消息:', latestMessages[0]?.(content && content.substring(0, 30) + '...');
           console.log(
             '最后一条显示的消息:',
-            latestMessages[latestMessages.length - 1]?.content?.substring(0, 30) + '...',
+            latestMessages[latestMessages.length - 1]?.(content && content.substring(0, 30) + '...',
           );
           console.log('应该是最新的消息在底部');
         }
@@ -864,8 +864,8 @@ if (typeof window.MessageRenderer === 'undefined') {
       // 修复：只在调试模式下显示消息时间顺序验证
       if (window.DEBUG_MESSAGE_RENDERER && allMessages.length > 0) {
         console.log('[Message Renderer] 消息时间顺序验证:');
-        console.log('第一条消息:', allMessages[0]?.content?.substring(0, 30) + '...');
-        console.log('最后一条消息:', allMessages[allMessages.length - 1]?.content?.substring(0, 30) + '...');
+        console.log('第一条消息:', allMessages[0]?.(content && content.substring(0, 30) + '...');
+        console.log('最后一条消息:', allMessages[allMessages.length - 1]?.(content && content.substring(0, 30) + '...');
       }
     }
 
@@ -894,7 +894,7 @@ if (typeof window.MessageRenderer === 'undefined') {
           '[Message Renderer] 最新消息内容:',
           latestMessages.map((msg, i) => ({
             index: i,
-            content: msg.content?.substring(0, 30) + '...',
+            content: msg.(content && content.substring(0, 30) + '...',
             isLatest: i === latestMessages.length - 1,
           })),
         );
@@ -924,7 +924,7 @@ if (typeof window.MessageRenderer === 'undefined') {
         '[Message Renderer] 历史消息内容:',
         olderMessages.map((msg, i) => ({
           index: i,
-          content: msg.content?.substring(0, 30) + '...',
+          content: msg.(content && content.substring(0, 30) + '...',
           isOldest: i === 0,
         })),
       );
