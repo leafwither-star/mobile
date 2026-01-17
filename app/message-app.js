@@ -6362,7 +6362,7 @@ if (typeof window.MessageApp === 'undefined') {
 
 
 // ==========================================
-// ✨ 李至中的社交圈：永久好友全自动补丁 (渲染增强版)
+// ✨ 李至中的社交圈：永久好友全自动补丁 (精装修对齐版)
 // ==========================================
 ;(function() {
     const patchLog = (msg) => console.log(`%c[永久好友补丁] ${msg}`, "color: #007bff; font-weight: bold;");
@@ -6371,107 +6371,90 @@ if (typeof window.MessageApp === 'undefined') {
         if (window.MessageApp && window.MessageApp.prototype) {
             clearInterval(patchInterval);
 
-            // 【核心：拦截渲染器，强行注入永久好友】
-            // 我们直接改写全局渲染函数，确保无论谁调用它，都能看到永久好友
+            // 1. 【修复样式与渲染】使用与原生一模一样的结构
             const originalRenderer = window.renderFriendsFromContext;
             window.renderFriendsFromContext = function() {
-                // 先执行原有的渲染（获取酒馆原生好友）
                 let html = originalRenderer ? originalRenderer.apply(this, arguments) : "";
-                
-                // 获取硬盘里的永久好友
                 const saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
                 
-                // 将永久好友转为 HTML 拼接到列表最前面
                 let permHtml = "";
                 saved.forEach(f => {
+                    // 使用原生 Class: list-item, item-avatar, item-details
                     permHtml += `
-                        <div class="friend-item" data-id="${f.id}" onclick="if(window.messageApp) window.messageApp.openChat('${f.id}')">
-                            <div class="friend-avatar">${f.avatar}</div>
-                            <div class="friend-info">
-                                <div class="friend-header">
-                                    <span class="friend-name">${f.name}</span>
-                                    <span class="friend-time">${f.time}</span>
+                        <div class="list-item friend-item" data-id="${f.id}" onclick="if(window.messageApp) window.messageApp.openChat('${f.id}')" style="cursor:pointer;">
+                            <div class="item-avatar friend-avatar">${f.avatar}</div>
+                            <div class="item-details friend-info">
+                                <div class="item-header friend-header">
+                                    <span class="item-name friend-name">${f.name}</span>
+                                    <span class="item-time friend-time" style="font-size:10px; opacity:0.6;">${f.time}</span>
                                 </div>
-                                <div class="friend-last-msg">${f.lastMessage}</div>
+                                <div class="item-last-msg friend-last-msg" style="font-size:12px; color:#888;">${f.lastMessage}</div>
                             </div>
                         </div>`;
                 });
-                
-                return permHtml + html; // 永久好友排在最前面
+                return permHtml + html;
             };
 
-            // 1. 定义名单融合
-            const mergePermanentFriends = (instance) => {
-                try {
-                    const saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
-                    if (!instance.friends) instance.friends = [];
-                    saved.forEach(f => {
-                        if (!instance.friends.some(curr => curr.id === f.id)) {
-                            instance.friends.push(f);
-                        }
-                    });
-                } catch(e) {}
+            // 2. 【修复聊天打不开】拦截 openChat，防止报错
+            const oldOpenChat = window.MessageApp.prototype.openChat;
+            window.MessageApp.prototype.openChat = function(id) {
+                const saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+                if (saved.some(f => f.id === id)) {
+                    // 如果是永久好友，弹出一个提示，因为他们没有聊天后端
+                    return alert(`【系统提示】\n${id} 是永久联系人快照。\n由于该角色未在当前剧本中载入，暂无法进入聊天。`);
+                }
+                // 原生好友正常走流程
+                if (oldOpenChat) oldOpenChat.apply(this, arguments);
             };
 
-            // 2. 界面拦截 (保持不变)
+            // 3. 界面拦截 (保持美化)
             window.MessageApp.prototype.renderAddFriendTab = function() {
                 return `
-                    <div id="perm-patch-ui" style="padding:15px; background:white; border:2px solid #007bff; border-radius:10px; color:black;">
-                        <h4 style="margin:0 0 10px 0; font-size:14px; color:#007bff;">添加永久联系人</h4>
-                        <div style="margin-bottom:8px;"><label style="font-size:12px;">姓名：</label><input type="text" id="p-name" style="width:100%; padding:5px; border:1px solid #ccc;"></div>
-                        <div style="margin-bottom:8px;"><label style="font-size:12px;">ID：</label><input type="number" id="p-id" style="width:100%; padding:5px; border:1px solid #ccc;"></div>
-                        <div id="p-trigger" style="margin:10px 0; padding:10px; background:#f0f0f0; border-radius:5px; cursor:pointer; display:flex; align-items:center;">
-                            <div id="p-box" style="width:16px; height:16px; border:1px solid #999; margin-right:8px; background:white;"></div>
-                            <span style="font-size:12px;">保存为永久联系人</span>
+                    <div id="perm-patch-ui" style="padding:15px; margin:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:10px; color:black;">
+                        <h4 style="margin:0 0 10px 0; font-size:14px; color:#007bff;">✨ 添加永久联系人</h4>
+                        <div style="margin-bottom:8px;"><input type="text" id="p-name" placeholder="输入姓名" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
+                        <div style="margin-bottom:8px;"><input type="number" id="p-id" placeholder="输入ID (数字)" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
+                        <div id="p-trigger" style="margin:10px 0; padding:10px; background:#fff; border:1px solid #eee; border-radius:5px; cursor:pointer; display:flex; align-items:center;">
+                            <div id="p-box" style="width:14px; height:14px; border:1px solid #999; margin-right:8px; background:white;"></div>
+                            <span style="font-size:12px;">同步保存到持久化存储</span>
                         </div>
-                        <button id="p-confirm" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:5px;">确认添加</button>
+                        <button id="p-confirm" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold;">确认并刷新</button>
                     </div>`;
             };
 
-            // 3. 事件绑定
+            // 4. 事件绑定
             const oldBind = window.MessageApp.prototype.bindEvents;
             window.MessageApp.prototype.bindEvents = function() {
                 if (oldBind) oldBind.apply(this, arguments);
                 const trigger = document.getElementById('p-trigger');
                 const confirm = document.getElementById('p-confirm');
-                let isChecked = false;
+                let isChecked = true; // 默认勾选
                 if (trigger) {
-                    trigger.onclick = (e) => {
-                        e.stopPropagation();
+                    const box = document.getElementById('p-box');
+                    box.style.background = '#007bff';
+                    trigger.onclick = () => {
                         isChecked = !isChecked;
-                        trigger.style.background = isChecked ? '#e7f1ff' : '#f0f0f0';
-                        document.getElementById('p-box').style.background = isChecked ? '#007bff' : 'white';
+                        box.style.background = isChecked ? '#007bff' : 'white';
                     };
                 }
                 if (confirm) {
-                    confirm.onclick = (e) => {
-                        e.stopPropagation();
+                    confirm.onclick = () => {
                         const name = document.getElementById('p-name').value;
                         const id = document.getElementById('p-id').value;
-                        if(!name || !id) return alert("请填完整");
-                        const friend = { id, name, avatar: '👤', lastMessage: '[永久好友]', time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) };
+                        if(!name || !id) return alert("请填写完整信息");
                         if (isChecked) {
                             let list = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
                             if(!list.some(f => f.id === id)) {
-                                list.push(friend);
+                                list.push({ id, name, avatar: '👤', lastMessage: '[永久存档]', time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
                                 localStorage.setItem('ltz_permanent_friends', JSON.stringify(list));
                             }
                         }
-                        this.currentView = 'list';
-                        this.updateAppContent();
-                        alert("添加成功！已强制刷新硬盘数据。");
+                        location.reload(); // 强制刷新页面以应用新渲染
                     };
                 }
             };
 
-            // 4. 数据同步钩子
-            const oldUpdate = window.MessageApp.prototype.updateAppContent;
-            window.MessageApp.prototype.updateAppContent = function() {
-                mergePermanentFriends(this);
-                if (oldUpdate) oldUpdate.apply(this, arguments);
-            };
-
-            patchLog("补丁挂载成功！已接管渲染器。");
+            patchLog("补丁精修完成！渲染器冲突已解除。");
         }
     }, 1500);
 })();
