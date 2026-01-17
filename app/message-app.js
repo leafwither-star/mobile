@@ -6360,19 +6360,19 @@ if (typeof window.MessageApp === 'undefined') {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
+
 // ==========================================
-// ✨ 李至中的社交圈：永久好友全自动补丁 (独立挂载版)
+// ✨ 李至中的社交圈：永久好友全自动补丁 (极致兼容版)
 // ==========================================
-(function() {
+;(function() {
     const patchLog = (msg) => console.log(`%c[永久好友补丁] ${msg}`, "color: #007bff; font-weight: bold;");
     
     const patchInterval = setInterval(() => {
-        // 确保主程序类已经定义
+        // 确保类和原型都已经存在
         if (window.MessageApp && window.MessageApp.prototype) {
             clearInterval(patchInterval);
-            patchLog("检测到主程序，正在同步记忆...");
-
-            // 1. 定义名单融合函数
+            
+            // 1. 记忆同步逻辑
             const mergePermanentFriends = (instance) => {
                 try {
                     const saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
@@ -6385,33 +6385,25 @@ if (typeof window.MessageApp === 'undefined') {
                 } catch(e) { console.error("同步失败", e); }
             };
 
-            // 2. 拦截并增强渲染函数
+            // 2. 界面渲染拦截
             window.MessageApp.prototype.renderAddFriendTab = function() {
                 return `
-                    <div id="perm-patch-ui" style="padding:15px; background:white; border:2px solid #007bff; border-radius:10px; color:black; font-family:sans-serif;">
-                        <h4 style="margin:0 0 10px 0; font-size:14px; color:#007bff; display:flex; align-items:center; gap:5px;">👤 添加永久联系人</h4>
-                        <div style="margin-bottom:8px;">
-                            <label style="font-size:12px; display:block; margin-bottom:3px;">姓名：</label>
-                            <input type="text" id="p-name" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;">
+                    <div id="perm-patch-ui" style="padding:15px; background:white; border:2px solid #007bff; border-radius:10px; color:black;">
+                        <h4 style="margin:0 0 10px 0; font-size:14px; color:#007bff;">添加永久联系人</h4>
+                        <div style="margin-bottom:8px;"><label style="font-size:12px;">姓名：</label><input type="text" id="p-name" style="width:100%; padding:5px; border:1px solid #ccc;"></div>
+                        <div style="margin-bottom:8px;"><label style="font-size:12px;">ID：</label><input type="number" id="p-id" style="width:100%; padding:5px; border:1px solid #ccc;"></div>
+                        <div id="p-trigger" style="margin:10px 0; padding:10px; background:#f0f0f0; border-radius:5px; cursor:pointer; display:flex; align-items:center;">
+                            <div id="p-box" style="width:16px; height:16px; border:1px solid #999; margin-right:8px; background:white;"></div>
+                            <span style="font-size:12px;">保存为永久联系人</span>
                         </div>
-                        <div style="margin-bottom:8px;">
-                            <label style="font-size:12px; display:block; margin-bottom:3px;">ID：</label>
-                            <input type="number" id="p-id" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;">
-                        </div>
-                        <div id="p-trigger" style="margin:12px 0; padding:12px; background:#f8f9fa; border-radius:6px; cursor:pointer; display:flex; align-items:center; border:1px solid #dee2e6; transition:all 0.2s;">
-                            <div id="p-box" style="width:18px; height:18px; border:2px solid #adb5bd; margin-right:10px; background:white; border-radius:3px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:12px;">✓</div>
-                            <span style="font-size:13px; color:#495057; user-select:none;">保存为永久联系人 (跨页面保留)</span>
-                        </div>
-                        <button id="p-confirm" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,123,255,0.3);">确认添加</button>
-                    </div>
-                `;
+                        <button id="p-confirm" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:5px;">确认添加</button>
+                    </div>`;
             };
 
-            // 3. 拦截事件绑定
-            const originalBind = window.MessageApp.prototype.bindEvents;
+            // 3. 事件绑定拦截
+            const oldBind = window.MessageApp.prototype.bindEvents;
             window.MessageApp.prototype.bindEvents = function() {
-                if (originalBind) originalBind.apply(this, arguments);
-                
+                if (oldBind) oldBind.apply(this, arguments);
                 const trigger = document.getElementById('p-trigger');
                 const confirm = document.getElementById('p-confirm');
                 let isChecked = false;
@@ -6420,11 +6412,8 @@ if (typeof window.MessageApp === 'undefined') {
                     trigger.onclick = (e) => {
                         e.stopPropagation();
                         isChecked = !isChecked;
-                        trigger.style.background = isChecked ? '#e7f1ff' : '#f8f9fa';
-                        trigger.style.borderColor = isChecked ? '#007bff' : '#dee2e6';
-                        const box = document.getElementById('p-box');
-                        box.style.background = isChecked ? '#007bff' : 'white';
-                        box.style.borderColor = isChecked ? '#007bff' : '#adb5bd';
+                        trigger.style.background = isChecked ? '#e7f1ff' : '#f0f0f0';
+                        document.getElementById('p-box').style.background = isChecked ? '#007bff' : 'white';
                     };
                 }
 
@@ -6433,13 +6422,9 @@ if (typeof window.MessageApp === 'undefined') {
                         e.stopPropagation();
                         const name = document.getElementById('p-name').value;
                         const id = document.getElementById('p-id').value;
-                        if(!name || !id) return alert("请填写完整信息哦！");
+                        if(!name || !id) return alert("请填完整");
 
-                        const friend = { 
-                            id, name, avatar: '👤', 
-                            lastMessage: '[永久好友]', 
-                            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
-                        };
+                        const friend = { id, name, avatar: '👤', lastMessage: '[永久好友]', time: '刚刚' };
                         
                         if (isChecked) {
                             let list = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
@@ -6448,20 +6433,33 @@ if (typeof window.MessageApp === 'undefined') {
                                 localStorage.setItem('ltz_permanent_friends', JSON.stringify(list));
                             }
                         }
-                        
+
                         if (!this.friends) this.friends = [];
                         if (!this.friends.some(f => f.id === id)) {
                             this.friends.push(friend);
                         }
-                        
+
                         this.currentView = 'list';
                         mergePermanentFriends(this);
                         this.updateAppContent();
                         
-                        setTimeout(() => {
-                            if(this.refreshFriendListUI) this.refreshFriendListUI();
+                        setTimeout(() => { 
+                            if(this.refreshFriendListUI) this.refreshFriendListUI(); 
                         }, 100);
 
-                        alert(`成功把 ${name} 加入通讯录！`);
+                        alert("添加成功！");
                     };
                 }
+            };
+
+            // 4. 数据钩子拦截
+            const oldUpdate = window.MessageApp.prototype.updateAppContent;
+            window.MessageApp.prototype.updateAppContent = function() {
+                mergePermanentFriends(this);
+                if (oldUpdate) oldUpdate.apply(this, arguments);
+            };
+
+            patchLog("补丁挂载成功！已接管社交系统。");
+        }
+    }, 1500);
+})();
