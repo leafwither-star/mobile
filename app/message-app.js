@@ -6435,7 +6435,11 @@ if (typeof window.MessageApp === 'undefined') {
                         const id = document.getElementById('p-id').value;
                         if(!name || !id) return alert("请填写完整信息哦！");
 
-                        const friend = { id, name, avatar: '👤', lastMessage: '[永久好友]', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+                        const friend = { 
+                            id, name, avatar: '👤', 
+                            lastMessage: '[永久好友]', 
+                            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+                        };
                         
                         if (isChecked) {
                             let list = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
@@ -6446,23 +6450,18 @@ if (typeof window.MessageApp === 'undefined') {
                         }
                         
                         if (!this.friends) this.friends = [];
-                        if (!this.friends.some(f => f.id === id)) this.friends.push(friend);
+                        if (!this.friends.some(f => f.id === id)) {
+                            this.friends.push(friend);
+                        }
                         
                         this.currentView = 'list';
+                        mergePermanentFriends(this);
                         this.updateAppContent();
+                        
+                        setTimeout(() => {
+                            if(this.refreshFriendListUI) this.refreshFriendListUI();
+                        }, 100);
+
                         alert(`成功把 ${name} 加入通讯录！`);
                     };
                 }
-            };
-
-            // 4. 注入同步钩子
-            const originalUpdate = window.MessageApp.prototype.updateAppContent;
-            window.MessageApp.prototype.updateAppContent = function() {
-                mergePermanentFriends(this);
-                if (originalUpdate) originalUpdate.apply(this, arguments);
-            };
-
-            patchLog("补丁挂载成功，已接管社交系统。");
-        }
-    }, 1500); // 稍微延迟以确保主脚本完全运行
-})();
