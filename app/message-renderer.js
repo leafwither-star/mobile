@@ -118,8 +118,8 @@ if (typeof window.MessageRenderer === 'undefined') {
         messages.map((msg, i) => ({
           index: i,
           textPosition: msg.textPosition,
-          content: msg.content?.substring(0, 20) + '...',
-          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+          content: (msg.content ? msg.content.substring(0, 20) : "") + '...',
+          fullMatch: (msg.fullMatch ? msg.fullMatch.substring(0, 40) : "") + '...',
         })),
       );
 
