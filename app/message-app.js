@@ -261,24 +261,30 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-    // 刷新好友列表UI
+    // 刷新好友列表UI (已加入硬盘数据保护)
     refreshFriendListUI() {
       try {
         if (window.DEBUG_MESSAGE_APP) {
           console.log('[Message App] 🔄 刷新好友列表UI...');
         }
 
-        // 获取消息列表容器
+        // --- ✨ 魔改核心：强制从硬盘捞出永久好友，防止被同步器刷掉 ---
+        const savedFriends = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+        
+        // 检查硬盘里的每个人，如果当前列表中没有，就硬塞进去
+        savedFriends.forEach(saved => {
+          // 如果当前列表中找不到这个ID
+          if (!this.friends.find(f => f.id === saved.id)) {
+            console.log('[Message App] 🛡️ 保护永久好友:', saved.name);
+            this.friends.push(saved);
+          }
+        });
+        // --- ✨ 魔改结束 ---
+
+        // 获取消息列表容器 (以下是你原来的代码，保持原样)
         const messageListContainer = document.querySelector('.message-list');
         if (!messageListContainer) {
           console.warn('[Message App] 找不到消息列表容器');
-          return;
-        }
-
-        // 检查好友渲染器是否可用
-        if (typeof window.renderFriendsFromContext !== 'function') {
-          console.warn('[Message App] 好友渲染器不可用，尝试重新加载...');
-          this.loadFriendRenderer();
           return;
         }
 
@@ -2372,8 +2378,13 @@ if (typeof window.MessageApp === 'undefined') {
         btn.onclick = () => {
           this.currentTab = btn.getAttribute('data-tab');
           this.updateAppContent();
-          // 如果切换回添加页面，再次尝试补上勾选框
-          if (this.currentTab === 'add') this.showAddFriend();
+          
+          // 🔥 关键：只要切换到添加标签，就立刻补上勾选框
+          if (this.currentTab === 'add') {
+              setTimeout(() => {
+                  this.showAddFriend(); 
+              }, 50);
+          }
         };
       });
 
