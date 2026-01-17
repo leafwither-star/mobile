@@ -108,23 +108,7 @@ if (typeof window.MessageApp === 'undefined') {
       // 延迟渲染相关
       this.delayedRenderTimer = null; // 延迟渲染定时器
       this.delayedRenderDelay = 2000; // 延迟2秒
-      
-// --- ✨【这是我们要新增的永久好友逻辑】✨ ---
-      // 从浏览器“硬盘”读取永久好友名单
-      const savedFriends = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
-      
-      // 如果硬盘是空的，先默认给李至中安排陈一众和曹信（这样你第一次打开就有主角）
-      if (savedFriends.length === 0) {
-          this.friends = [
-              { id: '103', name: '陈一众', avatar: '👤', lastMessage: '[核心层]', time: '18:00' },
-              { id: '102', name: '曹信', avatar: '👤', lastMessage: '[核心层]', time: '昨天' }
-          ];
-      } else {
-          // 如果硬盘里有存过的好友，就直接读取出来
-          this.friends = savedFriends;
-      }
-      // ------------------------------------------
-      
+
       this.init();
     }
 
@@ -261,30 +245,24 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-    // 刷新好友列表UI (已加入硬盘数据保护)
+    // 刷新好友列表UI
     refreshFriendListUI() {
       try {
         if (window.DEBUG_MESSAGE_APP) {
           console.log('[Message App] 🔄 刷新好友列表UI...');
         }
 
-        // --- ✨ 魔改核心：强制从硬盘捞出永久好友，防止被同步器刷掉 ---
-        const savedFriends = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
-        
-        // 检查硬盘里的每个人，如果当前列表中没有，就硬塞进去
-        savedFriends.forEach(saved => {
-          // 如果当前列表中找不到这个ID
-          if (!this.friends.find(f => f.id === saved.id)) {
-            console.log('[Message App] 🛡️ 保护永久好友:', saved.name);
-            this.friends.push(saved);
-          }
-        });
-        // --- ✨ 魔改结束 ---
-
-        // 获取消息列表容器 (以下是你原来的代码，保持原样)
+        // 获取消息列表容器
         const messageListContainer = document.querySelector('.message-list');
         if (!messageListContainer) {
           console.warn('[Message App] 找不到消息列表容器');
+          return;
+        }
+
+        // 检查好友渲染器是否可用
+        if (typeof window.renderFriendsFromContext !== 'function') {
+          console.warn('[Message App] 好友渲染器不可用，尝试重新加载...');
+          this.loadFriendRenderer();
           return;
         }
 
@@ -1912,7 +1890,7 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-// 渲染添加好友tab
+    // 渲染添加好友tab
     renderAddFriendTab() {
       return `
             <div class="add-friend-form">
@@ -1924,12 +1902,6 @@ if (typeof window.MessageApp === 'undefined') {
                     <label for="friend-number">数字ID</label>
                     <input type="number" id="friend-number" class="form-input" placeholder="请输入数字ID">
                 </div>
-                
-                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px; border: 1px dashed #ccc; border-radius: 8px; background: rgba(0,0,0,0.02);">
-                    <input type="checkbox" id="is-permanent" style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="is-permanent" style="margin-bottom: 0; cursor: pointer; font-size: 13px; color: #444; font-weight: bold;">保存为永久联系人 (换页面不消失)</label>
-                </div>
-
                 <button class="add-friend-submit" id="add-friend-submit">
                     <span class="submit-icon">✅</span>
                     <span>添加好友</span>
@@ -1942,7 +1914,7 @@ if (typeof window.MessageApp === 'undefined') {
                 </div>
                 <div class="tip-item">
                     <span class="tip-icon">📝</span>
-                    <span>勾选永久后，该角色将固定在李至中的通讯录中</span>
+                    <span>格式：[好友id|好友名字|数字ID]</span>
                 </div>
             </div>
         `;
@@ -2356,91 +2328,38 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-// 绑定事件 (魔改版)
+    // 绑定事件
     bindEvents() {
       const appContent = document.getElementById('app-content');
       if (!appContent) return;
 
-      // 1. 返回按钮
+      // 绑定返回按钮事件
       const backButton = document.getElementById('back-button');
       if (backButton) {
-        backButton.onclick = () => {
-          if (this.currentView === 'messageDetail' || this.currentView === 'addFriend') {
-            this.currentView = 'list';
-            this.updateAppContent();
-          }
-        };
-      }
+        // 移除之前的事件监听器（如果存在）
+        backButton.removeEventListener('click', this.handleBackButtonClick);
 
-      // 2. 标签切换
-      const tabBtns = appContent.querySelectorAll('.tab-btn');
-      tabBtns.forEach(btn => {
-        btn.onclick = () => {
-          this.currentTab = btn.getAttribute('data-tab');
-          this.updateAppContent();
-          
-          // 🔥 关键：只要切换到添加标签，就立刻补上勾选框
-          if (this.currentTab === 'add') {
-              setTimeout(() => {
-                  this.showAddFriend(); 
-              }, 50);
-          }
-        };
-      });
-
-      // 3. 🔥 第三步核心：点击“✅ 添加好友”时的逻辑
-      const addFriendSubmit = appContent.querySelector('#add-friend-submit');
-      if (addFriendSubmit) {
-        addFriendSubmit.onclick = () => {
-          const name = appContent.querySelector('#friend-name').value;
-          const id = appContent.querySelector('#friend-number').value;
-          // 读取那个强制塞进去的勾选框
-          const isPermanentBtn = document.getElementById('is-permanent-checkbox');
-          const isPermanent = isPermanentBtn ? isPermanentBtn.checked : false;
-
-          if (!name || !id) {
-            alert('请完整填写名称和ID');
+        // 创建事件处理函数
+        this.handleBackButtonClick = () => {
+          // 检查当前是否在消息应用中
+          const currentApp = window.mobilePhone?.currentAppState?.app;
+          if (currentApp !== 'messages') {
+            console.log('[Message App] 当前不在消息应用中，跳过返回按钮处理');
             return;
           }
 
-          const newFriend = {
-            id: id,
-            name: name,
-            avatar: '👤',
-            lastMessage: isPermanent ? '[永久联系人]' : '新好友',
-            time: '刚刚',
-            isPermanent: isPermanent
-          };
-
-          // 加入内存
-          this.friends.push(newFriend);
-
-          // 如果勾选永久，写入硬盘 (LocalStorage)
-          if (isPermanent) {
-            let saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
-            if (!saved.find(f => f.id === id)) {
-              saved.push(newFriend);
-              localStorage.setItem('ltz_permanent_friends', JSON.stringify(saved));
-            }
+          console.log('[Message App] 返回按钮被点击');
+          if (this.currentView === 'detail' || this.currentView === 'messageDetail') {
+            // 如果当前在消息详情页面，返回到消息列表
+            this.showMessageList();
+          } else if (this.currentView === 'addFriend') {
+            // 如果当前在添加好友页面，返回到消息列表
+            this.showMessageList();
+          } else {
+            // 默认返回到消息列表
+            this.showMessageList();
           }
-
-          alert(`添加成功: ${name}`);
-          this.currentView = 'list';
-          this.updateAppContent();
         };
-      }
-
-      // 4. 列表点击逻辑
-      const friendItems = appContent.querySelectorAll('.friend-item');
-      friendItems.forEach(item => {
-        item.onclick = () => {
-          const id = item.getAttribute('data-id');
-          this.selectedFriend = this.friends.find(f => f.id === id);
-          this.currentView = 'messageDetail';
-          this.updateAppContent();
-        };
-      });
-    }
 
         // 添加新的事件监听器
         backButton.addEventListener('click', this.handleBackButtonClick);
@@ -4619,7 +4538,7 @@ if (typeof window.MessageApp === 'undefined') {
       setTimeout(() => toast.remove(), 2000);
     }
 
-    // 显示添加好友界面（已加入永久勾选框补丁）
+    // 显示添加好友界面
     showAddFriend() {
       this.currentView = 'addFriend';
       this.currentTab = 'add'; // 默认显示添加tab
@@ -4635,25 +4554,6 @@ if (typeof window.MessageApp === 'undefined') {
       }
 
       this.updateAppContent();
-
-      // 🔥【新增补丁逻辑】：强制在页面渲染后塞入勾选框
-      setTimeout(() => {
-        const form = document.querySelector('.add-friend-form');
-        // 如果表单存在，且里面还没加过这个勾选框
-        if (form && !document.getElementById('is-permanent-checkbox')) {
-             const div = document.createElement('div');
-             div.innerHTML = `
-                <div style="margin: 12px 0; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; border: 1px dashed #999;">
-                    <input type="checkbox" id="is-permanent-checkbox" style="width:18px; height:18px; cursor: pointer;">
-                    <label for="is-permanent-checkbox" style="font-size:13px; color:#333; cursor: pointer; font-weight: bold;">保存为永久联系人 (换页面不消失)</label>
-                </div>`;
-             // 把勾选框插在“添加好友”按钮的前面
-             const submitBtn = document.getElementById('add-friend-submit');
-             if (submitBtn) {
-                form.insertBefore(div, submitBtn);
-             }
-        }
-      }, 100); // 延迟0.1秒执行，确保DOM已经生成
     }
 
     // 显示消息列表
@@ -6459,3 +6359,110 @@ if (typeof window.MessageApp === 'undefined') {
 
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
+
+// ==========================================
+// ✨ 李至中的社交圈：永久好友全自动补丁 (独立挂载版)
+// ==========================================
+(function() {
+    const patchLog = (msg) => console.log(`%c[永久好友补丁] ${msg}`, "color: #007bff; font-weight: bold;");
+    
+    const patchInterval = setInterval(() => {
+        // 确保主程序类已经定义
+        if (window.MessageApp && window.MessageApp.prototype) {
+            clearInterval(patchInterval);
+            patchLog("检测到主程序，正在同步记忆...");
+
+            // 1. 定义名单融合函数
+            const mergePermanentFriends = (instance) => {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+                    if (!instance.friends) instance.friends = [];
+                    saved.forEach(f => {
+                        if (!instance.friends.some(curr => curr.id === f.id)) {
+                            instance.friends.push(f);
+                        }
+                    });
+                } catch(e) { console.error("同步失败", e); }
+            };
+
+            // 2. 拦截并增强渲染函数
+            window.MessageApp.prototype.renderAddFriendTab = function() {
+                return `
+                    <div id="perm-patch-ui" style="padding:15px; background:white; border:2px solid #007bff; border-radius:10px; color:black; font-family:sans-serif;">
+                        <h4 style="margin:0 0 10px 0; font-size:14px; color:#007bff; display:flex; align-items:center; gap:5px;">👤 添加永久联系人</h4>
+                        <div style="margin-bottom:8px;">
+                            <label style="font-size:12px; display:block; margin-bottom:3px;">姓名：</label>
+                            <input type="text" id="p-name" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;">
+                        </div>
+                        <div style="margin-bottom:8px;">
+                            <label style="font-size:12px; display:block; margin-bottom:3px;">ID：</label>
+                            <input type="number" id="p-id" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;">
+                        </div>
+                        <div id="p-trigger" style="margin:12px 0; padding:12px; background:#f8f9fa; border-radius:6px; cursor:pointer; display:flex; align-items:center; border:1px solid #dee2e6; transition:all 0.2s;">
+                            <div id="p-box" style="width:18px; height:18px; border:2px solid #adb5bd; margin-right:10px; background:white; border-radius:3px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:12px;">✓</div>
+                            <span style="font-size:13px; color:#495057; user-select:none;">保存为永久联系人 (跨页面保留)</span>
+                        </div>
+                        <button id="p-confirm" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,123,255,0.3);">确认添加</button>
+                    </div>
+                `;
+            };
+
+            // 3. 拦截事件绑定
+            const originalBind = window.MessageApp.prototype.bindEvents;
+            window.MessageApp.prototype.bindEvents = function() {
+                if (originalBind) originalBind.apply(this, arguments);
+                
+                const trigger = document.getElementById('p-trigger');
+                const confirm = document.getElementById('p-confirm');
+                let isChecked = false;
+
+                if (trigger) {
+                    trigger.onclick = (e) => {
+                        e.stopPropagation();
+                        isChecked = !isChecked;
+                        trigger.style.background = isChecked ? '#e7f1ff' : '#f8f9fa';
+                        trigger.style.borderColor = isChecked ? '#007bff' : '#dee2e6';
+                        const box = document.getElementById('p-box');
+                        box.style.background = isChecked ? '#007bff' : 'white';
+                        box.style.borderColor = isChecked ? '#007bff' : '#adb5bd';
+                    };
+                }
+
+                if (confirm) {
+                    confirm.onclick = (e) => {
+                        e.stopPropagation();
+                        const name = document.getElementById('p-name').value;
+                        const id = document.getElementById('p-id').value;
+                        if(!name || !id) return alert("请填写完整信息哦！");
+
+                        const friend = { id, name, avatar: '👤', lastMessage: '[永久好友]', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+                        
+                        if (isChecked) {
+                            let list = JSON.parse(localStorage.getItem('ltz_permanent_friends') || '[]');
+                            if(!list.some(f => f.id === id)) {
+                                list.push(friend);
+                                localStorage.setItem('ltz_permanent_friends', JSON.stringify(list));
+                            }
+                        }
+                        
+                        if (!this.friends) this.friends = [];
+                        if (!this.friends.some(f => f.id === id)) this.friends.push(friend);
+                        
+                        this.currentView = 'list';
+                        this.updateAppContent();
+                        alert(`成功把 ${name} 加入通讯录！`);
+                    };
+                }
+            };
+
+            // 4. 注入同步钩子
+            const originalUpdate = window.MessageApp.prototype.updateAppContent;
+            window.MessageApp.prototype.updateAppContent = function() {
+                mergePermanentFriends(this);
+                if (originalUpdate) originalUpdate.apply(this, arguments);
+            };
+
+            patchLog("补丁挂载成功，已接管社交系统。");
+        }
+    }, 1500); // 稍微延迟以确保主脚本完全运行
+})();
