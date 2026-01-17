@@ -1890,7 +1890,7 @@ if (typeof window.MessageApp === 'undefined') {
       }
     }
 
-    // 渲染添加好友tab
+// 渲染添加好友tab
     renderAddFriendTab() {
       return `
             <div class="add-friend-form">
@@ -1902,6 +1902,12 @@ if (typeof window.MessageApp === 'undefined') {
                     <label for="friend-number">数字ID</label>
                     <input type="number" id="friend-number" class="form-input" placeholder="请输入数字ID">
                 </div>
+                
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px; border: 1px dashed #ccc; border-radius: 8px; background: rgba(0,0,0,0.02);">
+                    <input type="checkbox" id="is-permanent" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="is-permanent" style="margin-bottom: 0; cursor: pointer; font-size: 13px; color: #444; font-weight: bold;">保存为永久联系人 (换页面不消失)</label>
+                </div>
+
                 <button class="add-friend-submit" id="add-friend-submit">
                     <span class="submit-icon">✅</span>
                     <span>添加好友</span>
@@ -1914,7 +1920,7 @@ if (typeof window.MessageApp === 'undefined') {
                 </div>
                 <div class="tip-item">
                     <span class="tip-icon">📝</span>
-                    <span>格式：[好友id|好友名字|数字ID]</span>
+                    <span>勾选永久后，该角色将固定在李至中的通讯录中</span>
                 </div>
             </div>
         `;
