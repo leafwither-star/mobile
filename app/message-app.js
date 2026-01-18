@@ -5117,30 +5117,32 @@ renderAddFriendTab() {
           this.bindEvents();
           this.bindDetailSendEvents();
           // ✨ --- 终极补救：跨页面时间瞬移术 ---
-        setTimeout(() => {
-            console.log("[Message App] 开始从主页面同步时间...");
-            // 1. 从主页面抓取所有时间标签
-            const rawTimes = document.body.innerText.match(/\[时间\|(\d{1,2}:\d{2})\]/g);
-            if (!rawTimes) return;
+        // ✨ 换成这个“合体版”：既负责精装修，又负责同步时间
+          setTimeout(() => {
+              console.log("[Message App] 准备开始精装修 & 同步时间...");
+              
+              // 1. 原有的精装修逻辑
+              if (this.applyChatDetailModernization) {
+                  this.applyChatDetailModernization();
+              }
 
-            // 2. 提取出干净的时间文字，如 "14:32"
-            const timeList = rawTimes.map(t => t.match(/\d{1,2}:\d{2}/)[0]);
-
-            // 3. 找到手机里所有的消息气泡
-            const bubbles = document.querySelectorAll('.message-detail');
-            
-            // 4. 按顺序给气泡戴上“时间表”
-            bubbles.forEach((bubble, index) => {
-                if (timeList[index] && !bubble.previousElementSibling?.classList.contains('chat-time-divider')) {
-                    const timeDiv = document.createElement('div');
-                    timeDiv.className = 'chat-time-divider';
-                    timeDiv.style.cssText = "text-align: center; margin: 15px 0; clear: both; width: 100%;";
-                    timeDiv.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px;">${timeList[index]}</span>`;
-                    
-                    bubble.parentNode.insertBefore(timeDiv, bubble);
-                }
-            });
-        }, 300); // 给渲染器留一点点“转圈圈”的时间
+              // 2. 新增的“机器人”时间同步逻辑
+              // 从主页面搜索时间碎片 [时间|xx:xx] 或 xx:xx
+              const timeMatch = document.body.innerText.match(/(\d{1,2}:\d{2})/g);
+              if (timeMatch) {
+                  const bubbles = document.querySelectorAll('.message-detail');
+                  bubbles.forEach((bubble, i) => {
+                      // 只有当气泡上方还没有时间条时，才插入
+                      if (timeMatch[i] && !bubble.previousElementSibling?.classList.contains('chat-time-divider')) {
+                          const timeBar = document.createElement('div');
+                          timeBar.className = 'chat-time-divider manual-time'; // 加入 manual-time 方便标记
+                          timeBar.style.cssText = "text-align: center; margin: 12px 0; clear: both; width: 100%; display: block;";
+                          timeBar.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-family: sans-serif;">${timeMatch[i]}</span>`;
+                          bubble.parentNode.insertBefore(timeBar, bubble);
+                      }
+                  });
+              }
+          }, 300); // 稍微多给 100ms，确保气泡和装修都准备就绪
         }
       }
     }
