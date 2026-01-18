@@ -53,7 +53,7 @@ if (typeof window.MessageRenderer === 'undefined') {
     }
 
      /**
-     * 🔥 从原始文本中解析消息（定制修复版）
+     * 🔥 从原始文本中解析消息（保持完美顺序）
      */
     parseMessagesFromRawText(rawText) {
       const messages = [];
@@ -65,20 +65,23 @@ if (typeof window.MessageRenderer === 'undefined') {
       while ((match = messageRegex.exec(rawText)) !== null) {
         const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
+        // 根据消息类型正确映射字段
         let sender, number, msgType, content;
 
         if (messageType === '群聊消息') {
-          sender = field2; 
-          number = field1; 
-          msgType = field3; 
-          content = field4;
-        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-          // 🚀 核心改动：无论是我方私聊还是群聊，统一显示为“李至中”
-          sender = '李至中'; 
-          number = field2; 
-          msgType = field3; 
-          content = field4;
+          // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
+          sender = field2; // 发送者
+          number = field1; // 群ID (用于匹配)
+          msgType = field3; // 消息类型
+          content = field4; // 消息内容
+        } else if (messageType === '我方群聊消息') {
+          // 我方群聊消息格式：[我方群聊消息|我|群ID|消息类型|消息内容]
+          sender = '我'; // 固定为"我"
+          number = field2; // 群ID (用于匹配)
+          msgType = field3; // 消息类型
+          content = field4; // 消息内容
         } else {
+          // 普通消息格式：[我方消息|我|好友号|消息内容|时间] 或 [对方消息|好友名|好友号|消息类型|消息内容]
           sender = field1;
           number = field2;
           msgType = field3;
@@ -92,23 +95,24 @@ if (typeof window.MessageRenderer === 'undefined') {
           number: number,
           msgType: msgType,
           content: content,
-          textPosition: match.index,
-          contextOrder: position++,
+          textPosition: match.index, // 🔥 关键：记录在原始文本中的位置
+          contextOrder: position++, // 🔥 关键：记录解析顺序
         });
       }
 
-      // 保持原有的排序逻辑
+      // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
+      // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
       messages.sort((a, b) => a.textPosition - b.textPosition);
+      console.log('[Message Renderer] 按原始文本位置排序，确保时间顺序正确');
 
-      // 🔥 关键兼容性修复：将原版中带有 ?. 的 console.log 改为普通写法
-      console.log('[Message Renderer] 解析完成，消息数量:', messages.length);
+      console.log('[Message Renderer] 从原始文本解析到', messages.length, '条消息');
       console.log(
         '[Message Renderer] 排序后的消息顺序:',
         messages.map((msg, i) => ({
           index: i,
           textPosition: msg.textPosition,
-          content: (msg.content ? msg.content.substring(0, 20) : '') + '...',
-          fullMatch: (msg.fullMatch ? msg.fullMatch.substring(0, 40) : '') + '...'
+          content: msg.content?.substring(0, 20) + '...',
+          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
         })),
       );
 
