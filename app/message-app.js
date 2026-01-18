@@ -1892,6 +1892,32 @@ if (typeof window.MessageApp === 'undefined') {
 
     // 渲染添加好友tab
 renderAddFriendTab() {
+      // 先从保险箱拿名单
+      let savedFriends = [];
+      try {
+        savedFriends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+      } catch(e) {}
+
+      // 生成管理列表的HTML（如果没有好友就不显示）
+      let managementHtml = '';
+      if (savedFriends.length > 0) {
+        managementHtml = `
+          <div class="permanent-management" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
+            <div style="font-size: 12px; font-weight: bold; color: #666; margin-bottom: 8px;">永久名单管理 (删除后需刷新页面)</div>
+            ${savedFriends.map((f, index) => {
+              const match = f.match(/\[好友id\|([^|]*)\|(\d+)\]/);
+              const name = match ? match[1] : '未知';
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; background: rgba(0,0,0,0.03); padding: 4px 8px; border-radius: 4px;">
+                  <span style="font-size: 12px;">👤 ${name}</span>
+                  <button class="delete-permanent-btn" data-index="${index}" style="background: #ff4d4f; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+
       return `
             <div class="add-friend-form">
                 <div class="form-group">
@@ -1904,8 +1930,7 @@ renderAddFriendTab() {
                 </div>
                 
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 5px 0 15px 0; padding: 5px; background: rgba(0,0,0,0.05); border-radius: 4px;">
-                    <input type="checkbox" id="make-permanent-checkbox" 
-       style="width: 18px; height: 18px; cursor: pointer; accent-color: #007bff; -webkit-appearance: checkbox !important; appearance: checkbox !important;">
+                    <input type="checkbox" id="make-permanent-checkbox" style="width: 18px; height: 18px; cursor: pointer; accent-color: #007bff; -webkit-appearance: checkbox !important; appearance: checkbox !important;">
                     <label for="make-permanent-checkbox" style="cursor: pointer; font-size: 13px; color: #555; margin-bottom: 0;">同步到永久通讯录</label>
                 </div>
 
@@ -1913,15 +1938,13 @@ renderAddFriendTab() {
                     <span class="submit-icon">✅</span>
                     <span>添加好友</span>
                 </button>
+                
+                ${managementHtml}
             </div>
             <div class="add-friend-tips">
                 <div class="tip-item">
                     <span class="tip-icon">💡</span>
-                    <span>添加好友后，信息会自动编辑到最新楼层</span>
-                </div>
-                <div class="tip-item">
-                    <span class="tip-icon">📝</span>
-                    <span>格式：[好友id|好友名字|数字ID]</span>
+                    <span>添加后，即使删除消息记录好友也会留下</span>
                 </div>
             </div>
         `;
