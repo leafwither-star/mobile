@@ -1892,11 +1892,17 @@ if (typeof window.MessageApp === 'undefined') {
         items.forEach(item => listContainer.appendChild(item));
     }
 
-    // --- 3. 贴纸逻辑 ---
+// --- 3. 贴纸与红点逻辑 (亲妈作者版) ---
     items.forEach(item => {
       const id = item.getAttribute('data-friend-id');
       const time = timeMap[id];
+      const latestOrder = orderMap[id] || 0; // 该好友当前在酒馆里最新的消息 ID
+      
+      // 从本地存储读取上一次“点开聊天框”时记录的 ID
+      const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+
       if (time) {
+        // 1. 先处理时间戳 (保持你完美的样式)
         const old = item.querySelector('.custom-timestamp');
         if (old) old.remove();
         item.style.position = 'relative';
@@ -1909,9 +1915,32 @@ if (typeof window.MessageApp === 'undefined') {
           pointer-events: none; z-index: 5;
         `;
         item.appendChild(timeSpan);
+
+        // 2. 红点逻辑：如果酒馆有了新消息，且你还没点开看过
+        let dot = item.querySelector('.unread-dot');
+        if (latestOrder > lastReadOrder) {
+          if (!dot) {
+            dot = document.createElement('div');
+            dot.className = 'unread-dot';
+            // 这里的 left: 38px 和 top: -2px 是根据 45px 的头像微调的
+            dot.style.cssText = `
+              position: absolute; top: -2px; left: 38px; 
+              width: 10px; height: 10px; background: #ff4d4f; 
+              border-radius: 50%; border: 2px solid white; z-index: 10;
+              box-shadow: 0 0 2px rgba(0,0,0,0.2);
+            `;
+            // 寻找头像所在的那个容器并贴上去
+            const avatarContainer = item.querySelector('div[style*="relative"]') || item.firstElementChild;
+            avatarContainer.appendChild(dot);
+          }
+        } else {
+          // 如果已经读过了，就把红点摘掉
+          if (dot) dot.remove();
+        }
       }
     });
   }
+    
     // 渲染添加好友界面
     renderAddFriend() {
       return `
