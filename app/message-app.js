@@ -1904,17 +1904,16 @@ if (typeof window.MessageApp === 'undefined') {
         timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
         item.appendChild(timeSpan);
 
-        // 2. 红点处理 (暴力纠偏版)
+        // 2. 红点处理 (亲妈作者调校版)
         let dot = item.querySelector('.unread-dot');
         if (latestOrder > 0 && latestOrder > lastReadOrder) {
           if (!dot) {
             dot = document.createElement('div');
             dot.className = 'unread-dot';
-            // 我们把 left 改小一点 (28px)，并极大化 z-index 确保它在最前面
             dot.style.cssText = `
               position: absolute; 
-              top: 0px; 
-              left: 30px; 
+              top: 10px; 
+              left: 58px; 
               width: 10px; 
               height: 10px; 
               background: #ff4d4f !important; 
@@ -1923,10 +1922,10 @@ if (typeof window.MessageApp === 'undefined') {
               z-index: 9999 !important;
               display: block !important;
               box-shadow: 0 0 4px rgba(0,0,0,0.3);
+              pointer-events: none;
             `;
             
-            // 重点修复：我们要把红点贴在 item 本身上，而不是头像容器里
-            // 这样可以绕过头像容器的 overflow: hidden
+            // 贴在 item 上，确保不会被裁剪
             item.style.position = 'relative';
             item.appendChild(dot);
           }
