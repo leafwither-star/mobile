@@ -1844,13 +1844,12 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    // 微信化补丁：无损添加时间戳 (作者亲妈专供稳定版)
-  applyModernLayout() {
+    applyModernLayout() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // 1. 地毯式扫描：建立 ID -> 最新时间的字典
     const timeMap = {};
+    const orderMap = {}; // 新增：用来记录谁的消息更靠后（更新）
     const mesBlocks = document.querySelectorAll('.mes');
     
     mesBlocks.forEach(block => {
@@ -1859,42 +1858,49 @@ if (typeof window.MessageApp === 'undefined') {
       if (idMatches) {
         const ids = idMatches.map(m => m.replace(/\|/g, ''));
         const timeMatches = text.match(/\[时间\|(\d{1,2}:\d{2})\]/g);
+        
+        // 获取该块的原始 ID (mesid)，数字越大代表消息越新
+        const mesId = parseInt(block.getAttribute('mesid') || 0);
+
         if (timeMatches && timeMatches.length > 0) {
           const latestTime = timeMatches[timeMatches.length - 1].match(/\d{1,2}:\d{2}/)[0];
-          ids.forEach(id => { timeMap[id] = latestTime; });
+          ids.forEach(id => { 
+            timeMap[id] = latestTime; 
+            // 记录该好友对应的最新消息权重
+            if (!orderMap[id] || mesId > orderMap[id]) {
+                orderMap[id] = mesId;
+            }
+          });
         }
       }
     });
 
-    // 2. 贴纸逻辑：在不破坏原生结构的前提下，精准贴上时间戳
-    const items = listContainer.querySelectorAll('.message-item');
+    // --- 新增：执行置顶排序逻辑 ---
+    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.sort((a, b) => {
+        const idA = a.getAttribute('data-friend-id');
+        const idB = b.getAttribute('data-friend-id');
+        return (orderMap[idB] || 0) - (orderMap[idA] || 0); // 权重大的排前面
+    });
+    // 重新按顺序插入到页面中
+    items.forEach(item => listContainer.appendChild(item));
+    // ----------------------------
+
+    // 2. 贴纸逻辑 (保持不变)
     items.forEach(item => {
       const id = item.getAttribute('data-friend-id');
       const time = timeMap[id];
-      
       if (time) {
-        // 先清理可能存在的旧标签
         const old = item.querySelector('.custom-timestamp');
         if (old) old.remove();
-
-        // 确保父容器可以承载定位
         item.style.position = 'relative';
-
-        // 创建时间戳元素
         const timeSpan = document.createElement('span');
         timeSpan.className = 'custom-timestamp';
         timeSpan.innerText = time;
-        
-        // 样式适配：右上角对齐，不干扰原有文字
         timeSpan.style.cssText = `
-          position: absolute;
-          top: 10px;
-          right: 15px;
-          font-size: 11px;
-          color: #b0b0b0;
-          font-family: sans-serif;
-          pointer-events: none;
-          z-index: 5;
+          position: absolute; top: 10px; right: 15px;
+          font-size: 11px; color: #b0b0b0; font-family: sans-serif;
+          pointer-events: none; z-index: 5;
         `;
         item.appendChild(timeSpan);
       }
