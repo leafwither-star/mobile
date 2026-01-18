@@ -2390,30 +2390,12 @@ if (typeof window.MessageApp === 'undefined') {
       });
 
       // 添加好友提交按钮
-const submitBtn = appContent.querySelector('#add-friend-submit');
-if (submitBtn) {
-  submitBtn.addEventListener('click', () => {
-    // --- 新加的逻辑：在点击添加时，先把信息存进“保险箱” ---
-    const friendName = appContent.querySelector('#friend-name')?.value;
-    const friendNumber = appContent.querySelector('#friend-number')?.value;
-
-    if (friendName && friendNumber) {
-      const friendInfo = `[好友id|${friendName}|${friendNumber}]`;
-      let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-      if (!friends.includes(friendInfo)) {
-        friends.push(friendInfo);
-        localStorage.setItem('permanent_friends', JSON.stringify(friends));
-        console.log('✅ 已将该好友存入永久保险箱');
+      const submitBtn = appContent.querySelector('#add-friend-submit');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', () => {
+          this.addFriend();
+        });
       }
-    }
-    // --- 原有逻辑：让它继续去发那条消息 ---
-    this.addFriend();
-  });
-}
-        // 3. 执行插件原有的添加逻辑（发消息到聊天楼层）
-        this.addFriend(); 
-    });
-}
 
       // 刷新好友列表按钮
       const refreshBtn = appContent.querySelector('#refresh-friend-list');
