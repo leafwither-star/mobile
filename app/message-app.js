@@ -2390,29 +2390,26 @@ if (typeof window.MessageApp === 'undefined') {
       });
 
       // 添加好友提交按钮
-      const submitBtn = appContent.querySelector('#add-friend-submit');
+const submitBtn = appContent.querySelector('#add-friend-submit');
 if (submitBtn) {
-    submitBtn.addEventListener('click', () => {
-        // 1. 获取输入框里的内容（注意 ID 要对应）
-        const friendName = appContent.querySelector('#friend-name')?.value;
-        const friendNumber = appContent.querySelector('#friend-number')?.value;
+  submitBtn.addEventListener('click', () => {
+    // --- 新加的逻辑：在点击添加时，先把信息存进“保险箱” ---
+    const friendName = appContent.querySelector('#friend-name')?.value;
+    const friendNumber = appContent.querySelector('#friend-number')?.value;
 
-        if (friendName && friendNumber) {
-            const friendInfo = `[好友id|${friendName}|${friendNumber}]`;
-            
-            // 2. 存入永久通讯录
-            try {
-                let permanentFriends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-                if (!permanentFriends.includes(friendInfo)) {
-                    permanentFriends.push(friendInfo);
-                    localStorage.setItem('permanent_friends', JSON.stringify(permanentFriends));
-                    console.log('%c[通讯录同步] ✅ 已存入永久名单:', 'color: #00ff00; font-weight: bold;', friendInfo);
-                }
-            } catch (e) {
-                console.error('[通讯录同步] ❌ 存储失败:', e);
-            }
-        }
-
+    if (friendName && friendNumber) {
+      const friendInfo = `[好友id|${friendName}|${friendNumber}]`;
+      let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+      if (!friends.includes(friendInfo)) {
+        friends.push(friendInfo);
+        localStorage.setItem('permanent_friends', JSON.stringify(friends));
+        console.log('✅ 已将该好友存入永久保险箱');
+      }
+    }
+    // --- 原有逻辑：让它继续去发那条消息 ---
+    this.addFriend();
+  });
+}
         // 3. 执行插件原有的添加逻辑（发消息到聊天楼层）
         this.addFriend(); 
     });
