@@ -1843,31 +1843,35 @@ if (typeof window.MessageApp === 'undefined') {
             </div>
         `;
     }
-
-    const style = document.createElement('style');
-style.innerHTML = `
-    /* 无痕红点：靠属性驱动 */
-    .message-item[data-unread="true"]::after {
-        content: '';
-        position: absolute;
-        top: 10px;
-        left: 55px;
-        width: 10px;
-        height: 10px;
-        background: #ff4d4f;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        z-index: 999;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-`;
-document.head.appendChild(style);
     
    applyModernLayout() {
+    // 【修复核心】将 CSS 注入挪到函数内部，确保不会触发脚本加载错误
+    if (!document.getElementById('ios-notification-style')) {
+        const style = document.createElement('style');
+        style.id = 'ios-notification-style';
+        style.innerHTML = `
+            /* 无痕红点：靠属性驱动 */
+            .message-item[data-unread="true"]::after {
+                content: '';
+                position: absolute;
+                top: 10px;
+                left: 55px;
+                width: 10px;
+                height: 10px;
+                background: #ff4d4f;
+                border: 2px solid #fff;
+                border-radius: 50%;
+                z-index: 999;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // 提取数据（保持你原来的提取逻辑）
+    // --- 数据提取逻辑 (保持不变) ---
     const orderMap = {};
     const mesBlocks = document.querySelectorAll('.mes');
     mesBlocks.forEach(block => {
@@ -1880,21 +1884,22 @@ document.head.appendChild(style);
         }
     });
 
-    // 渲染：只改属性，不改 HTML
+    // --- 渲染逻辑 ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
         const latestOrder = orderMap[id] || 0;
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
         
+        // 只改属性，保住本地头像
         if (latestOrder > lastReadOrder) {
-            item.setAttribute('data-unread', 'true'); // 激活 CSS 红点
+            item.setAttribute('data-unread', 'true');
         } else {
-            item.removeAttribute('data-unread');      // 关闭 CSS 红点
+            item.removeAttribute('data-unread');
         }
     });
 
-    // 排序逻辑（只有顺序变了才挪动，保护头像）
+    // --- 排序逻辑 ---
     const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
     if (items.length > 0 && items[0] !== sorted[0]) {
         sorted.forEach(el => listContainer.appendChild(el));
