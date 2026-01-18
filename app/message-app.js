@@ -5014,6 +5014,39 @@ renderAddFriendTab() {
             tempDiv.insertAdjacentHTML('beforeend', newFooterHTML);
           }
 
+          // ✨ --- 在这里插入“时间分隔条”装修逻辑 ---
+          const allMessages = tempDiv.querySelectorAll('.message-detail');
+          let lastSeenTime = null;
+
+          allMessages.forEach(msg => {
+            // 尝试在气泡的文字内容里寻找 [时间|xx:xx]
+            const textContent = msg.innerText || "";
+            const timeMatch = textContent.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+
+            if (timeMatch) {
+              const currentTime = timeMatch[1];
+              
+              // 微信逻辑：如果这个时间跟上一个时间不一样，就显示出来
+              if (currentTime !== lastSeenTime) {
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'chat-time-bubble'; // 这样也能用到你CSS里的样式
+                timeDiv.style.cssText = "text-align: center; margin: 12px 0; width: 100%; clear: both;";
+                timeDiv.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px;">${currentTime}</span>`;
+                
+                // 插入到消息气泡之前
+                msg.parentNode.insertBefore(timeDiv, msg);
+                lastSeenTime = currentTime;
+              }
+              
+              // 顺手把消息气泡里那个还没被渲染器过滤掉的 [时间|xx:xx] 文字删掉，保持气泡美观
+              const body = msg.querySelector('.message-body');
+              if (body) {
+                body.innerHTML = body.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
+              }
+            }
+          });
+          // ---------------------------------------
+          
           finalContent = tempDiv.innerHTML;
           appContent.innerHTML = finalContent;
 
