@@ -1853,88 +1853,69 @@ if (typeof window.MessageApp === 'undefined') {
     const mesBlocks = document.querySelectorAll('.mes');
     
     mesBlocks.forEach(block => {
-      const text = block.innerText;
-      const lines = text.split('\n');
-      let currentTime = '';
-      const mesId = parseInt(block.getAttribute('mesid') || 0);
-
-      lines.forEach(line => {
-        const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-        if (timeMatch) currentTime = timeMatch[1];
-
-        const idMatch = line.match(/\|(\d+)\|/);
-        if (idMatch && currentTime) {
-          const id = idMatch[1];
-          timeMap[id] = currentTime;
-          // 记录谁的消息更新（mesId更大）
-          if (!orderMap[id] || mesId > orderMap[id]) {
-            orderMap[id] = mesId;
-          }
-        }
-      });
+        const text = block.innerText;
+        const lines = text.split('\n');
+        let currentTime = '';
+        const mesId = parseInt(block.getAttribute('mesid') || 0);
+        lines.forEach(line => {
+            const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+            if (timeMatch) currentTime = timeMatch[1];
+            const idMatch = line.match(/\|(\d+)\|/);
+            if (idMatch && currentTime) {
+                const id = idMatch[1];
+                timeMap[id] = currentTime;
+                if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
+            }
+        });
     });
 
-    // 【关键修复 1】把数据存入全局，方便红点判定
     window.latestOrderMap = orderMap;
 
-    // --- 2. 执行置顶排序逻辑 (保持不变) ---
+    // --- 2. 置顶排序 (优化：不盲目移动节点，防止头像丢失) ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     if (items.length > 0) {
-        items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
-        items.forEach(item => listContainer.appendChild(item));
+        const sortedItems = [...items].sort((a, b) => 
+            (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0)
+        );
+        // 只有当顺序真的变了，才重新排列
+        if (items[0] !== sortedItems[0]) {
+            sortedItems.forEach(item => listContainer.appendChild(item));
+        }
     }
 
-    // --- 3. 贴纸与红点逻辑 (加固版) ---
+    // --- 3. 贴纸与红点 (保持原有逻辑，确保 appendChild) ---
     items.forEach(item => {
-      const id = item.getAttribute('data-friend-id');
-      const time = timeMap[id];
-      const latestOrder = orderMap[id] || 0;
-      
-      // 读取已读记录，如果没有读过，默认为 0
-      const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+        const id = item.getAttribute('data-friend-id');
+        const time = timeMap[id];
+        const latestOrder = orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-      if (time) {
-        // 1. 处理时间戳 (保持完美)
-        const old = item.querySelector('.custom-timestamp');
-        if (old) old.remove();
-        item.style.position = 'relative';
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'custom-timestamp';
-        timeSpan.innerText = time;
-        timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
-        item.appendChild(timeSpan);
+        if (time) {
+            // 时间戳处理
+            let timeSpan = item.querySelector('.custom-timestamp');
+            if (!timeSpan) {
+                timeSpan = document.createElement('span');
+                timeSpan.className = 'custom-timestamp';
+                item.appendChild(timeSpan);
+            }
+            timeSpan.innerText = time;
+            timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
 
-        // 2. 红点处理 (亲妈作者调校版)
-        let dot = item.querySelector('.unread-dot');
-        if (latestOrder > 0 && latestOrder > lastReadOrder) {
-          if (!dot) {
-            dot = document.createElement('div');
-            dot.className = 'unread-dot';
-            dot.style.cssText = `
-              position: absolute; 
-              top: 10px; 
-              left: 58px; 
-              width: 10px; 
-              height: 10px; 
-              background: #ff4d4f !important; 
-              border-radius: 50%; 
-              border: 1.5px solid white; 
-              z-index: 9999 !important;
-              display: block !important;
-              box-shadow: 0 0 4px rgba(0,0,0,0.3);
-              pointer-events: none;
-            `;
-            
-            // 贴在 item 上，确保不会被裁剪
-            item.style.position = 'relative';
-            item.appendChild(dot);
-          }
-        } else {
-          if (dot) dot.remove();
+            // 红点处理
+            let dot = item.querySelector('.unread-dot');
+            if (latestOrder > 0 && latestOrder > lastReadOrder) {
+                if (!dot) {
+                    dot = document.createElement('div');
+                    dot.className = 'unread-dot';
+                    item.appendChild(dot);
+                }
+                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
+            } else if (dot) {
+                dot.remove();
+            }
         }
-      }
     });
-  }
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6578,81 +6559,45 @@ renderAddFriendTab() {
     }, 1000); // 每秒检查一次直到加载
 })();
 
-(function theFinalPerfectLink() {
-    console.log("🚀 [系统启动] 弹窗通知 + 红点加固引擎已就位");
-
-    // 1. 🎵 提示音
+(function startTheFinalEngine() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
     let lastMsgKey = "";
 
-    // 2. ⚡ 核心雷达
     const observer = new MutationObserver(() => {
-        const p = Array.from(document.querySelectorAll('p')).find(el => el.innerText.includes('[手机快讯]'));
+        // 只要页面动了，就刷一遍红点
+        if (typeof applyModernLayout === 'function') applyModernLayout();
+
+        // 寻找快讯
+        const p = Array.from(document.querySelectorAll('p, div')).find(el => el.innerText.includes('[手机快讯]'));
         if (!p) return;
 
         const lines = p.innerText.trim().split('\n');
-        const lastLine = lines[lines.length - 1];
+        const lastLine = lines.findLast(l => l.includes('[对方消息|'));
 
-        // 判定：快讯里出现了新的对方消息
-        if (lastLine.includes('[对方消息|') && lastLine !== lastMsgKey) {
+        if (lastLine && lastLine !== lastMsgKey) {
             lastMsgKey = lastLine;
-            
             const parts = lastLine.split('|');
             const name = parts[1];
-            const content = parts[4] ? parts[4].replace(']', '') : "新消息";
+            const content = parts[4]?.replace(']', '') || "新消息";
 
-            // --- 重点：强制触发红点刷新 ---
-            // 延迟一小会儿执行，等系统把 Swipe 的数据写进 HTML
-            setTimeout(() => {
-                console.log("🔔 检测到新消息，正在强制刷新红点...");
-                if (typeof applyModernLayout === 'function') {
-                    applyModernLayout();
-                }
-            }, 500); 
-
-            // --- 弹出 iOS 风格通知 ---
+            // 📢 只要没在生成，就强制弹窗 + 响铃
             if (!document.body.innerText.includes("generating...")) {
-                triggerPrettyToast(name, content);
+                bubbleSound.play().catch(() => {});
+                
+                // 移除旧弹窗
+                document.querySelectorAll('.ios-toast').forEach(t => t.remove());
+
+                const toast = document.createElement('div');
+                toast.className = 'ios-toast';
+                // 这里的 z-index 我设到了天文数字，保证它在最前面
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 380px; height: 80px; background: white; border-radius: 20px; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 1000000000; cursor: pointer; border: 1px solid #ddd;";
+                toast.innerHTML = `<div style="width:50px; height:50px; background:#007aff; border-radius:12px; margin-right:15px; display:flex; align-items:center; justify-content:center; color:white; font-size:24px;">💬</div><div style="flex:1;"><div style="font-weight:bold; color:black;">${name}</div><div style="color:#555; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">${content}</div></div>`;
+                
+                document.body.appendChild(toast);
+                setTimeout(() => { if(toast) toast.remove(); }, 5000);
+                toast.onclick = () => { if (window.app) window.app.currentView = 'messageDetail'; toast.remove(); };
             }
         }
     });
-
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-    // 3. 🎨 弹窗 UI 逻辑
-    function triggerPrettyToast(name, text) {
-        bubbleSound.play().catch(() => {});
-        const toast = document.createElement('div');
-        // 样式加固，确保不被页面原有样式污染
-        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px) saturate(180%); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
-        
-        toast.innerHTML = `
-            <img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;">
-            <div style="flex:1; overflow:hidden;">
-                <div style="font-weight:700; font-size:16px; color:#000;">${name}</div>
-                <div style="color:#444; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px;">${text}</div>
-            </div>
-        `;
-
-        document.body.appendChild(toast);
-        setTimeout(() => toast.style.top = '25px', 100);
-
-        toast.onclick = () => {
-            toast.style.transform = 'translateX(-50%) scale(0.92)';
-            setTimeout(() => {
-                toast.style.top = '-120px';
-                // 自动跳转详情页
-                if (window.app) window.app.currentView = 'messageDetail';
-                setTimeout(() => toast.remove(), 800);
-            }, 150);
-        };
-        
-        // 6秒后自动消失
-        setTimeout(() => {
-            if(toast.parentNode) {
-                toast.style.top = '-120px';
-                setTimeout(()=>toast.remove(), 800);
-            }
-        }, 6000);
-    }
 })();
