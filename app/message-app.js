@@ -6396,3 +6396,58 @@ renderAddFriendTab() {
 
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
+
+/** * 🛠️ 永久通讯录补丁 - 强制注入逻辑
+ * 无论插件原本逻辑如何，都会在这里把 localStorage 的好友合并进去
+ */
+(function injectPermanentFriends() {
+    // 等待 window.friendRenderer 加载完成
+    const interval = setInterval(() => {
+        if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
+            clearInterval(interval);
+            
+            // 备份原有的提取函数
+            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
+            
+            // 重写该函数
+            window.friendRenderer.extractFriendsFromContext = function() {
+                // 1. 先获取原本从聊天记录里提取的好友
+                let contacts = originalExtract();
+                
+                try {
+                    // 2. 读取保险箱里的永久好友
+                    const savedData = localStorage.getItem('permanent_friends');
+                    if (savedData) {
+                        const permanentFriends = JSON.parse(savedData);
+                        const friendPattern = /\[好友id\|([^|]*)\|(\d+)\]/;
+                        
+                        permanentFriends.forEach(friendStr => {
+                            const match = friendStr.match(friendPattern);
+                            if (match) {
+                                const fName = match[1];
+                                const fId = match[2];
+                                
+                                // 3. 检查是否重复，不重复则塞入
+                                if (!contacts.some(c => String(c.number) === String(fId))) {
+                                    contacts.push({
+                                        character: fName,
+                                        number: fId,
+                                        name: fName,
+                                        isGroup: false,
+                                        lastMessage: "✨ 永久联系人",
+                                        time: ""
+                                    });
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('[补丁] 注入永久好友失败:', e);
+                }
+                
+                return contacts;
+            };
+            console.log('%c🚀 李至中的永久通讯录补丁已激活！', 'color: #00ffff; font-weight: bold;');
+        }
+    }, 1000); // 每秒检查一次直到加载
+})();
