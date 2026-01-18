@@ -1844,7 +1844,11 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    applyModernLayout() {
+   applyModernLayout() {
+    // 【关键修复】先获取容器，否则后面排序会报错
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
+
     // 1. 精细化扫描：建立 ID -> 属于该 ID 的最后时间的字典
     const timeMap = {};
     const orderMap = {};
@@ -1876,18 +1880,19 @@ if (typeof window.MessageApp === 'undefined') {
       });
     });
 
-    // --- 新增：执行置顶排序逻辑 ---
+    // --- 2. 执行置顶排序逻辑 ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    items.sort((a, b) => {
-        const idA = a.getAttribute('data-friend-id');
-        const idB = b.getAttribute('data-friend-id');
-        return (orderMap[idB] || 0) - (orderMap[idA] || 0); // 权重大的排前面
-    });
-    // 重新按顺序插入到页面中
-    items.forEach(item => listContainer.appendChild(item));
-    // ----------------------------
+    if (items.length > 0) {
+        items.sort((a, b) => {
+            const idA = a.getAttribute('data-friend-id');
+            const idB = b.getAttribute('data-friend-id');
+            return (orderMap[idB] || 0) - (orderMap[idA] || 0); // 权重大的排前面
+        });
+        // 重新按顺序插入到页面中
+        items.forEach(item => listContainer.appendChild(item));
+    }
 
-    // 2. 贴纸逻辑 (保持不变)
+    // --- 3. 贴纸逻辑 ---
     items.forEach(item => {
       const id = item.getAttribute('data-friend-id');
       const time = timeMap[id];
@@ -1907,7 +1912,6 @@ if (typeof window.MessageApp === 'undefined') {
       }
     });
   }
-
     // 渲染添加好友界面
     renderAddFriend() {
       return `
