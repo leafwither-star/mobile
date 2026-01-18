@@ -65,29 +65,28 @@ if (typeof window.MessageRenderer === 'undefined') {
       while ((match = messageRegex.exec(rawText)) !== null) {
         const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
-        // 根据消息类型正确映射字段
+        // 核心映射逻辑
         let sender, number, msgType, content;
 
         if (messageType === '群聊消息') {
-          // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
-          sender = field2; // 发送者
-          number = field1; // 群ID (用于匹配)
-          msgType = field3; // 消息类型
-          content = field4; // 消息内容
-       } else if (messageType === '我方消息') {
-          // 私聊我方消息格式：[我方消息|我|好友号|消息类型|消息内容]
-          sender = '李至中'; // 再次锁定
-          number = field2;
-          msgType = field3;
+          sender = field2; 
+          number = field1; 
+          msgType = field3; 
+          content = field4;
+        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
+          // 统一处理所有我方情况
+          sender = '李至中'; 
+          number = field2; 
+          msgType = field3; 
           content = field4;
         } else {
-          // 对方消息格式：[对方消息|好友名|好友号|消息类型|消息内容]
+          // 统一处理所有对方（非我方）私聊情况
           sender = field1;
           number = field2;
           msgType = field3;
           content = field4;
         }
-
+        
         messages.push({
           fullMatch: fullMatch,
           messageType: messageType,
