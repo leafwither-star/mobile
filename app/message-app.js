@@ -1904,23 +1904,31 @@ if (typeof window.MessageApp === 'undefined') {
         timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
         item.appendChild(timeSpan);
 
-        // 2. 红点处理
+        // 2. 红点处理 (暴力纠偏版)
         let dot = item.querySelector('.unread-dot');
-        // 【关键修复 2】如果最新 ID 大于已读 ID，且最新 ID 确实存在
         if (latestOrder > 0 && latestOrder > lastReadOrder) {
           if (!dot) {
             dot = document.createElement('div');
             dot.className = 'unread-dot';
+            // 我们把 left 改小一点 (28px)，并极大化 z-index 确保它在最前面
             dot.style.cssText = `
-              position: absolute; top: -2px; left: 38px; 
-              width: 10px; height: 10px; background: #ff4d4f; 
-              border-radius: 50%; border: 2px solid white; z-index: 10;
-              box-shadow: 0 0 2px rgba(0,0,0,0.2);
+              position: absolute; 
+              top: 0px; 
+              left: 30px; 
+              width: 10px; 
+              height: 10px; 
+              background: #ff4d4f !important; 
+              border-radius: 50%; 
+              border: 1.5px solid white; 
+              z-index: 9999 !important;
+              display: block !important;
+              box-shadow: 0 0 4px rgba(0,0,0,0.3);
             `;
-            // 确保找到头像容器，或者是第一层 div
-            const avatarContainer = item.querySelector('div') || item;
-            avatarContainer.style.position = 'relative'; 
-            avatarContainer.appendChild(dot);
+            
+            // 重点修复：我们要把红点贴在 item 本身上，而不是头像容器里
+            // 这样可以绕过头像容器的 overflow: hidden
+            item.style.position = 'relative';
+            item.appendChild(dot);
           }
         } else {
           if (dot) dot.remove();
