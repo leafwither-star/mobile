@@ -2423,7 +2423,6 @@ renderAddFriendTab() {
       const submitBtn = appContent.querySelector('#add-friend-submit');
       const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
 
-      // 强制激活勾选框的点击视觉反馈
       if (permanentCheckbox) {
         permanentCheckbox.addEventListener('change', () => {
           console.log('🔘 永久同步勾选状态已变为:', permanentCheckbox.checked);
@@ -2432,11 +2431,9 @@ renderAddFriendTab() {
 
       if (submitBtn) {
         submitBtn.addEventListener('click', () => {
-          // 检查是否勾选了永久同步
           if (permanentCheckbox && permanentCheckbox.checked) {
             const fName = appContent.querySelector('#friend-name')?.value;
             const fId = appContent.querySelector('#friend-number')?.value;
-
             if (fName && fId) {
               try {
                 const friendInfo = `[好友id|${fName}|${fId}]`;
@@ -2446,12 +2443,37 @@ renderAddFriendTab() {
                   localStorage.setItem('permanent_friends', JSON.stringify(friends));
                   console.log('%c✨ 写入永久通讯录成功!', 'color: #00ff00; font-weight: bold;');
                 }
-              } catch (e) {
-                console.error('写入保险箱失败:', e);
-              }
+              } catch (e) { console.error('写入保险箱失败:', e); }
             }
           }
+          this.addFriend();
+        });
+      }
 
+      // --- 🚀 就在这里插入：处理管理列表里的删除按钮 ---
+      const deleteBtns = appContent.querySelectorAll('.delete-permanent-btn');
+      deleteBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = e.target.getAttribute('data-index');
+          try {
+            let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+            const deletedTarget = friends[index];
+            friends.splice(index, 1); // 从数组里剔除
+            localStorage.setItem('permanent_friends', JSON.stringify(friends));
+            
+            console.log('🗑️ 已删除:', deletedTarget);
+            
+            // 提示用户
+            alert('删除成功！刷新页面(F5)后手机列表将彻底更新。');
+            
+            // 实时刷新一下当前的界面，让列表立刻变动
+            this.updateAppContent(); 
+          } catch (err) {
+            console.error('删除操作失败:', err);
+          }
+        });
+      });
+      
           // 执行原有的添加逻辑（发送聊天消息）
           this.addFriend();
         });
