@@ -5029,9 +5029,14 @@ renderAddFriendTab() {
           // 绑定详情页面的发送事件
           this.bindDetailSendEvents();
 
-          // 【就是这里！塞进下面这一行】
-          setTimeout(() => this.applyChatDetailModernization(), 50);
-        }
+          // ✨ 换成这个版本：增加一点延迟，并且用更稳妥的调用方式
+          setTimeout(() => {
+              console.log("[Message App] 准备开始精装修...");
+              if (this.applyChatDetailModernization) {
+                  this.applyChatDetailModernization();
+              }
+          }, 200); // 稍微多等一会儿，给手机一点“反应时间”
+          
       } catch (error) {
         console.error('[Message App] 加载消息详情失败:', error);
         const appContent = document.getElementById('app-content');
@@ -5071,51 +5076,59 @@ renderAddFriendTab() {
       }
     }
 
-// --- 微信化美化：针对 .message-detail 结构的精准适配版 ---
-  applyChatDetailModernization() {
-    const content = document.querySelector('.message-detail-content');
-    if (!content) return;
+applyChatDetailModernization() {
+    const tryModernize = () => {
+      const content = document.querySelector('.message-detail-content');
+      if (!content) return;
 
-    // 1. 根据诊断报告，你的气泡类名是 .message-detail
-    const bubbles = content.querySelectorAll('.message-detail');
-    let lastTimeMinutes = null;
-
-    bubbles.forEach(bubble => {
-      // 2. 找到消息主体内容
-      const messageBody = bubble.querySelector('.message-body');
-      if (!messageBody) return;
-
-      const rawText = messageBody.innerText;
-      const timeMatch = rawText.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
+      // 关键点：你的气泡类名是 .message-detail
+      const bubbles = content.querySelectorAll('.message-detail');
       
-      if (timeMatch) {
-        const h = parseInt(timeMatch[1]);
-        const m = parseInt(timeMatch[2]);
-        const totalMins = h * 60 + m;
+      // 如果还没加载出来，100ms后重试一次
+      if (bubbles.length === 0) {
+        setTimeout(tryModernize, 100);
+        return;
+      }
 
-        // 3. 判定逻辑：首条必显，或间隔 >= 5分钟
-        if (lastTimeMinutes === null || Math.abs(totalMins - lastTimeMinutes) >= 5) {
-          const timeBubble = document.createElement('div');
-          timeBubble.className = 'chat-time-bubble';
-          // 强制居中样式，防止CSS没加载
-          timeBubble.style.cssText = "text-align: center; margin: 15px 0; width: 100%; clear: both; display: block;";
-          timeBubble.innerHTML = `<span style="background: rgba(0,0,0,0.08); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 12px;">${timeMatch[1]}:${timeMatch[2]}</span>`;
-          
-          // 插入到当前气泡的前面
-          bubble.parentNode.insertBefore(timeBubble, bubble);
-          lastTimeMinutes = totalMins;
+      console.log(`[Message App] 正在精装修 ${bubbles.length} 个气泡...`);
+      let lastTimeMinutes = null;
+
+      bubbles.forEach(bubble => {
+        const messageBody = bubble.querySelector('.message-body');
+        if (!messageBody) return;
+
+        const rawText = messageBody.innerText;
+        const timeMatch = rawText.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
+        
+        if (timeMatch) {
+          const h = parseInt(timeMatch[1]);
+          const m = parseInt(timeMatch[2]);
+          const totalMins = h * 60 + m;
+
+          // 判定：5分钟去重逻辑
+          if (lastTimeMinutes === null || Math.abs(totalMins - lastTimeMinutes) >= 5) {
+            // 检查是否已经加过了，防止重复添加
+            if (!bubble.previousElementSibling?.classList.contains('chat-time-bubble')) {
+              const timeBubble = document.createElement('div');
+              timeBubble.className = 'chat-time-bubble';
+              timeBubble.style.cssText = "text-align: center; margin: 15px 0; width: 100%; clear: both; display: block;";
+              timeBubble.innerHTML = `<span style="background: rgba(0,0,0,0.08); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-family: sans-serif;">${timeMatch[1]}:${timeMatch[2]}</span>`;
+              bubble.parentNode.insertBefore(timeBubble, bubble);
+            }
+            lastTimeMinutes = totalMins;
+          }
+          // 清理掉气泡里丑丑的原始标签
+          messageBody.innerHTML = messageBody.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
         }
 
-        // 4. 清理 message-body 里的原始时间标签
-        // 我们只清理文字部分，保留可能存在的图片或表情
-        messageBody.innerHTML = messageBody.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
-      }
+        // 如果清理完变空了，隐藏它
+        if (messageBody.innerText.trim() === "" && !messageBody.querySelector('img')) {
+            bubble.style.display = 'none';
+        }
+      });
+    };
 
-      // 5. 如果清理完气泡变空了，就藏起来
-      if (messageBody.innerText.trim() === "" && !messageBody.querySelector('img')) {
-          bubble.style.display = 'none';
-      }
-    });
+    tryModernize();
   }
     
     // 添加好友
