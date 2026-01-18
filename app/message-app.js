@@ -1934,8 +1934,7 @@ if (typeof window.MessageApp === 'undefined') {
         }
       }
     });
-  window.applyModernLayout = () => this.applyModernLayout();
-   }
+  }
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -4964,18 +4963,9 @@ renderAddFriendTab() {
 
         const appContent = document.getElementById('app-content');
         if (appContent && this.currentView === 'messageDetail') {
-
-          // ✨ --- 仅仅在这里插入这几行手术代码 ---
-  const modernizedContent = content.replace(/\[时间\|(\d{1,2}:\d{2})\]/g, (match, p1) => {
-    return `<div class="chat-time-divider" style="text-align: center; margin: 15px 0; clear: both; width: 100%; display: block;">
-              <span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-family: sans-serif; pointer-events: none;">${p1}</span>
-            </div>`;
-  });
-  // ------------------------------------
-          
           // 创建临时容器来处理内容
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = modernizedContent;
+          tempDiv.innerHTML = content;
 
           // 移除 message-detail-header
           const header = tempDiv.querySelector('.message-detail-header');
@@ -5024,39 +5014,6 @@ renderAddFriendTab() {
             tempDiv.insertAdjacentHTML('beforeend', newFooterHTML);
           }
 
-          // ✨ --- 在这里插入“时间分隔条”装修逻辑 ---
-          const allMessages = tempDiv.querySelectorAll('.message-detail');
-          let lastSeenTime = null;
-
-          allMessages.forEach(msg => {
-            // 尝试在气泡的文字内容里寻找 [时间|xx:xx]
-            const textContent = msg.innerText || "";
-            const timeMatch = textContent.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-
-            if (timeMatch) {
-              const currentTime = timeMatch[1];
-              
-              // 微信逻辑：如果这个时间跟上一个时间不一样，就显示出来
-              if (currentTime !== lastSeenTime) {
-                const timeDiv = document.createElement('div');
-                timeDiv.className = 'chat-time-bubble'; // 这样也能用到你CSS里的样式
-                timeDiv.style.cssText = "text-align: center; margin: 12px 0; width: 100%; clear: both;";
-                timeDiv.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px;">${currentTime}</span>`;
-                
-                // 插入到消息气泡之前
-                msg.parentNode.insertBefore(timeDiv, msg);
-                lastSeenTime = currentTime;
-              }
-              
-              // 顺手把消息气泡里那个还没被渲染器过滤掉的 [时间|xx:xx] 文字删掉，保持气泡美观
-              const body = msg.querySelector('.message-body');
-              if (body) {
-                body.innerHTML = body.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
-              }
-            }
-          });
-          // ---------------------------------------
-          
           finalContent = tempDiv.innerHTML;
           appContent.innerHTML = finalContent;
 
@@ -5071,17 +5028,7 @@ renderAddFriendTab() {
 
           // 绑定详情页面的发送事件
           this.bindDetailSendEvents();
-
-          // ✨ 换成这个版本：增加一点延迟，并且用更稳妥的调用方式
-          setTimeout(() => {
-              console.log("[Message App] 准备开始精装修...");
-              if (this.applyChatDetailModernization) {
-                  this.applyChatDetailModernization();
-              }
-          }, 200); 
-
-        } // <--- ✨ 就是少了这个！它是用来关掉 if (appContent && ...) 的
-          
+        }
       } catch (error) {
         console.error('[Message App] 加载消息详情失败:', error);
         const appContent = document.getElementById('app-content');
@@ -5117,92 +5064,10 @@ renderAddFriendTab() {
                 `;
           this.bindEvents();
           this.bindDetailSendEvents();
-          // ✨ --- 终极补救：跨页面时间瞬移术 ---
-        // ✨ 换成这个“合体版”：既负责精装修，又负责同步时间
-          setTimeout(() => {
-              console.log("[Message App] 准备开始精装修 & 同步时间...");
-              
-              // 1. 原有的精装修逻辑
-              if (this.applyChatDetailModernization) {
-                  this.applyChatDetailModernization();
-              }
-
-              // 2. 新增的“机器人”时间同步逻辑
-              // 从主页面搜索时间碎片 [时间|xx:xx] 或 xx:xx
-              const timeMatch = document.body.innerText.match(/(\d{1,2}:\d{2})/g);
-              if (timeMatch) {
-                  const bubbles = document.querySelectorAll('.message-detail');
-                  bubbles.forEach((bubble, i) => {
-                      // 只有当气泡上方还没有时间条时，才插入
-                      if (timeMatch[i] && !bubble.previousElementSibling?.classList.contains('chat-time-divider')) {
-                          const timeBar = document.createElement('div');
-                          timeBar.className = 'chat-time-divider manual-time'; // 加入 manual-time 方便标记
-                          timeBar.style.cssText = "text-align: center; margin: 12px 0; clear: both; width: 100%; display: block;";
-                          timeBar.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-family: sans-serif;">${timeMatch[i]}</span>`;
-                          bubble.parentNode.insertBefore(timeBar, bubble);
-                      }
-                  });
-              }
-          }, 300); // 稍微多给 100ms，确保气泡和装修都准备就绪
         }
       }
     }
 
-applyChatDetailModernization() {
-    const tryModernize = () => {
-      const content = document.querySelector('.message-detail-content');
-      if (!content) return;
-
-      // 关键点：你的气泡类名是 .message-detail
-      const bubbles = content.querySelectorAll('.message-detail');
-      
-      // 如果还没加载出来，100ms后重试一次
-      if (bubbles.length === 0) {
-        setTimeout(tryModernize, 100);
-        return;
-      }
-
-      console.log(`[Message App] 正在精装修 ${bubbles.length} 个气泡...`);
-      let lastTimeMinutes = null;
-
-      bubbles.forEach(bubble => {
-        const messageBody = bubble.querySelector('.message-body');
-        if (!messageBody) return;
-
-        const rawText = messageBody.innerText;
-        const timeMatch = rawText.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
-        
-        if (timeMatch) {
-          const h = parseInt(timeMatch[1]);
-          const m = parseInt(timeMatch[2]);
-          const totalMins = h * 60 + m;
-
-          // 判定：5分钟去重逻辑
-          if (lastTimeMinutes === null || Math.abs(totalMins - lastTimeMinutes) >= 5) {
-            // 检查是否已经加过了，防止重复添加
-            if (!bubble.previousElementSibling?.classList.contains('chat-time-bubble')) {
-              const timeBubble = document.createElement('div');
-              timeBubble.className = 'chat-time-bubble';
-              timeBubble.style.cssText = "text-align: center; margin: 15px 0; width: 100%; clear: both; display: block;";
-              timeBubble.innerHTML = `<span style="background: rgba(0,0,0,0.08); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-family: sans-serif;">${timeMatch[1]}:${timeMatch[2]}</span>`;
-              bubble.parentNode.insertBefore(timeBubble, bubble);
-            }
-            lastTimeMinutes = totalMins;
-          }
-          // 清理掉气泡里丑丑的原始标签
-          messageBody.innerHTML = messageBody.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
-        }
-
-        // 如果清理完变空了，隐藏它
-        if (messageBody.innerText.trim() === "" && !messageBody.querySelector('img')) {
-            bubble.style.display = 'none';
-        }
-      });
-    };
-
-    tryModernize();
-  }
-    
     // 添加好友
     async addFriend() {
       const nameInput = document.getElementById('friend-name');
@@ -6711,69 +6576,4 @@ applyChatDetailModernization() {
             console.log('%c🚀 李至中的永久通讯录补丁已激活！', 'color: #00ffff; font-weight: bold;');
         }
     }, 1000); // 每秒检查一次直到加载
-})();
-
-(function startSafeListener() {
-    console.log("🛡️ [安全引擎] 正在启动，已加装防卡死保险栓...");
-    
-    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-    let lastMsgKey = "";
-    let isUpdating = false; // 【保险栓】标记是否正在装修，防止套娃
-
-    const observer = new MutationObserver(() => {
-        if (isUpdating) return; // 如果正在装修中，闭眼不看，跳过监听
-
-        // 1. 只有检测到快讯变化时，才触发“精装修”
-        const p = Array.from(document.querySelectorAll('p')).find(el => el.innerText.includes('[手机快讯]'));
-        if (!p) return;
-
-        const lines = p.innerText.trim().split('\n');
-        const lastLine = lines[lines.length - 1];
-
-        // 判定：只有真的有新消息进来，才干活
-        if (lastLine.includes('[对方消息|') && lastLine !== lastMsgKey) {
-            isUpdating = true; // 开启保险栓
-            
-            lastMsgKey = lastLine;
-            const parts = lastLine.split('|');
-            const name = parts[1];
-            const content = parts[4] ? parts[4].replace(']', '') : "发来一条消息";
-
-            // 执行红点刷新
-            try {
-                if (typeof window.applyModernLayout === 'function') {
-                    window.applyModernLayout();
-                }
-            } catch(e) { console.error("装修失败:", e); }
-
-            // 弹出通知
-            if (!document.body.innerText.includes("generating...")) {
-                showToast(name, content);
-            }
-
-            // 装修完工，1秒后才允许下一次监听（给浏览器喘息时间）
-            setTimeout(() => { isUpdating = false; }, 1000);
-        }
-    });
-
-    // 重点：我们只监听 body 的子节点变化，减少开销
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-    function showToast(name, text) {
-        bubbleSound.play().catch(() => {});
-        const toast = document.createElement('div');
-        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
-        toast.innerHTML = `<img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;"><div style="flex:1;"><div style="font-weight:700; font-size:16px;">${name}</div><div style="color:#444; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${text}</div></div>`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.style.top = '25px', 100);
-        toast.onclick = () => {
-            toast.style.transform = 'translateX(-50%) scale(0.92)';
-            setTimeout(() => {
-                toast.style.top = '-120px';
-                if (window.app) window.app.currentView = 'messageDetail';
-                setTimeout(() => toast.remove(), 800);
-            }, 150);
-        };
-        setTimeout(() => { if(toast.parentNode) { toast.style.top = '-120px'; setTimeout(()=>toast.remove(), 800); } }, 6000);
-    }
 })();
