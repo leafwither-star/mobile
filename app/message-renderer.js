@@ -52,37 +52,40 @@ if (typeof window.MessageRenderer === 'undefined') {
       this.loadContextMonitor();
     }
 
-    /**
-     * 🔥 最终稳健版：解析消息逻辑（彻底移除所有可能导致报错的符号）
+     /**
+     * 🔥 从原始文本中解析消息（保持完美顺序）
      */
     parseMessagesFromRawText(rawText) {
-      var messages = [];
-      if (!rawText) return messages;
+      const messages = [];
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
 
-      var messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
-      var match;
-      var position = 0;
+      let match;
+      let position = 0;
 
       while ((match = messageRegex.exec(rawText)) !== null) {
-        var fullMatch = match[0];
-        var messageType = match[1];
-        var f1 = match[2];
-        var f2 = match[3];
-        var f3 = match[4];
-        var f4 = match[5];
+        const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
-        var sender = "";
-        var number = "";
-        var msgType = "";
-        var content = "";
+        // 根据消息类型正确映射字段
+        let sender, number, msgType, content;
 
         if (messageType === '群聊消息') {
-          sender = f2; number = f1; msgType = f3; content = f4;
-        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-          sender = '李至中'; // 核心改动点
-          number = f2; msgType = f3; content = f4;
+          // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
+          sender = field2; // 发送者
+          number = field1; // 群ID (用于匹配)
+          msgType = field3; // 消息类型
+          content = field4; // 消息内容
+        } else if (messageType === '我方群聊消息') {
+          // 我方群聊消息格式：[我方群聊消息|我|群ID|消息类型|消息内容]
+          sender = '我'; // 固定为"我"
+          number = field2; // 群ID (用于匹配)
+          msgType = field3; // 消息类型
+          content = field4; // 消息内容
         } else {
-          sender = f1; number = f2; msgType = f3; content = f4;
+          // 普通消息格式：[我方消息|我|好友号|消息内容|时间] 或 [对方消息|好友名|好友号|消息类型|消息内容]
+          sender = field1;
+          number = field2;
+          msgType = field3;
+          content = field4;
         }
 
         messages.push({
@@ -92,13 +95,11 @@ if (typeof window.MessageRenderer === 'undefined') {
           number: number,
           msgType: msgType,
           content: content,
-          textPosition: match.index,
-          contextOrder: position++
+          textPosition: match.index, // 🔥 关键：记录在原始文本中的位置
+          contextOrder: position++, // 🔥 关键：记录解析顺序
         });
       }
-      return messages;
-    }
-    
+
       // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
       // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
       messages.sort((a, b) => a.textPosition - b.textPosition);
