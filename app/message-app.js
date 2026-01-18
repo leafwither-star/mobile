@@ -6527,25 +6527,24 @@ renderAddFriendTab() {
  * 无论插件原本逻辑如何，都会在这里把 localStorage 的好友合并进去
  */
 (function injectPermanentFriends() {
-    // 等待 window.friendRenderer 加载完成
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
             
-            // 备份原有的提取函数
             const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             
-            // 重写该函数
             window.friendRenderer.extractFriendsFromContext = function() {
-                // 1. 先获取原本从聊天记录里提取的好友
                 let contacts = originalExtract();
                 
                 try {
-                    // 2. 读取保险箱里的永久好友
                     const savedData = localStorage.getItem('permanent_friends');
                     if (savedData) {
                         const permanentFriends = JSON.parse(savedData);
                         const friendPattern = /\[好友id\|([^|]*)\|(\d+)\]/;
+
+                        // 🔥 【新增】获取当前窗口最新的聊天上下文，不跨窗口
+                        const context = typeof window.SillyTavern !== 'undefined' ? window.SillyTavern.getContext() : null;
+                        const chatLog = (context && context.chat) ? context.chat : [];
                         
                         permanentFriends.forEach(friendStr => {
                             const match = friendStr.match(friendPattern);
@@ -6553,15 +6552,21 @@ renderAddFriendTab() {
                                 const fName = match[1];
                                 const fId = match[2];
                                 
-                                // 3. 检查是否重复，不重复则塞入
                                 if (!contacts.some(c => String(c.number) === String(fId))) {
+                                    // 🔥 【关键照搬】模拟原生的联系人对象格式
+                                    const tempObj = { name: fName, number: fId, isGroup: false };
+                                    
+                                    // 🔥 【核心调用】直接让原作者的函数去当前窗口里找最后一条消息
+                                    // 如果找到了就显示消息内容，找不到就是原生默认的“暂无消息”
+                                    const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
+
                                     contacts.push({
                                         character: fName,
                                         number: fId,
                                         name: fName,
                                         isGroup: false,
-                                        lastMessage: "✨ 永久联系人",
-                                        time: ""
+                                        lastMessage: nativeMsg, // ✨ 以前这里是写死的文字，现在是实时内容
+                                        time: "" // 时间通常原生也会自动处理，这里保持空即可
                                     });
                                 }
                             }
@@ -6573,9 +6578,9 @@ renderAddFriendTab() {
                 
                 return contacts;
             };
-            console.log('%c🚀 李至中的永久通讯录补丁已激活！', 'color: #00ffff; font-weight: bold;');
+            console.log('%c🚀 李至中的永久通讯录补丁已激活（实时简讯版）！', 'color: #00ffff; font-weight: bold;');
         }
-    }, 1000); // 每秒检查一次直到加载
+    }, 1000);
 })();
 
 (function theiOSNotificationOnly() {
