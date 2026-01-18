@@ -5116,6 +5116,31 @@ renderAddFriendTab() {
                 `;
           this.bindEvents();
           this.bindDetailSendEvents();
+          // ✨ --- 终极补救：跨页面时间瞬移术 ---
+        setTimeout(() => {
+            console.log("[Message App] 开始从主页面同步时间...");
+            // 1. 从主页面抓取所有时间标签
+            const rawTimes = document.body.innerText.match(/\[时间\|(\d{1,2}:\d{2})\]/g);
+            if (!rawTimes) return;
+
+            // 2. 提取出干净的时间文字，如 "14:32"
+            const timeList = rawTimes.map(t => t.match(/\d{1,2}:\d{2}/)[0]);
+
+            // 3. 找到手机里所有的消息气泡
+            const bubbles = document.querySelectorAll('.message-detail');
+            
+            // 4. 按顺序给气泡戴上“时间表”
+            bubbles.forEach((bubble, index) => {
+                if (timeList[index] && !bubble.previousElementSibling?.classList.contains('chat-time-divider')) {
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'chat-time-divider';
+                    timeDiv.style.cssText = "text-align: center; margin: 15px 0; clear: both; width: 100%;";
+                    timeDiv.innerHTML = `<span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px;">${timeList[index]}</span>`;
+                    
+                    bubble.parentNode.insertBefore(timeDiv, bubble);
+                }
+            });
+        }, 300); // 给渲染器留一点点“转圈圈”的时间
         }
       }
     }
