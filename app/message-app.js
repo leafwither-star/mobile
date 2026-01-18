@@ -1850,91 +1850,88 @@ if (typeof window.MessageApp === 'undefined') {
 
     const timeMap = {};
     const orderMap = {};
-    const mesBlocks = document.querySelectorAll('.mes');
     
-    mesBlocks.forEach(block => {
-      const text = block.innerText;
-      const lines = text.split('\n');
-      let currentTime = '';
-      const mesId = parseInt(block.getAttribute('mesid') || 0);
-
-      lines.forEach(line => {
-        const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-        if (timeMatch) currentTime = timeMatch[1];
-
-        const idMatch = line.match(/\|(\d+)\|/);
-        if (idMatch && currentTime) {
-          const id = idMatch[1];
-          timeMap[id] = currentTime;
-          // 记录谁的消息更新（mesId更大）
-          if (!orderMap[id] || mesId > orderMap[id]) {
-            orderMap[id] = mesId;
-          }
+    // --- 【新增：保底数据源】直接从好友提取器拿数据 ---
+    const extractedFriends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
+    extractedFriends.forEach(f => {
+        // 使用原生自带的索引和时间作为初始值
+        orderMap[f.number] = f.messageIndex || 0;
+        if (f.addTime) {
+            // 将毫秒转为 HH:mm 格式 (保底时间)
+            const d = new Date(f.addTime);
+            timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
-      });
     });
 
-    // 【关键修复 1】把数据存入全局，方便红点判定
+    // --- 【保留：原本的 DOM 扫描】如果有渲染好的文本，会覆盖上面的保底数据 ---
+    const mesBlocks = document.querySelectorAll('.mes');
+    mesBlocks.forEach(block => {
+        const text = block.innerText;
+        const lines = text.split('\n');
+        let currentTime = '';
+        const mesId = parseInt(block.getAttribute('mesid') || 0);
+
+        lines.forEach(line => {
+            const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+            if (timeMatch) currentTime = timeMatch[1];
+
+            const idMatch = line.match(/\|(\d+)\|/);
+            if (idMatch && currentTime) {
+                const id = idMatch[1];
+                timeMap[id] = currentTime;
+                if (!orderMap[id] || mesId > orderMap[id]) {
+                    orderMap[id] = mesId;
+                }
+            }
+        });
+    });
+
     window.latestOrderMap = orderMap;
 
-    // --- 2. 执行置顶排序逻辑 (保持不变) ---
+    // --- 2. 置顶排序 (逻辑不变) ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     if (items.length > 0) {
         items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
         items.forEach(item => listContainer.appendChild(item));
     }
 
-    // --- 3. 贴纸与红点逻辑 (加固版) ---
+    // --- 3. 贴纸与红点 (加固改进版) ---
     items.forEach(item => {
-      const id = item.getAttribute('data-friend-id');
-      const time = timeMap[id];
-      const latestOrder = orderMap[id] || 0;
-      
-      // 读取已读记录，如果没有读过，默认为 0
-      const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+        const id = item.getAttribute('data-friend-id');
+        const time = timeMap[id];
+        const latestOrder = orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-      if (time) {
+        // 🔥 注意：这里把 if (time) 移除了，因为哪怕没抓到时间，我们也该判断红点
+        
         // 1. 处理时间戳 (保持完美)
         const old = item.querySelector('.custom-timestamp');
         if (old) old.remove();
-        item.style.position = 'relative';
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'custom-timestamp';
-        timeSpan.innerText = time;
-        timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
-        item.appendChild(timeSpan);
-
-        // 2. 红点处理 (亲妈作者调校版)
-        let dot = item.querySelector('.unread-dot');
-        if (latestOrder > 0 && latestOrder > lastReadOrder) {
-          if (!dot) {
-            dot = document.createElement('div');
-            dot.className = 'unread-dot';
-            dot.style.cssText = `
-              position: absolute; 
-              top: 10px; 
-              left: 58px; 
-              width: 10px; 
-              height: 10px; 
-              background: #ff4d4f !important; 
-              border-radius: 50%; 
-              border: 1.5px solid white; 
-              z-index: 9999 !important;
-              display: block !important;
-              box-shadow: 0 0 4px rgba(0,0,0,0.3);
-              pointer-events: none;
-            `;
-            
-            // 贴在 item 上，确保不会被裁剪
+        if (time) { // 有时间才画时间
             item.style.position = 'relative';
-            item.appendChild(dot);
-          }
-        } else {
-          if (dot) dot.remove();
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'custom-timestamp';
+            timeSpan.innerText = time;
+            timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
+            item.appendChild(timeSpan);
         }
-      }
+
+        // 2. 红点处理
+        let dot = item.querySelector('.unread-dot');
+        // 只要有消息权重，且大于已读，就亮
+        if (latestOrder > 0 && latestOrder > lastReadOrder) {
+            if (!dot) {
+                dot = document.createElement('div');
+                dot.className = 'unread-dot';
+                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
+                item.style.position = 'relative';
+                item.appendChild(dot);
+            }
+        } else {
+            if (dot) dot.remove();
+        }
     });
-  }
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6585,44 +6582,55 @@ renderAddFriendTab() {
 
 (function theiOSNotificationOnly() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-    let lastMsgKey = "";
+    
+    // 🔥 关键改进：lastMsgKey 不再只是个空字符串，我们从 localStorage 恢复，防止新窗口重复弹窗
+    let lastMsgKey = localStorage.getItem('last_notified_key') || "";
 
     const observer = new MutationObserver(() => {
-        // 1. 依然保持红点和排序的实时更新（这是最稳的）
+        // 1. 触发布局刷新（保持红点同步）
         if (typeof window.applyModernLayout === 'function') window.applyModernLayout();
 
-        // 2. 寻找通知关键词
-        const p = Array.from(document.querySelectorAll('p, div')).find(el => el.innerText.includes('[手机快讯]'));
-        if (!p) return;
+        // 2. 获取数据源：直接看 extractFriendsFromContext 抓到了什么
+        const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
+        if (friends.length === 0) return;
 
-        const lines = p.innerText.trim().split('\n');
-        const lastLine = lines.findLast(l => l.includes('[对方消息|'));
+        // 3. 找到那个 messageIndex 最大的（也就是最后发消息的那个人）
+        const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
+        
+        if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
 
-        if (lastLine && lastLine !== lastMsgKey) {
-            lastMsgKey = lastLine;
-            const parts = lastLine.split('|');
-            const name = parts[1] || "新联系人";
-            const content = parts[4]?.replace(']', '') || "发来新消息";
+        // 生成一个唯一的判定 Key：ID + 消息内容
+        const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
 
-            // 只有当角色没在生成中，且手机界面没打开时（或根据你喜好）才弹窗
+        // 4. 判定：如果这条消息的 Key 和上次不一样，说明是真·新消息
+        if (currentKey !== lastMsgKey) {
+            // 检查：如果是刚开窗口，我们只记录 Key，不弹窗（避免把老消息当新消息弹出来）
+            if (lastMsgKey === "") {
+                lastMsgKey = currentKey;
+                localStorage.setItem('last_notified_key', lastMsgKey);
+                return;
+            }
+
+            lastMsgKey = currentKey;
+            localStorage.setItem('last_notified_key', lastMsgKey);
+
+            // 只有当角色没在生成中，且没有误触发时弹窗
             if (!document.body.innerText.includes("generating...")) {
                 bubbleSound.play().catch(() => {});
                 
                 const toast = document.createElement('div');
-                // 样式微调：去掉小手形状，改为普通箭头，暗示不可点击跳转
                 toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease;";
                 
                 toast.innerHTML = `
                     <div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div>
                     <div style="flex:1; min-width:0;">
-                        <div style="font-weight:600; font-size:15px; margin-bottom:2px;">${name}</div>
-                        <div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${content}</div>
+                        <div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div>
+                        <div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${latestFriend.lastMessage}</div>
                     </div>
                 `;
                 
                 document.body.appendChild(toast);
                 
-                // 5秒后自动淡出消失
                 setTimeout(() => {
                     toast.style.opacity = '0';
                     toast.style.transform = 'translateX(-50%) translateY(-20px)';
