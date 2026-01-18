@@ -1843,71 +1843,98 @@ if (typeof window.MessageApp === 'undefined') {
             </div>
         `;
     }
-    
-   applyModernLayout() {
-    // 1. 样式注入（保持不变，这部分很稳）
-    if (!document.getElementById('ios-notification-style')) {
-        const style = document.createElement('style');
-        style.id = 'ios-notification-style';
-        style.innerHTML = `
-            .message-item { position: relative !important; }
-            .message-item[data-unread="true"]::after {
-                content: '';
-                position: absolute;
-                top: 10px;
-                left: 55px;
-                width: 10px;
-                height: 10px;
-                background: #ff4d4f;
-                border: 2px solid #fff;
-                border-radius: 50%;
-                z-index: 999;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            }
-        `;
-        document.head.appendChild(style);
-    }
 
+   applyModernLayout() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // 2. 提取数据
+    const timeMap = {};
     const orderMap = {};
-    document.querySelectorAll('.mes').forEach(block => {
-        const text = block.innerText;
-        const mesId = parseInt(block.getAttribute('mesid') || 0);
-        const idMatch = text.match(/\|(\d+)\|/);
-        if (idMatch) {
-            const id = idMatch[1];
-            // 确保我们存的是当前好友最大的消息 ID
-            if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
+    const mesBlocks = document.querySelectorAll('.mes');
+    
+    mesBlocks.forEach(block => {
+      const text = block.innerText;
+      const lines = text.split('\n');
+      let currentTime = '';
+      const mesId = parseInt(block.getAttribute('mesid') || 0);
+
+      lines.forEach(line => {
+        const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+        if (timeMatch) currentTime = timeMatch[1];
+
+        const idMatch = line.match(/\|(\d+)\|/);
+        if (idMatch && currentTime) {
+          const id = idMatch[1];
+          timeMap[id] = currentTime;
+          // 记录谁的消息更新（mesId更大）
+          if (!orderMap[id] || mesId > orderMap[id]) {
+            orderMap[id] = mesId;
+          }
         }
+      });
     });
 
-    // 💡 优化点：把最新的 ID 映射挂到全局，方便点击事件调用
-    window.latestOrderMap = orderMap; 
+    // 【关键修复 1】把数据存入全局，方便红点判定
+    window.latestOrderMap = orderMap;
 
-    // 3. 渲染红点
+    // --- 2. 执行置顶排序逻辑 (保持不变) ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        const latestOrder = orderMap[id] || 0;
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-        
-        // 如果最新消息 ID 大于已读 ID，显红点
-        if (latestOrder > lastReadOrder && latestOrder !== 0) {
-            item.setAttribute('data-unread', 'true');
-        } else {
-            item.removeAttribute('data-unread');
-        }
-    });
-
-    // 4. 排序逻辑（保持不变）
-    const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
-    if (items.length > 0 && items[0] !== sorted[0]) {
-        sorted.forEach(el => listContainer.appendChild(el));
+    if (items.length > 0) {
+        items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+        items.forEach(item => listContainer.appendChild(item));
     }
-}
+
+    // --- 3. 贴纸与红点逻辑 (加固版) ---
+    items.forEach(item => {
+      const id = item.getAttribute('data-friend-id');
+      const time = timeMap[id];
+      const latestOrder = orderMap[id] || 0;
+      
+      // 读取已读记录，如果没有读过，默认为 0
+      const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+
+      if (time) {
+        // 1. 处理时间戳 (保持完美)
+        const old = item.querySelector('.custom-timestamp');
+        if (old) old.remove();
+        item.style.position = 'relative';
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'custom-timestamp';
+        timeSpan.innerText = time;
+        timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
+        item.appendChild(timeSpan);
+
+        // 2. 红点处理 (亲妈作者调校版)
+        let dot = item.querySelector('.unread-dot');
+        if (latestOrder > 0 && latestOrder > lastReadOrder) {
+          if (!dot) {
+            dot = document.createElement('div');
+            dot.className = 'unread-dot';
+            dot.style.cssText = `
+              position: absolute; 
+              top: 10px; 
+              left: 58px; 
+              width: 10px; 
+              height: 10px; 
+              background: #ff4d4f !important; 
+              border-radius: 50%; 
+              border: 1.5px solid white; 
+              z-index: 9999 !important;
+              display: block !important;
+              box-shadow: 0 0 4px rgba(0,0,0,0.3);
+              pointer-events: none;
+            `;
+            
+            // 贴在 item 上，确保不会被裁剪
+            item.style.position = 'relative';
+            item.appendChild(dot);
+          }
+        } else {
+          if (dot) dot.remove();
+        }
+      }
+    });
+  }
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -5661,23 +5688,24 @@ renderAddFriendTab() {
       }
     }
 
-   // 显示消息详情页面
+    // 显示消息详情页面
     showMessageDetail(friendId, friendName) {
-      console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
+     console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
 
-      // --- 🔴 增强版：点开即标记已读 ---
-      const currentMax = (window.latestOrderMap && window.latestOrderMap[friendId]) ? window.latestOrderMap[friendId] : 999999;
+    // --- 🔴 新增：点开即标记已读 ---
+    if (friendId && window.latestOrderMap) {
+      // 拿到这个人目前在酒馆里最新的消息 ID (权重)
+      const currentMax = window.latestOrderMap[friendId] || 0;
+      // 把它存进“已读名单”
       localStorage.setItem(`lastRead_${friendId}`, currentMax);
-      
-      if (typeof this.applyModernLayout === 'function') {
-          this.applyModernLayout();
-      }
-      // --- 标记结束 ---
+      console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
+    }
+    // ----------------------------
 
-      // ✅ 注意：这里没有多余的 }，逻辑直接连下去
       this.currentView = 'messageDetail';
       this.currentFriendId = friendId;
       this.currentFriendName = friendName;
+      // 注意：currentIsGroup 状态在 selectFriend() 方法中已经设置
 
       // 通知主框架更新应用状态
       if (window.mobilePhone) {
@@ -5693,7 +5721,7 @@ renderAddFriendTab() {
 
       // 更新应用内容
       this.updateAppContent();
-    } // <--- 这是整个函数的结尾，只有一个
+    }
 
     // 立即应用好友专属背景
     applyFriendSpecificBackground(friendId) {
@@ -6548,66 +6576,4 @@ renderAddFriendTab() {
             console.log('%c🚀 李至中的永久通讯录补丁已激活！', 'color: #00ffff; font-weight: bold;');
         }
     }, 1000); // 每秒检查一次直到加载
-})();
-
-(function theiOSMasterListener() {
-    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-    let lastMsgKey = "";
-
-    const observer = new MutationObserver(() => {
-        if (typeof applyModernLayout === 'function') applyModernLayout();
-
-        const p = Array.from(document.querySelectorAll('p, div')).find(el => el.innerText.includes('[手机快讯]'));
-        if (!p) return;
-
-        const lines = p.innerText.trim().split('\n');
-        const lastLine = lines.findLast(l => l.includes('[对方消息|'));
-
-        if (lastLine && lastLine !== lastMsgKey) {
-            lastMsgKey = lastLine;
-            const name = lastLine.split('|')[1];
-            const content = lastLine.split('|')[4]?.replace(']', '') || "发来新消息";
-
-            if (!document.body.innerText.includes("generating...")) {
-                bubbleSound.play().catch(() => {});
-                
-                const toast = document.createElement('div');
-                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 380px; height: 80px; background: white; border-radius: 20px; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 2147483647; cursor: pointer; border: 1px solid #eee; color: black;";
-                toast.innerHTML = `<div style="width:50px; height:50px; background:#007aff; border-radius:12px; margin-right:15px; display:flex; align-items:center; justify-content:center; color:white; font-size:24px;">💬</div><div style="flex:1;"><div style="font-weight:bold;">${name}</div><div style="color:#555; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">${content}</div></div>`;
-                
-                document.body.appendChild(toast);
-                
-                // --- 点击跳转逻辑（方案 A 模拟点击 + 强制唤醒） ---
-toast.onclick = () => {
-    console.log("🚀 尝试跳转至:", name);
-
-    // 1. 先确保手机界面是打开的，并且处于列表页
-    // 如果你的系统有打开手机的全局方法（比如 openApp('messages')），请在这里调用
-    // 如果没有，我们直接尝试找列表项
-    
-    let target = Array.from(document.querySelectorAll('.message-item'))
-                      .find(item => item.innerText.includes(name));
-
-    if (target) {
-        target.click();
-    } else {
-        // 2. 兜底逻辑：如果找不到列表项（可能手机关着），先点一下手机图标
-        const phoneIcon = document.querySelector('.mobile-phone-icon'); // 换成你手机图标的真实选择器
-        if (phoneIcon) phoneIcon.click();
-        
-        // 稍微延迟一下等列表出来再点
-        setTimeout(() => {
-            target = Array.from(document.querySelectorAll('.message-item'))
-                          .find(item => item.innerText.includes(name));
-            if (target) target.click();
-        }, 300);
-    }
-    toast.remove();
-};
-
-                setTimeout(() => { if(toast) toast.remove(); }, 6000);
-            }
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
