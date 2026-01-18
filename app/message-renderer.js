@@ -74,17 +74,15 @@ if (typeof window.MessageRenderer === 'undefined') {
           number = field1; // 群ID (用于匹配)
           msgType = field3; // 消息类型
           content = field4; // 消息内容
-        } else if (messageType === '我方群聊消息') {
-          // 我方群聊消息格式：[我方群聊消息|我|群ID|消息类型|消息内容]
-          sender = '李至中'; // 原版是 '我'，这里改为 '李至中'
-          number = field2; 
-          msgType = field3; 
+       } else if (messageType === '我方消息') {
+          // 私聊我方消息格式：[我方消息|我|好友号|消息类型|消息内容]
+          sender = '李至中'; // 再次锁定
+          number = field2;
+          msgType = field3;
           content = field4;
         } else {
-          // 普通消息格式逻辑
-          // 如果 messageType 是 '我方消息'，field1 通常也是 '我'
-          // 我们增加一个判断，让它也变成 '李至中'
-          sender = (field1 === '我') ? '李至中' : field1;
+          // 对方消息格式：[对方消息|好友名|好友号|消息类型|消息内容]
+          sender = field1;
           number = field2;
           msgType = field3;
           content = field4;
