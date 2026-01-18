@@ -5028,6 +5028,9 @@ renderAddFriendTab() {
 
           // 绑定详情页面的发送事件
           this.bindDetailSendEvents();
+
+          // 【就是这里！塞进下面这一行】
+          setTimeout(() => this.applyChatDetailModernization(), 50);
         }
       } catch (error) {
         console.error('[Message App] 加载消息详情失败:', error);
@@ -5068,6 +5071,43 @@ renderAddFriendTab() {
       }
     }
 
+// --- 微信化美化：居中时间 + 标签清理 ---
+  applyChatDetailModernization() {
+    const content = document.querySelector('.message-detail-content');
+    if (!content) return;
+
+    // 抓取气泡（兼容 .mes 和 .message-bubble）
+    const bubbles = content.querySelectorAll('.mes, .message-bubble');
+    let lastTimeMinutes = null;
+
+    bubbles.forEach(bubble => {
+      const rawText = bubble.innerText;
+      const timeMatch = rawText.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
+      
+      if (timeMatch) {
+        const h = parseInt(timeMatch[1]);
+        const m = parseInt(timeMatch[2]);
+        const totalMins = h * 60 + m;
+
+        // 判定：如果是第一条，或者间隔 >= 5分钟
+        if (lastTimeMinutes === null || Math.abs(totalMins - lastTimeMinutes) >= 5) {
+          const timeBubble = document.createElement('div');
+          timeBubble.className = 'chat-time-bubble';
+          timeBubble.innerHTML = `<span>${timeMatch[1]}:${timeMatch[2]}</span>`;
+          bubble.parentNode.insertBefore(timeBubble, bubble);
+          lastTimeMinutes = totalMins;
+        }
+        // 删掉气泡里原本那行丑丑的时间
+        bubble.innerHTML = bubble.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
+      }
+
+      // 如果气泡里只剩下空的标签，直接隐藏它
+      if (bubble.innerText.trim() === "" && !bubble.querySelector('img')) {
+          bubble.style.display = 'none';
+      }
+    });
+  }
+    
     // 添加好友
     async addFriend() {
       const nameInput = document.getElementById('friend-name');
