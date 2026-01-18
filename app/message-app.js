@@ -1891,7 +1891,7 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
     // 渲染添加好友tab
-    renderAddFriendTab() {
+renderAddFriendTab() {
       return `
             <div class="add-friend-form">
                 <div class="form-group">
@@ -1902,6 +1902,12 @@ if (typeof window.MessageApp === 'undefined') {
                     <label for="friend-number">数字ID</label>
                     <input type="number" id="friend-number" class="form-input" placeholder="请输入数字ID">
                 </div>
+                
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 5px 0 15px 0; padding: 5px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+                    <input type="checkbox" id="make-permanent-checkbox" style="width: 16px; height: 16px; cursor: pointer;">
+                    <label for="make-permanent-checkbox" style="cursor: pointer; font-size: 13px; color: #555; margin-bottom: 0;">同步到永久通讯录</label>
+                </div>
+
                 <button class="add-friend-submit" id="add-friend-submit">
                     <span class="submit-icon">✅</span>
                     <span>添加好友</span>
@@ -1919,7 +1925,7 @@ if (typeof window.MessageApp === 'undefined') {
             </div>
         `;
     }
-
+    
     // 渲染删除好友tab
     renderDeleteFriendTab() {
       return `
