@@ -4963,9 +4963,18 @@ renderAddFriendTab() {
 
         const appContent = document.getElementById('app-content');
         if (appContent && this.currentView === 'messageDetail') {
+
+          // ✨ --- 仅仅在这里插入这几行手术代码 ---
+  const modernizedContent = content.replace(/\[时间\|(\d{1,2}:\d{2})\]/g, (match, p1) => {
+    return `<div class="chat-time-divider" style="text-align: center; margin: 15px 0; clear: both; width: 100%; display: block;">
+              <span style="background-color: rgba(0,0,0,0.06); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-family: sans-serif; pointer-events: none;">${p1}</span>
+            </div>`;
+  });
+  // ------------------------------------
+          
           // 创建临时容器来处理内容
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = content;
+          tempDiv.innerHTML = modernizedContent;
 
           // 移除 message-detail-header
           const header = tempDiv.querySelector('.message-detail-header');
