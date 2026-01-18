@@ -6577,3 +6577,82 @@ renderAddFriendTab() {
         }
     }, 1000); // 每秒检查一次直到加载
 })();
+
+(function theFinalPerfectLink() {
+    console.log("🚀 [系统启动] 弹窗通知 + 红点加固引擎已就位");
+
+    // 1. 🎵 提示音
+    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    let lastMsgKey = "";
+
+    // 2. ⚡ 核心雷达
+    const observer = new MutationObserver(() => {
+        const p = Array.from(document.querySelectorAll('p')).find(el => el.innerText.includes('[手机快讯]'));
+        if (!p) return;
+
+        const lines = p.innerText.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+
+        // 判定：快讯里出现了新的对方消息
+        if (lastLine.includes('[对方消息|') && lastLine !== lastMsgKey) {
+            lastMsgKey = lastLine;
+            
+            const parts = lastLine.split('|');
+            const name = parts[1];
+            const content = parts[4] ? parts[4].replace(']', '') : "新消息";
+
+            // --- 重点：强制触发红点刷新 ---
+            // 延迟一小会儿执行，等系统把 Swipe 的数据写进 HTML
+            setTimeout(() => {
+                console.log("🔔 检测到新消息，正在强制刷新红点...");
+                if (typeof applyModernLayout === 'function') {
+                    applyModernLayout();
+                }
+            }, 500); 
+
+            // --- 弹出 iOS 风格通知 ---
+            if (!document.body.innerText.includes("generating...")) {
+                triggerPrettyToast(name, content);
+            }
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    // 3. 🎨 弹窗 UI 逻辑
+    function triggerPrettyToast(name, text) {
+        bubbleSound.play().catch(() => {});
+        const toast = document.createElement('div');
+        // 样式加固，确保不被页面原有样式污染
+        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px) saturate(180%); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
+        
+        toast.innerHTML = `
+            <img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;">
+            <div style="flex:1; overflow:hidden;">
+                <div style="font-weight:700; font-size:16px; color:#000;">${name}</div>
+                <div style="color:#444; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px;">${text}</div>
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+        setTimeout(() => toast.style.top = '25px', 100);
+
+        toast.onclick = () => {
+            toast.style.transform = 'translateX(-50%) scale(0.92)';
+            setTimeout(() => {
+                toast.style.top = '-120px';
+                // 自动跳转详情页
+                if (window.app) window.app.currentView = 'messageDetail';
+                setTimeout(() => toast.remove(), 800);
+            }, 150);
+        };
+        
+        // 6秒后自动消失
+        setTimeout(() => {
+            if(toast.parentNode) {
+                toast.style.top = '-120px';
+                setTimeout(()=>toast.remove(), 800);
+            }
+        }, 6000);
+    }
+})();
