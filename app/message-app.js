@@ -5690,7 +5690,17 @@ renderAddFriendTab() {
 
     // 显示消息详情页面
     showMessageDetail(friendId, friendName) {
-      console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
+     console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
+
+    // --- 🔴 新增：点开即标记已读 ---
+    if (friendId && window.latestOrderMap) {
+      // 拿到这个人目前在酒馆里最新的消息 ID (权重)
+      const currentMax = window.latestOrderMap[friendId] || 0;
+      // 把它存进“已读名单”
+      localStorage.setItem(`lastRead_${friendId}`, currentMax);
+      console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
+    }
+    // ----------------------------
 
       this.currentView = 'messageDetail';
       this.currentFriendId = friendId;
