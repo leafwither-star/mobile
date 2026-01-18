@@ -1848,10 +1848,9 @@ if (typeof window.MessageApp === 'undefined') {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    const timeMap = {};
-    const orderMap = {};
+    // ... (中间提取 timeMap 和 orderMap 的逻辑保持不变) ...
     const mesBlocks = document.querySelectorAll('.mes');
-    
+    const timeMap = {}; const orderMap = {};
     mesBlocks.forEach(block => {
         const text = block.innerText;
         const lines = text.split('\n');
@@ -1869,21 +1868,9 @@ if (typeof window.MessageApp === 'undefined') {
         });
     });
 
-    window.latestOrderMap = orderMap;
-
-    // --- 2. 置顶排序 (优化：不盲目移动节点，防止头像丢失) ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    if (items.length > 0) {
-        const sortedItems = [...items].sort((a, b) => 
-            (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0)
-        );
-        // 只有当顺序真的变了，才重新排列
-        if (items[0] !== sortedItems[0]) {
-            sortedItems.forEach(item => listContainer.appendChild(item));
-        }
-    }
-
-    // --- 3. 贴纸与红点 (保持原有逻辑，确保 appendChild) ---
+    
+    // --- 重点修复：不破坏结构，仅通过 CSS 覆盖 ---
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
         const time = timeMap[id];
@@ -1891,30 +1878,37 @@ if (typeof window.MessageApp === 'undefined') {
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
         if (time) {
-            // 时间戳处理
+            // 采用绝对不改动原有 HTML 的方式更新文字
             let timeSpan = item.querySelector('.custom-timestamp');
             if (!timeSpan) {
                 timeSpan = document.createElement('span');
                 timeSpan.className = 'custom-timestamp';
-                item.appendChild(timeSpan);
+                // 使用 prepend (插在最前面) 通常比 appendChild 干扰更小
+                item.prepend(timeSpan);
             }
             timeSpan.innerText = time;
-            timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
+            timeSpan.style.cssText = `position: absolute; top: 12px; right: 15px; font-size: 11px; color: #b0b0b0; z-index: 10; pointer-events: none;`;
 
             // 红点处理
             let dot = item.querySelector('.unread-dot');
-            if (latestOrder > 0 && latestOrder > lastReadOrder) {
+            if (latestOrder > lastReadOrder) {
                 if (!dot) {
                     dot = document.createElement('div');
                     dot.className = 'unread-dot';
-                    item.appendChild(dot);
+                    item.prepend(dot);
                 }
-                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
+                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 100; box-shadow: 0 0 4px rgba(0,0,0,0.3);`;
             } else if (dot) {
                 dot.remove();
             }
         }
     });
+
+    // 置顶逻辑保持（仅在必要时排序）
+    if (items.length > 0) {
+        const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+        if (items[0] !== sorted[0]) sorted.forEach(el => listContainer.appendChild(el));
+    }
 }
     
     // 渲染添加好友界面
@@ -6559,15 +6553,13 @@ renderAddFriendTab() {
     }, 1000); // 每秒检查一次直到加载
 })();
 
-(function startTheFinalEngine() {
+(function theiOSMasterListener() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
     let lastMsgKey = "";
 
     const observer = new MutationObserver(() => {
-        // 只要页面动了，就刷一遍红点
         if (typeof applyModernLayout === 'function') applyModernLayout();
 
-        // 寻找快讯
         const p = Array.from(document.querySelectorAll('p, div')).find(el => el.innerText.includes('[手机快讯]'));
         if (!p) return;
 
@@ -6576,26 +6568,26 @@ renderAddFriendTab() {
 
         if (lastLine && lastLine !== lastMsgKey) {
             lastMsgKey = lastLine;
-            const parts = lastLine.split('|');
-            const name = parts[1];
-            const content = parts[4]?.replace(']', '') || "新消息";
+            const name = lastLine.split('|')[1];
+            const content = lastLine.split('|')[4]?.replace(']', '') || "发来新消息";
 
-            // 📢 只要没在生成，就强制弹窗 + 响铃
             if (!document.body.innerText.includes("generating...")) {
                 bubbleSound.play().catch(() => {});
                 
-                // 移除旧弹窗
-                document.querySelectorAll('.ios-toast').forEach(t => t.remove());
-
                 const toast = document.createElement('div');
-                toast.className = 'ios-toast';
-                // 这里的 z-index 我设到了天文数字，保证它在最前面
-                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 380px; height: 80px; background: white; border-radius: 20px; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 1000000000; cursor: pointer; border: 1px solid #ddd;";
-                toast.innerHTML = `<div style="width:50px; height:50px; background:#007aff; border-radius:12px; margin-right:15px; display:flex; align-items:center; justify-content:center; color:white; font-size:24px;">💬</div><div style="flex:1;"><div style="font-weight:bold; color:black;">${name}</div><div style="color:#555; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">${content}</div></div>`;
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 380px; height: 80px; background: white; border-radius: 20px; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 2147483647; cursor: pointer; border: 1px solid #eee; color: black;";
+                toast.innerHTML = `<div style="width:50px; height:50px; background:#007aff; border-radius:12px; margin-right:15px; display:flex; align-items:center; justify-content:center; color:white; font-size:24px;">💬</div><div style="flex:1;"><div style="font-weight:bold;">${name}</div><div style="color:#555; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">${content}</div></div>`;
                 
                 document.body.appendChild(toast);
-                setTimeout(() => { if(toast) toast.remove(); }, 5000);
-                toast.onclick = () => { if (window.app) window.app.currentView = 'messageDetail'; toast.remove(); };
+                
+                // --- 点击跳转逻辑（方案 A 模拟点击） ---
+                toast.onclick = () => {
+                    const target = Array.from(document.querySelectorAll('.message-item')).find(item => item.innerText.includes(name));
+                    if (target) target.click();
+                    toast.remove();
+                };
+
+                setTimeout(() => { if(toast) toast.remove(); }, 6000);
             }
         }
     });
