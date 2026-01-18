@@ -74,19 +74,18 @@ if (typeof window.MessageRenderer === 'undefined') {
           msgType = field3; 
           content = field4;
         } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-          // 统一处理所有我方情况
           sender = '李至中'; 
           number = field2; 
           msgType = field3; 
           content = field4;
+          // 🚀 这里的关键：给这条消息打上“我方”标签
+          var isMe = true; 
         } else {
-          // 统一处理所有对方（非我方）私聊情况
           sender = field1;
-          number = field2;
-          msgType = field3;
-          content = field4;
+          // ... 
+          var isMe = false;
         }
-        
+
         messages.push({
           fullMatch: fullMatch,
           messageType: messageType,
@@ -94,8 +93,9 @@ if (typeof window.MessageRenderer === 'undefined') {
           number: number,
           msgType: msgType,
           content: content,
-          textPosition: match.index, // 🔥 关键：记录在原始文本中的位置
-          contextOrder: position++, // 🔥 关键：记录解析顺序
+          textPosition: match.index,
+          contextOrder: position++,
+          isMe: isMe // 🔥 这一行是新加的，把标记传给渲染层
         });
       }
 
