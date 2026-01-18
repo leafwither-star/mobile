@@ -1845,34 +1845,35 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
     applyModernLayout() {
-    const listContainer = document.getElementById('message-list');
-    if (!listContainer) return;
-
+    // 1. 精细化扫描：建立 ID -> 属于该 ID 的最后时间的字典
     const timeMap = {};
-    const orderMap = {}; // 新增：用来记录谁的消息更靠后（更新）
+    const orderMap = {};
     const mesBlocks = document.querySelectorAll('.mes');
     
     mesBlocks.forEach(block => {
       const text = block.innerText;
-      const idMatches = text.match(/\|(\d+)\|/g);
-      if (idMatches) {
-        const ids = idMatches.map(m => m.replace(/\|/g, ''));
-        const timeMatches = text.match(/\[时间\|(\d{1,2}:\d{2})\]/g);
-        
-        // 获取该块的原始 ID (mesid)，数字越大代表消息越新
-        const mesId = parseInt(block.getAttribute('mesid') || 0);
+      const lines = text.split('\n'); // 把消息拆成行来分析
+      let currentTime = '';
+      const mesId = parseInt(block.getAttribute('mesid') || 0);
 
-        if (timeMatches && timeMatches.length > 0) {
-          const latestTime = timeMatches[timeMatches.length - 1].match(/\d{1,2}:\d{2}/)[0];
-          ids.forEach(id => { 
-            timeMap[id] = latestTime; 
-            // 记录该好友对应的最新消息权重
-            if (!orderMap[id] || mesId > orderMap[id]) {
-                orderMap[id] = mesId;
-            }
-          });
+      lines.forEach(line => {
+        // 如果这一行是时间行，更新当前时钟
+        const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+        if (timeMatch) {
+          currentTime = timeMatch[1];
         }
-      }
+
+        // 如果这一行包含 ID (无论是我方还是对方)
+        const idMatch = line.match(/\|(\d+)\|/);
+        if (idMatch && currentTime) {
+          const id = idMatch[1];
+          // 只有最新的时间才会覆盖旧的时间
+          timeMap[id] = currentTime;
+          if (!orderMap[id] || mesId > orderMap[id]) {
+            orderMap[id] = mesId;
+          }
+        }
+      });
     });
 
     // --- 新增：执行置顶排序逻辑 ---
