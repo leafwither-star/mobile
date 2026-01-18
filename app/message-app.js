@@ -6543,14 +6543,28 @@ renderAddFriendTab() {
                                     let foundIdx = -1;
                                     let foundTime = 0;
                                     
-                                    // 倒序查找当前聊天记录，定位该好友最后一次出现的索引
-                                    for (let i = chatLog.length - 1; i >= 0; i--) {
-                                        if (chatLog[i].mes && chatLog[i].mes.includes(`|${fId}|`)) {
-                                            foundIdx = i;
-                                            foundTime = chatLog[i].send_date || Date.now();
-                                            break;
-                                        }
-                                    }
+                                    // 🔍 倒序查找：只有“对方消息”才能更新红点索引 (messageIndex)
+for (let i = chatLog.length - 1; i >= 0; i--) {
+    const mesText = chatLog[i].mes || "";
+    // 判定条件：包含该好友ID，且必须是“对方”发来的
+    if (mesText.includes(`|${fId}|`) && mesText.includes('[对方消息|')) {
+        foundIdx = i;
+        foundTime = chatLog[i].send_date || Date.now();
+        break; 
+    }
+}
+
+// 🕒 补充查找：如果上面的对方消息没找到，我们要找“最后活跃时间”供置顶使用
+//（即使最后一句是我方发的，也要能置顶，但没红点）
+if (foundIdx === -1) {
+    for (let i = chatLog.length - 1; i >= 0; i--) {
+        if ((chatLog[i].mes || "").includes(`|${fId}|`)) {
+            // 这里只记时间，不记 Index（或者记一个较小的 Index），确保不误触发红点
+            foundTime = chatLog[i].send_date || Date.now();
+            break;
+        }
+    }
+}
 
                                     const tempObj = { name: fName, number: fId, isGroup: false };
                                     const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
