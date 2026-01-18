@@ -2359,132 +2359,103 @@ renderAddFriendTab() {
     }
 
     // 绑定事件
-    bindEvents() {
-      const appContent = document.getElementById('app-content');
-      if (!appContent) return;
+  bindEvents() {
+    const appContent = document.getElementById('app-content');
+    if (!appContent) return;
 
-      // 绑定返回按钮事件
-      const backButton = document.getElementById('back-button');
-      if (backButton) {
-        // 移除之前的事件监听器（如果存在）
-        backButton.removeEventListener('click', this.handleBackButtonClick);
+    // 绑定返回按钮事件
+    const backButton = document.getElementById('back-button');
+    if (backButton) {
+      backButton.removeEventListener('click', this.handleBackButtonClick);
+      this.handleBackButtonClick = () => {
+        const currentApp = window.mobilePhone?.currentAppState?.app;
+        if (currentApp !== 'messages') return;
+        this.showMessageList();
+      };
+      backButton.addEventListener('click', this.handleBackButtonClick);
+    }
 
-        // 创建事件处理函数
-        this.handleBackButtonClick = () => {
-          // 检查当前是否在消息应用中
-          const currentApp = window.mobilePhone?.currentAppState?.app;
-          if (currentApp !== 'messages') {
-            console.log('[Message App] 当前不在消息应用中，跳过返回按钮处理');
-            return;
+    // 添加好友按钮 (进入添加界面)
+    const addFriendBtn = appContent.querySelector('#add-friend-btn');
+    if (addFriendBtn) {
+      addFriendBtn.addEventListener('click', () => {
+        this.showAddFriend();
+      });
+    }
+
+    // Tab切换按钮
+    const tabBtns = appContent.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const tabName = e.currentTarget.getAttribute('data-tab');
+        if (tabName) this.switchTab(tabName);
+      });
+    });
+
+    // --- 永久通讯录逻辑开始 ---
+    
+    // 1. 获取提交按钮和勾选框
+    const submitBtn = appContent.querySelector('#add-friend-submit');
+    const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
+
+    // 2. 勾选框反馈
+    if (permanentCheckbox) {
+      permanentCheckbox.onchange = () => {
+        console.log('🔘 永久同步勾选状态:', permanentCheckbox.checked);
+      };
+    }
+
+    // 3. 提交按钮：发送消息 + 写入保险箱
+    if (submitBtn) {
+      submitBtn.onclick = () => {
+        if (permanentCheckbox && permanentCheckbox.checked) {
+          const fName = appContent.querySelector('#friend-name')?.value;
+          const fId = appContent.querySelector('#friend-number')?.value;
+          if (fName && fId) {
+            try {
+              const friendInfo = `[好友id|${fName}|${fId}]`;
+              let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+              if (!friends.includes(friendInfo)) {
+                friends.push(friendInfo);
+                localStorage.setItem('permanent_friends', JSON.stringify(friends));
+                console.log('%c✨ 写入永久通讯录成功!', 'color: #00ff00; font-weight: bold;');
+              }
+            } catch (e) {
+              console.error('写入保险箱失败:', e);
+            }
           }
+        }
+        // 执行插件原有的添加逻辑
+        this.addFriend();
+      };
+    }
 
-          console.log('[Message App] 返回按钮被点击');
-          if (this.currentView === 'detail' || this.currentView === 'messageDetail') {
-            // 如果当前在消息详情页面，返回到消息列表
-            this.showMessageList();
-          } else if (this.currentView === 'addFriend') {
-            // 如果当前在添加好友页面，返回到消息列表
-            this.showMessageList();
-          } else {
-            // 默认返回到消息列表
-            this.showMessageList();
+    // 4. 删除按钮：从保险箱移除
+    const deleteBtns = appContent.querySelectorAll('.delete-permanent-btn');
+    if (deleteBtns.length > 0) {
+      deleteBtns.forEach(btn => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          const index = btn.getAttribute('data-index');
+          try {
+            let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+            friends.splice(index, 1);
+            localStorage.setItem('permanent_friends', JSON.stringify(friends));
+            alert('已移除该永久好友！');
+            // 自动点击Tab刷新当前视图
+            const addTabBtn = document.querySelector('.tab-item[data-tab="add"]');
+            if (addTabBtn) addTabBtn.click();
+          } catch (err) {
+            console.error('删除逻辑出错:', err);
           }
         };
-
-        // 添加新的事件监听器
-        backButton.addEventListener('click', this.handleBackButtonClick);
-      }
-
-      // 添加好友按钮
-      const addFriendBtn = appContent.querySelector('#add-friend-btn');
-      if (addFriendBtn) {
-        addFriendBtn.addEventListener('click', () => {
-          this.showAddFriend();
-        });
-      }
-
-      // Tab切换按钮
-      const tabBtns = appContent.querySelectorAll('.tab-btn');
-      tabBtns.forEach(btn => {
-        btn.addEventListener('click', e => {
-          e.preventDefault(); // 阻止默认行为
-          e.stopPropagation(); // 阻止事件冒泡
-
-          const target = e.currentTarget;
-          const tabName = target.getAttribute('data-tab');
-          if (tabName) {
-            console.log(`[Message App] Tab切换: ${tabName}`);
-            this.switchTab(tabName);
-          }
-        });
       });
+    }
+    // --- 永久通讯录逻辑结束 ---
 
-    // 添加好友提交按钮
-      const submitBtn = appContent.querySelector('#add-friend-submit');
-      const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
-
-      // 强制激活勾选框的点击视觉反馈
-      if (permanentCheckbox) {
-        permanentCheckbox.addEventListener('change', () => {
-          console.log('🔘 永久同步勾选状态已变为:', permanentCheckbox.checked);
-        });
-      }
-
-      if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-          // 检查是否勾选了永久同步
-          if (permanentCheckbox && permanentCheckbox.checked) {
-            const fName = appContent.querySelector('#friend-name')?.value;
-            const fId = appContent.querySelector('#friend-number')?.value;
-
-            if (fName && fId) {
-              try {
-                const friendInfo = `[好友id|${fName}|${fId}]`;
-                let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-                if (!friends.includes(friendInfo)) {
-                  friends.push(friendInfo);
-                  localStorage.setItem('permanent_friends', JSON.stringify(friends));
-                  console.log('%c✨ 写入永久通讯录成功!', 'color: #00ff00; font-weight: bold;');
-                }
-              } catch (e) {
-                console.error('写入保险箱失败:', e);
-              }
-            }
-          }
-
-          // 执行原有的添加逻辑（发送聊天消息）
-          this.addFriend();
-        });
-      } // <--- 你说的就是这个括号！
-
-      // 🚀 紧跟在后面：处理永久好友的删除按钮
-      const deleteBtns = appContent.querySelectorAll('.delete-permanent-btn');
-      if (deleteBtns.length > 0) {
-        deleteBtns.forEach(btn => {
-          btn.onclick = (e) => {
-            e.preventDefault();
-            const index = btn.getAttribute('data-index');
-            try {
-              let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-              friends.splice(index, 1); // 移除选中的那一个
-              localStorage.setItem('permanent_friends', JSON.stringify(friends));
-              
-              alert('已移除该永久好友！');
-              
-              // 自动切换一下Tab，让界面重新渲染，列表就会更新了
-              const addTab = document.querySelector('.tab-item[data-tab="add"]');
-              if (addTab) addTab.click();
-            } catch (err) {
-              console.error('删除逻辑出错:', err);
-            }
-          };
-        });
-      }
-      
-          // 执行原有的添加逻辑（发送聊天消息）
-          this.addFriend();
-        });
-      }
+  } // <-- 这一行是 bindEvents() 函数的唯一结尾
 
       // 刷新好友列表按钮
       const refreshBtn = appContent.querySelector('#refresh-friend-list');
