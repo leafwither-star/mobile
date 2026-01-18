@@ -6577,3 +6577,54 @@ renderAddFriendTab() {
         }
     }, 1000); // 每秒检查一次直到加载
 })();
+
+(function theiOSNotificationOnly() {
+    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    let lastMsgKey = "";
+
+    const observer = new MutationObserver(() => {
+        // 1. 依然保持红点和排序的实时更新（这是最稳的）
+        if (typeof window.applyModernLayout === 'function') window.applyModernLayout();
+
+        // 2. 寻找通知关键词
+        const p = Array.from(document.querySelectorAll('p, div')).find(el => el.innerText.includes('[手机快讯]'));
+        if (!p) return;
+
+        const lines = p.innerText.trim().split('\n');
+        const lastLine = lines.findLast(l => l.includes('[对方消息|'));
+
+        if (lastLine && lastLine !== lastMsgKey) {
+            lastMsgKey = lastLine;
+            const parts = lastLine.split('|');
+            const name = parts[1] || "新联系人";
+            const content = parts[4]?.replace(']', '') || "发来新消息";
+
+            // 只有当角色没在生成中，且手机界面没打开时（或根据你喜好）才弹窗
+            if (!document.body.innerText.includes("generating...")) {
+                bubbleSound.play().catch(() => {});
+                
+                const toast = document.createElement('div');
+                // 样式微调：去掉小手形状，改为普通箭头，暗示不可点击跳转
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease;";
+                
+                toast.innerHTML = `
+                    <div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:600; font-size:15px; margin-bottom:2px;">${name}</div>
+                        <div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${content}</div>
+                    </div>
+                `;
+                
+                document.body.appendChild(toast);
+                
+                // 5秒后自动淡出消失
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+                    setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500);
+                }, 5000);
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+})();
