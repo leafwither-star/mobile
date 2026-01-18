@@ -1904,7 +1904,8 @@ renderAddFriendTab() {
                 </div>
                 
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 5px 0 15px 0; padding: 5px; background: rgba(0,0,0,0.05); border-radius: 4px;">
-                    <input type="checkbox" id="make-permanent-checkbox" style="width: 16px; height: 16px; cursor: pointer;">
+                    <input type="checkbox" id="make-permanent-checkbox" 
+       style="width: 18px; height: 18px; cursor: pointer; accent-color: #007bff; -webkit-appearance: checkbox !important; appearance: checkbox !important;">
                     <label for="make-permanent-checkbox" style="cursor: pointer; font-size: 13px; color: #555; margin-bottom: 0;">同步到永久通讯录</label>
                 </div>
 
