@@ -1845,12 +1845,12 @@ if (typeof window.MessageApp === 'undefined') {
     }
     
    applyModernLayout() {
-    // 【修复核心】将 CSS 注入挪到函数内部，确保不会触发脚本加载错误
+    // 1. 样式注入（保持不变，这部分很稳）
     if (!document.getElementById('ios-notification-style')) {
         const style = document.createElement('style');
         style.id = 'ios-notification-style';
         style.innerHTML = `
-            /* 无痕红点：靠属性驱动 */
+            .message-item { position: relative !important; }
             .message-item[data-unread="true"]::after {
                 content: '';
                 position: absolute;
@@ -1871,35 +1871,38 @@ if (typeof window.MessageApp === 'undefined') {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // --- 数据提取逻辑 (保持不变) ---
+    // 2. 提取数据
     const orderMap = {};
-    const mesBlocks = document.querySelectorAll('.mes');
-    mesBlocks.forEach(block => {
+    document.querySelectorAll('.mes').forEach(block => {
         const text = block.innerText;
         const mesId = parseInt(block.getAttribute('mesid') || 0);
         const idMatch = text.match(/\|(\d+)\|/);
         if (idMatch) {
             const id = idMatch[1];
+            // 确保我们存的是当前好友最大的消息 ID
             if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
         }
     });
 
-    // --- 渲染逻辑 ---
+    // 💡 优化点：把最新的 ID 映射挂到全局，方便点击事件调用
+    window.latestOrderMap = orderMap; 
+
+    // 3. 渲染红点
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
         const latestOrder = orderMap[id] || 0;
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
         
-        // 只改属性，保住本地头像
-        if (latestOrder > lastReadOrder) {
+        // 如果最新消息 ID 大于已读 ID，显红点
+        if (latestOrder > lastReadOrder && latestOrder !== 0) {
             item.setAttribute('data-unread', 'true');
         } else {
             item.removeAttribute('data-unread');
         }
     });
 
-    // --- 排序逻辑 ---
+    // 4. 排序逻辑（保持不变）
     const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
     if (items.length > 0 && items[0] !== sorted[0]) {
         sorted.forEach(el => listContainer.appendChild(el));
@@ -5658,20 +5661,26 @@ renderAddFriendTab() {
       }
     }
 
-    // 显示消息详情页面
-    showMessageDetail(friendId, friendName) {
-     console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
+   // 显示消息详情页面
+showMessageDetail(friendId, friendName) {
+    console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
 
-    // --- 🔴 新增：点开即标记已读 ---
-    if (friendId && window.latestOrderMap) {
-      // 拿到这个人目前在酒馆里最新的消息 ID (权重)
-      const currentMax = window.latestOrderMap[friendId] || 0;
-      // 把它存进“已读名单”
-      localStorage.setItem(`lastRead_${friendId}`, currentMax);
-      console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
+    // --- 🔴 增强版：点开即标记已读 ---
+    // 即使 latestOrderMap 还没生成，我们也给一个极大的数字 (比如 999999) 
+    // 确保只要点进去，红点就必须消失
+    const currentMax = (window.latestOrderMap && window.latestOrderMap[friendId]) ? window.latestOrderMap[friendId] : 999999;
+    
+    localStorage.setItem(`lastRead_${friendId}`, currentMax);
+    console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
+
+    // 【最关键的一行】标记完后，立刻命令界面重新检查并抹掉红点
+    if (typeof this.applyModernLayout === 'function') {
+        this.applyModernLayout();
     }
     // ----------------------------
 
+  // ... 原有的显示详情逻辑 ...
+}
       this.currentView = 'messageDetail';
       this.currentFriendId = friendId;
       this.currentFriendName = friendName;
@@ -6575,12 +6584,33 @@ renderAddFriendTab() {
                 
                 document.body.appendChild(toast);
                 
-                // --- 点击跳转逻辑（方案 A 模拟点击） ---
-                toast.onclick = () => {
-                    const target = Array.from(document.querySelectorAll('.message-item')).find(item => item.innerText.includes(name));
-                    if (target) target.click();
-                    toast.remove();
-                };
+                // --- 点击跳转逻辑（方案 A 模拟点击 + 强制唤醒） ---
+toast.onclick = () => {
+    console.log("🚀 尝试跳转至:", name);
+
+    // 1. 先确保手机界面是打开的，并且处于列表页
+    // 如果你的系统有打开手机的全局方法（比如 openApp('messages')），请在这里调用
+    // 如果没有，我们直接尝试找列表项
+    
+    let target = Array.from(document.querySelectorAll('.message-item'))
+                      .find(item => item.innerText.includes(name));
+
+    if (target) {
+        target.click();
+    } else {
+        // 2. 兜底逻辑：如果找不到列表项（可能手机关着），先点一下手机图标
+        const phoneIcon = document.querySelector('.mobile-phone-icon'); // 换成你手机图标的真实选择器
+        if (phoneIcon) phoneIcon.click();
+        
+        // 稍微延迟一下等列表出来再点
+        setTimeout(() => {
+            target = Array.from(document.querySelectorAll('.message-item'))
+                          .find(item => item.innerText.includes(name));
+            if (target) target.click();
+        }, 300);
+    }
+    toast.remove();
+};
 
                 setTimeout(() => { if(toast) toast.remove(); }, 6000);
             }
