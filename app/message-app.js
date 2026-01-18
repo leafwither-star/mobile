@@ -5071,17 +5071,21 @@ renderAddFriendTab() {
       }
     }
 
-// --- 微信化美化：居中时间 + 标签清理 ---
+// --- 微信化美化：针对 .message-detail 结构的精准适配版 ---
   applyChatDetailModernization() {
     const content = document.querySelector('.message-detail-content');
     if (!content) return;
 
-    // 抓取气泡（兼容 .mes 和 .message-bubble）
-    const bubbles = content.querySelectorAll('.mes, .message-bubble');
+    // 1. 根据诊断报告，你的气泡类名是 .message-detail
+    const bubbles = content.querySelectorAll('.message-detail');
     let lastTimeMinutes = null;
 
     bubbles.forEach(bubble => {
-      const rawText = bubble.innerText;
+      // 2. 找到消息主体内容
+      const messageBody = bubble.querySelector('.message-body');
+      if (!messageBody) return;
+
+      const rawText = messageBody.innerText;
       const timeMatch = rawText.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
       
       if (timeMatch) {
@@ -5089,20 +5093,26 @@ renderAddFriendTab() {
         const m = parseInt(timeMatch[2]);
         const totalMins = h * 60 + m;
 
-        // 判定：如果是第一条，或者间隔 >= 5分钟
+        // 3. 判定逻辑：首条必显，或间隔 >= 5分钟
         if (lastTimeMinutes === null || Math.abs(totalMins - lastTimeMinutes) >= 5) {
           const timeBubble = document.createElement('div');
           timeBubble.className = 'chat-time-bubble';
-          timeBubble.innerHTML = `<span>${timeMatch[1]}:${timeMatch[2]}</span>`;
+          // 强制居中样式，防止CSS没加载
+          timeBubble.style.cssText = "text-align: center; margin: 15px 0; width: 100%; clear: both; display: block;";
+          timeBubble.innerHTML = `<span style="background: rgba(0,0,0,0.08); color: #888; padding: 2px 10px; border-radius: 4px; font-size: 12px;">${timeMatch[1]}:${timeMatch[2]}</span>`;
+          
+          // 插入到当前气泡的前面
           bubble.parentNode.insertBefore(timeBubble, bubble);
           lastTimeMinutes = totalMins;
         }
-        // 删掉气泡里原本那行丑丑的时间
-        bubble.innerHTML = bubble.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
+
+        // 4. 清理 message-body 里的原始时间标签
+        // 我们只清理文字部分，保留可能存在的图片或表情
+        messageBody.innerHTML = messageBody.innerHTML.replace(/\[时间\|.*?\]/g, '').trim();
       }
 
-      // 如果气泡里只剩下空的标签，直接隐藏它
-      if (bubble.innerText.trim() === "" && !bubble.querySelector('img')) {
+      // 5. 如果清理完气泡变空了，就藏起来
+      if (messageBody.innerText.trim() === "" && !messageBody.querySelector('img')) {
           bubble.style.display = 'none';
       }
     });
