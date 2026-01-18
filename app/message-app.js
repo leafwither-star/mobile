@@ -2358,7 +2358,7 @@ renderAddFriendTab() {
       }
     }
 
-    // 绑定事件
+// 绑定事件
   bindEvents() {
     const appContent = document.getElementById('app-content');
     if (!appContent) return;
@@ -2369,7 +2369,11 @@ renderAddFriendTab() {
       backButton.removeEventListener('click', this.handleBackButtonClick);
       this.handleBackButtonClick = () => {
         const currentApp = window.mobilePhone?.currentAppState?.app;
-        if (currentApp !== 'messages') return;
+        if (currentApp !== 'messages') {
+          console.log('[Message App] 当前不在消息应用中，跳过返回按钮处理');
+          return;
+        }
+        console.log('[Message App] 返回按钮被点击');
         this.showMessageList();
       };
       backButton.addEventListener('click', this.handleBackButtonClick);
@@ -2390,24 +2394,25 @@ renderAddFriendTab() {
         e.preventDefault();
         e.stopPropagation();
         const tabName = e.currentTarget.getAttribute('data-tab');
-        if (tabName) this.switchTab(tabName);
+        if (tabName) {
+          console.log(`[Message App] Tab切换: ${tabName}`);
+          this.switchTab(tabName);
+        }
       });
     });
 
-    // --- 永久通讯录逻辑开始 ---
-    
-    // 1. 获取提交按钮和勾选框
+    // ==========================================
+    // ✨ 新增：永久通讯录逻辑 (提交与删除)
+    // ==========================================
     const submitBtn = appContent.querySelector('#add-friend-submit');
     const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
 
-    // 2. 勾选框反馈
     if (permanentCheckbox) {
       permanentCheckbox.onchange = () => {
         console.log('🔘 永久同步勾选状态:', permanentCheckbox.checked);
       };
     }
 
-    // 3. 提交按钮：发送消息 + 写入保险箱
     if (submitBtn) {
       submitBtn.onclick = () => {
         if (permanentCheckbox && permanentCheckbox.checked) {
@@ -2427,81 +2432,75 @@ renderAddFriendTab() {
             }
           }
         }
-        // 执行插件原有的添加逻辑
+        // 执行原有的添加逻辑
         this.addFriend();
       };
     }
 
-    // 4. 删除按钮：从保险箱移除
-    const deleteBtns = appContent.querySelectorAll('.delete-permanent-btn');
-    if (deleteBtns.length > 0) {
-      deleteBtns.forEach(btn => {
-        btn.onclick = (e) => {
-          e.preventDefault();
-          const index = btn.getAttribute('data-index');
-          try {
-            let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-            friends.splice(index, 1);
-            localStorage.setItem('permanent_friends', JSON.stringify(friends));
-            alert('已移除该永久好友！');
-            // 自动点击Tab刷新当前视图
-            const addTabBtn = document.querySelector('.tab-item[data-tab="add"]');
-            if (addTabBtn) addTabBtn.click();
-          } catch (err) {
-            console.error('删除逻辑出错:', err);
-          }
-        };
+    const deletePermBtns = appContent.querySelectorAll('.delete-permanent-btn');
+    deletePermBtns.forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        const index = btn.getAttribute('data-index');
+        try {
+          let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+          friends.splice(index, 1);
+          localStorage.setItem('permanent_friends', JSON.stringify(friends));
+          alert('已移除该永久好友！');
+          const addTabBtn = document.querySelector('.tab-item[data-tab="add"]');
+          if (addTabBtn) addTabBtn.click();
+        } catch (err) {
+          console.error('删除永久好友出错:', err);
+        }
+      };
+    });
+    // ==========================================
+
+    // 刷新好友列表按钮
+    const refreshBtn = appContent.querySelector('#refresh-friend-list');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        this.refreshDeleteFriendList();
       });
     }
-    // --- 永久通讯录逻辑结束 ---
 
-  } // <-- 这一行是 bindEvents() 函数的唯一结尾
-
-      // 刷新好友列表按钮
-      const refreshBtn = appContent.querySelector('#refresh-friend-list');
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-          this.refreshDeleteFriendList();
-        });
-      }
-
-      // 删除好友按钮
-      const deleteFriendBtns = appContent.querySelectorAll('.delete-friend-btn');
-      deleteFriendBtns.forEach(btn => {
-        btn.addEventListener('click', e => {
-          const target = e.currentTarget;
-          const friendId = target.getAttribute('data-friend-id');
-          const friendName = target.getAttribute('data-friend-name');
-          if (friendId && friendName) {
-            this.deleteFriend(friendId, friendName);
-          }
-        });
+    // 删除好友按钮 (原生逻辑)
+    const deleteFriendBtns = appContent.querySelectorAll('.delete-friend-btn');
+    deleteFriendBtns.forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget;
+        const friendId = target.getAttribute('data-friend-id');
+        const friendName = target.getAttribute('data-friend-name');
+        if (friendId && friendName) {
+          this.deleteFriend(friendId, friendName);
+        }
       });
+    });
 
-      // 创建群聊相关事件
-      this.bindCreateGroupEvents(appContent);
+    // 创建群聊相关事件
+    this.bindCreateGroupEvents(appContent);
 
-      // 删除群聊相关事件
-      this.bindDeleteGroupEvents(appContent);
+    // 删除群聊相关事件
+    this.bindDeleteGroupEvents(appContent);
 
-      // 好友列表点击事件
-      const messageItems = appContent.querySelectorAll('.message-item');
-      messageItems.forEach(item => {
-        item.addEventListener('click', e => {
-          const target = e.currentTarget;
-          const friendId = target && target.getAttribute ? target.getAttribute('data-friend-id') : null;
-          if (friendId) {
-            this.selectFriend(friendId); // 新增：选择好友而不是直接打开聊天
-          }
-        });
+    // 好友列表点击事件
+    const messageItems = appContent.querySelectorAll('.message-item');
+    messageItems.forEach(item => {
+      item.addEventListener('click', e => {
+        const target = e.currentTarget;
+        const friendId = target && target.getAttribute ? target.getAttribute('data-friend-id') : null;
+        if (friendId) {
+          this.selectFriend(friendId);
+        }
       });
+    });
 
-      // 绑定发送相关事件
-      this.bindSendEvents();
+    // 绑定发送相关事件
+    this.bindSendEvents();
 
-      // 绑定消息详情页面的发送事件
-      this.bindDetailSendEvents();
-    }
+    // 绑定消息详情页面的发送事件
+    this.bindDetailSendEvents();
+  }
 
     // 绑定发送相关事件
     bindSendEvents() {
