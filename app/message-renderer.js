@@ -118,25 +118,6 @@ if (typeof window.MessageRenderer === 'undefined') {
 
       return messages;
     }
-    
-      // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
-      // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
-      messages.sort((a, b) => a.textPosition - b.textPosition);
-      console.log('[Message Renderer] 按原始文本位置排序，确保时间顺序正确');
-
-      console.log('[Message Renderer] 从原始文本解析到', messages.length, '条消息');
-      console.log(
-        '[Message Renderer] 排序后的消息顺序:',
-        messages.map((msg, i) => ({
-          index: i,
-          textPosition: msg.textPosition,
-          content: msg.content?.substring(0, 20) + '...',
-          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
-        })),
-      );
-
-      return messages;
-    }
 
     /**
      * 🔥 估计消息在上下文中的位置
