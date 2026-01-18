@@ -54,57 +54,54 @@ if (typeof window.MessageRenderer === 'undefined') {
 
     /**
      * 🔥 从原始文本中解析消息（已锁定机主为：李至中）
+     * 修复说明：确保结构闭合，移除导致 SyntaxError 的潜在非法字符
      */
     parseMessagesFromRawText(rawText) {
-      const messages = [];
-      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+        const messages = [];
+        if (!rawText) return messages;
 
-      let match;
-      let position = 0;
+        const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+        let match;
+        let position = 0;
 
-      while ((match = messageRegex.exec(rawText)) !== null) {
-        const [fullMatch, messageType, field1, field2, field3, field4] = match;
+        while ((match = messageRegex.exec(rawText)) !== null) {
+            const [fullMatch, messageType, field1, field2, field3, field4] = match;
+            let sender, number, msgType, content;
 
-        let sender, number, msgType, content;
+            if (messageType === '群聊消息') {
+                sender = field2; 
+                number = field1; 
+                msgType = field3; 
+                content = field4;
+            } else if (messageType === '我方群聊消息') {
+                sender = '李至中'; // 锁定主角名
+                number = field2; 
+                msgType = field3; 
+                content = field4;
+            } else if (messageType === '我方消息') {
+                sender = '李至中'; // 锁定主角名
+                number = field2;
+                msgType = field3;
+                content = field4;
+            } else {
+                sender = field1;
+                number = field2;
+                msgType = field3;
+                content = field4;
+            }
 
-        if (messageType === '群聊消息') {
-          // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
-          sender = field2; 
-          number = field1; 
-          msgType = field3; 
-          content = field4;
-        } else if (messageType === '我方群聊消息') {
-          // 【修改点1】底层锁定：将原本的"我"强制替换为小说主角名
-          sender = '李至中'; 
-          number = field2; 
-          msgType = field3; 
-          content = field4;
-        } else if (messageType === '我方消息') {
-          // 【修改点2】私聊逻辑强化：强制机主为李至中
-          sender = '李至中';
-          number = field2;
-          msgType = field3;
-          content = field4;
-        } else {
-          // 对方消息保持原样
-          sender = field1;
-          number = field2;
-          msgType = field3;
-          content = field4;
+            messages.push({
+                fullMatch: fullMatch,
+                messageType: messageType,
+                sender: sender,
+                number: number,
+                msgType: msgType,
+                content: content,
+                textPosition: match.index,
+                contextOrder: position++,
+            });
         }
-
-        messages.push({
-          fullMatch: fullMatch,
-          messageType: messageType,
-          sender: sender,
-          number: number,
-          msgType: msgType,
-          content: content,
-          textPosition: match.index,
-          contextOrder: position++,
-        });
-      }
-      return messages; // 确保返回数组
+        return messages;
     }
 
       // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
