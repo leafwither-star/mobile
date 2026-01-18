@@ -2419,7 +2419,7 @@ renderAddFriendTab() {
         });
       });
 
-      // 添加好友提交按钮
+    // 添加好友提交按钮
       const submitBtn = appContent.querySelector('#add-friend-submit');
       const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
 
@@ -2452,6 +2452,35 @@ renderAddFriendTab() {
             }
           }
 
+          // 执行原有的添加逻辑（发送聊天消息）
+          this.addFriend();
+        });
+      } // <--- 你说的就是这个括号！
+
+      // 🚀 紧跟在后面：处理永久好友的删除按钮
+      const deleteBtns = appContent.querySelectorAll('.delete-permanent-btn');
+      if (deleteBtns.length > 0) {
+        deleteBtns.forEach(btn => {
+          btn.onclick = (e) => {
+            e.preventDefault();
+            const index = btn.getAttribute('data-index');
+            try {
+              let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+              friends.splice(index, 1); // 移除选中的那一个
+              localStorage.setItem('permanent_friends', JSON.stringify(friends));
+              
+              alert('已移除该永久好友！');
+              
+              // 自动切换一下Tab，让界面重新渲染，列表就会更新了
+              const addTab = document.querySelector('.tab-item[data-tab="add"]');
+              if (addTab) addTab.click();
+            } catch (err) {
+              console.error('删除逻辑出错:', err);
+            }
+          };
+        });
+      }
+      
           // 执行原有的添加逻辑（发送聊天消息）
           this.addFriend();
         });
