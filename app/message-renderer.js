@@ -1445,7 +1445,7 @@ if (typeof window.MessageRenderer === 'undefined') {
                         <span class="message-type">${messageType}</span>
                         ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
                     </div>
-                    <div class="message-text">${content}</div>
+                    <div class="message-text ${msg.isMe ? 'owner-bubble' : ''}">${content}</div>
                 </div>
             </div>
         `;
