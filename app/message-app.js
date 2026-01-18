@@ -5035,7 +5035,9 @@ renderAddFriendTab() {
               if (this.applyChatDetailModernization) {
                   this.applyChatDetailModernization();
               }
-          }, 200); // 稍微多等一会儿，给手机一点“反应时间”
+          }, 200); 
+
+        } // <--- ✨ 就是少了这个！它是用来关掉 if (appContent && ...) 的
           
       } catch (error) {
         console.error('[Message App] 加载消息详情失败:', error);
