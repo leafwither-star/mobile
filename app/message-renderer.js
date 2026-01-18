@@ -53,55 +53,65 @@ if (typeof window.MessageRenderer === 'undefined') {
     }
 
      /**
-     * 🚀 开发者定制版：解析消息逻辑
-     * 目标：锁定机主名为“李至中”，并保持极致的兼容性
+     * 🔥 从原始文本中解析消息（定制修复版）
      */
     parseMessagesFromRawText(rawText) {
-      var messages = [];
-      if (!rawText) return messages;
+      const messages = [];
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
 
-      // 标准正则表达式
-      var messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
-      var match;
-      var position = 0;
+      let match;
+      let position = 0;
 
       while ((match = messageRegex.exec(rawText)) !== null) {
-        // 使用传统索引取值，这是最稳健的方式，不依赖解构赋值
-        var messageType = match[1];
-        var f1 = match[2];
-        var f3 = match[4];
-        var f4 = match[5];
+        const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
-        var sender = "";
-        var number = match[3]; // 好友号/群号
-        var msgType = f3;
-        var content = f4;
+        let sender, number, msgType, content;
 
-        // --- 逻辑分支开始 ---
         if (messageType === '群聊消息') {
-          sender = f1; // 群聊中 field1 通常是发送者
-        } 
-        else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-          // 这里实现你的核心需求：强制锁定机主
+          sender = field2; 
+          number = field1; 
+          msgType = field3; 
+          content = field4;
+        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
+          // 🚀 核心改动：无论是我方私聊还是群聊，统一显示为“李至中”
           sender = '李至中'; 
-        } 
-        else {
-          // 对方消息
-          sender = f1;
+          number = field2; 
+          msgType = field3; 
+          content = field4;
+        } else {
+          sender = field1;
+          number = field2;
+          msgType = field3;
+          content = field4;
         }
-        // --- 逻辑分支结束 ---
 
         messages.push({
-          fullMatch: match[0],
+          fullMatch: fullMatch,
           messageType: messageType,
           sender: sender,
           number: number,
           msgType: msgType,
           content: content,
           textPosition: match.index,
-          contextOrder: position++
+          contextOrder: position++,
         });
       }
+
+      // 保持原有的排序逻辑
+      messages.sort((a, b) => a.textPosition - b.textPosition);
+
+      // 🔥 关键兼容性修复：将原版中带有 ?. 的 console.log 改为普通写法
+      console.log('[Message Renderer] 解析完成，消息数量:', messages.length);
+      console.log(
+        '[Message Renderer] 排序后的消息顺序:',
+        messages.map((msg, i) => ({
+          index: i,
+          textPosition: msg.textPosition,
+          content: (msg.content ? msg.content.substring(0, 20) : '') + '...',
+          fullMatch: (msg.fullMatch ? msg.fullMatch.substring(0, 40) : '') + '...'
+        })),
+      );
+
       return messages;
     }
     
