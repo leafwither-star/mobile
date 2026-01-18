@@ -1851,80 +1851,71 @@ if (typeof window.MessageApp === 'undefined') {
     const timeMap = {};
     const orderMap = {};
     
-    // --- 【新增：保底数据源】直接从好友提取器拿数据 ---
-    const extractedFriends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
+    // 1. 【第一道保险】直接从好友提取器拿数据（这是最稳的，不受页面文本限制）
+    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
+                             ? window.friendRenderer.extractFriendsFromContext() : [];
+    
     extractedFriends.forEach(f => {
-        // 使用原生自带的索引和时间作为初始值
         orderMap[f.number] = f.messageIndex || 0;
+        // 如果提取到了时间就用原生的，没有就给个保底
         if (f.addTime) {
-            // 将毫秒转为 HH:mm 格式 (保底时间)
             const d = new Date(f.addTime);
             timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
     });
 
-    // --- 【保留：原本的 DOM 扫描】如果有渲染好的文本，会覆盖上面的保底数据 ---
+    // 2. 【第二道保险】扫描页面 DOM（用于校准最新的实时消息）
     const mesBlocks = document.querySelectorAll('.mes');
     mesBlocks.forEach(block => {
         const text = block.innerText;
-        const lines = text.split('\n');
-        let currentTime = '';
         const mesId = parseInt(block.getAttribute('mesid') || 0);
-
-        lines.forEach(line => {
-            const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-            if (timeMatch) currentTime = timeMatch[1];
-
-            const idMatch = line.match(/\|(\d+)\|/);
-            if (idMatch && currentTime) {
-                const id = idMatch[1];
-                timeMap[id] = currentTime;
-                if (!orderMap[id] || mesId > orderMap[id]) {
-                    orderMap[id] = mesId;
-                }
+        
+        const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+        const idMatch = text.match(/\|(\d+)\|/);
+        
+        if (idMatch) {
+            const id = idMatch[1];
+            if (timeMatch) timeMap[id] = timeMatch[1];
+            if (!orderMap[id] || mesId > orderMap[id]) {
+                orderMap[id] = mesId;
             }
-        });
+        }
     });
 
     window.latestOrderMap = orderMap;
 
-    // --- 2. 置顶排序 (逻辑不变) ---
+    // 3. 执行置顶排序
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    if (items.length > 0) {
-        items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
-        items.forEach(item => listContainer.appendChild(item));
-    }
+    items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+    items.forEach(item => listContainer.appendChild(item));
 
-    // --- 3. 贴纸与红点 (加固改进版) ---
+    // 4. 渲染时间戳和红点
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
         const time = timeMap[id];
         const latestOrder = orderMap[id] || 0;
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-        // 🔥 注意：这里把 if (time) 移除了，因为哪怕没抓到时间，我们也该判断红点
-        
-        // 1. 处理时间戳 (保持完美)
-        const old = item.querySelector('.custom-timestamp');
-        if (old) old.remove();
-        if (time) { // 有时间才画时间
-            item.style.position = 'relative';
-            const timeSpan = document.createElement('span');
-            timeSpan.className = 'custom-timestamp';
+        // --- 修复点 A：处理时间戳 (即便没有 time，也保持占位或跳过，不影响红点) ---
+        let timeSpan = item.querySelector('.custom-timestamp');
+        if (time) {
+            if (!timeSpan) {
+                timeSpan = document.createElement('span');
+                timeSpan.className = 'custom-timestamp';
+                timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
+                item.appendChild(timeSpan);
+            }
             timeSpan.innerText = time;
-            timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
-            item.appendChild(timeSpan);
         }
 
-        // 2. 红点处理
+        // --- 修复点 B：红点逻辑 (彻底脱离 if(time) 的限制) ---
         let dot = item.querySelector('.unread-dot');
-        // 只要有消息权重，且大于已读，就亮
+        // 只要最新消息 ID > 0 且 大于已读记录，就亮！
         if (latestOrder > 0 && latestOrder > lastReadOrder) {
             if (!dot) {
                 dot = document.createElement('div');
                 dot.className = 'unread-dot';
                 dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
-                item.style.position = 'relative';
                 item.appendChild(dot);
             }
         } else {
