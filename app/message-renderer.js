@@ -53,57 +53,52 @@ if (typeof window.MessageRenderer === 'undefined') {
     }
 
     /**
-     * 🔥 从原始文本中解析消息（已锁定机主为：李至中）
-     * 修复说明：确保结构闭合，移除导致 SyntaxError 的潜在非法字符
+     * 🔥 最终稳健版：解析消息逻辑（彻底移除所有可能导致报错的符号）
      */
     parseMessagesFromRawText(rawText) {
-        const messages = [];
-        if (!rawText) return messages;
+      var messages = [];
+      if (!rawText) return messages;
 
-        const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
-        let match;
-        let position = 0;
+      var messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+      var match;
+      var position = 0;
 
-        while ((match = messageRegex.exec(rawText)) !== null) {
-            const [fullMatch, messageType, field1, field2, field3, field4] = match;
-            let sender, number, msgType, content;
+      while ((match = messageRegex.exec(rawText)) !== null) {
+        var fullMatch = match[0];
+        var messageType = match[1];
+        var f1 = match[2];
+        var f2 = match[3];
+        var f3 = match[4];
+        var f4 = match[5];
 
-            if (messageType === '群聊消息') {
-                sender = field2; 
-                number = field1; 
-                msgType = field3; 
-                content = field4;
-            } else if (messageType === '我方群聊消息') {
-                sender = '李至中'; // 锁定主角名
-                number = field2; 
-                msgType = field3; 
-                content = field4;
-            } else if (messageType === '我方消息') {
-                sender = '李至中'; // 锁定主角名
-                number = field2;
-                msgType = field3;
-                content = field4;
-            } else {
-                sender = field1;
-                number = field2;
-                msgType = field3;
-                content = field4;
-            }
+        var sender = "";
+        var number = "";
+        var msgType = "";
+        var content = "";
 
-            messages.push({
-                fullMatch: fullMatch,
-                messageType: messageType,
-                sender: sender,
-                number: number,
-                msgType: msgType,
-                content: content,
-                textPosition: match.index,
-                contextOrder: position++,
-            });
+        if (messageType === '群聊消息') {
+          sender = f2; number = f1; msgType = f3; content = f4;
+        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
+          sender = '李至中'; // 核心改动点
+          number = f2; msgType = f3; content = f4;
+        } else {
+          sender = f1; number = f2; msgType = f3; content = f4;
         }
-        return messages;
-    }
 
+        messages.push({
+          fullMatch: fullMatch,
+          messageType: messageType,
+          sender: sender,
+          number: number,
+          msgType: msgType,
+          content: content,
+          textPosition: match.index,
+          contextOrder: position++
+        });
+      }
+      return messages;
+    }
+    
       // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
       // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
       messages.sort((a, b) => a.textPosition - b.textPosition);
