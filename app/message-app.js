@@ -1934,7 +1934,8 @@ if (typeof window.MessageApp === 'undefined') {
         }
       }
     });
-  }
+  window.applyModernLayout = () => this.applyModernLayout();
+   }
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6710,4 +6711,57 @@ applyChatDetailModernization() {
             console.log('%c🚀 李至中的永久通讯录补丁已激活！', 'color: #00ffff; font-weight: bold;');
         }
     }, 1000); // 每秒检查一次直到加载
+})();
+
+// --- 粘贴在文件末尾 ---
+(function startUnifiedListener() {
+    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    let lastMsgKey = "";
+
+    const observer = new MutationObserver(() => {
+        // 1. 尝试触发红点刷新
+        if (typeof window.applyModernLayout === 'function') {
+            window.applyModernLayout();
+        }
+
+        // 2. 检测并显示新消息弹窗
+        const p = Array.from(document.querySelectorAll('p')).find(el => el.innerText.includes('[手机快讯]'));
+        if (!p) return;
+
+        const lines = p.innerText.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+
+        if (lastLine.includes('[对方消息|') && lastLine !== lastMsgKey) {
+            lastMsgKey = lastLine;
+            const parts = lastLine.split('|');
+            const name = parts[1];
+            const content = parts[4] ? parts[4].replace(']', '') : "发来一条消息";
+
+            if (!document.body.innerText.includes("generating...")) {
+                showToast(name, content);
+            }
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    function showToast(name, text) {
+        bubbleSound.play().catch(() => {});
+        const toast = document.createElement('div');
+        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px) saturate(180%); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
+        toast.innerHTML = `<img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;"><div style="flex:1;"><div style="font-weight:700; font-size:16px; font-family:sans-serif;">${name}</div><div style="color:#444; font-size:14.5px; font-family:sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">${text}</div></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.style.top = '25px', 100);
+        toast.onclick = () => {
+            toast.style.transform = 'translateX(-50%) scale(0.92)';
+            setTimeout(() => {
+                toast.style.top = '-120px';
+                // 模拟点击进入消息详情
+                const items = document.querySelectorAll('.message-item');
+                items.forEach(item => { if(item.innerText.includes(name)) item.click(); });
+                setTimeout(() => toast.remove(), 800);
+            }, 150);
+        };
+        setTimeout(() => { if(toast.parentNode) { toast.style.top = '-120px'; setTimeout(()=>toast.remove(), 800); } }, 6000);
+    }
 })();
