@@ -1832,6 +1832,8 @@ if (typeof window.MessageApp === 'undefined') {
             `;
       }
 
+      setTimeout(() => this.applyModernLayout(), 50);
+      
       return `
             <div class="messages-app">
                 <div class="message-list" id="message-list">
@@ -1840,6 +1842,54 @@ if (typeof window.MessageApp === 'undefined') {
                 ${this.renderTabSwitcher()}
             </div>
         `;
+    }
+
+    // 2. 紧接着贴入这个全新的函数
+    applyModernLayout() {
+      const listContainer = document.getElementById('message-list');
+      if (!listContainer) return;
+
+      const lastActivity = {};
+      document.querySelectorAll('.mes_text').forEach(log => {
+        const text = log.innerText;
+        const msgMatch = text.match(/\[(对方|我方)消息\|([^|]+)\|(\d+)\|([^|]+)\|(.*)\]/);
+        if (msgMatch) {
+          const id = msgMatch[3];
+          const timeMatch = text.match(/\[时间\|([^\]]+)\]/);
+          lastActivity[id] = {
+            content: msgMatch[5],
+            time: timeMatch ? timeMatch[1] : ''
+          };
+        }
+      });
+
+      const items = listContainer.querySelectorAll('.message-item');
+      items.forEach(item => {
+        const id = item.getAttribute('data-friend-id');
+        const data = lastActivity[id];
+        if (!data) return;
+
+        const nameEl = item.querySelector('.friend-name') || item.querySelector('span');
+        const imgEl = item.querySelector('img');
+        const name = nameEl ? nameEl.innerText : '未知';
+        const avatar = imgEl ? imgEl.src : '';
+
+        item.style.cssText = "display: flex; padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); align-items: center; cursor: pointer;";
+        item.innerHTML = `
+          <div style="position: relative; flex-shrink: 0;">
+            <img src="${avatar}" style="width: 45px; height: 45px; border-radius: 6px; object-fit: cover;">
+          </div>
+          <div style="flex: 1; margin-left: 12px; overflow: hidden; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-weight: 500; font-size: 15px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</span>
+              <span style="font-size: 11px; color: #b0b0b0;">${data.time}</span>
+            </div>
+            <div style="margin-top: 4px; font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${data.content}
+            </div>
+          </div>
+        `;
+      });
     }
 
     // 渲染添加好友界面
