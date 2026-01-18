@@ -2398,8 +2398,38 @@ renderAddFriendTab() {
 
       // 添加好友提交按钮
       const submitBtn = appContent.querySelector('#add-friend-submit');
+      const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
+
+      // 强制激活勾选框的点击视觉反馈
+      if (permanentCheckbox) {
+        permanentCheckbox.addEventListener('change', () => {
+          console.log('🔘 永久同步勾选状态已变为:', permanentCheckbox.checked);
+        });
+      }
+
       if (submitBtn) {
         submitBtn.addEventListener('click', () => {
+          // 检查是否勾选了永久同步
+          if (permanentCheckbox && permanentCheckbox.checked) {
+            const fName = appContent.querySelector('#friend-name')?.value;
+            const fId = appContent.querySelector('#friend-number')?.value;
+
+            if (fName && fId) {
+              try {
+                const friendInfo = `[好友id|${fName}|${fId}]`;
+                let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+                if (!friends.includes(friendInfo)) {
+                  friends.push(friendInfo);
+                  localStorage.setItem('permanent_friends', JSON.stringify(friends));
+                  console.log('%c✨ 写入永久通讯录成功!', 'color: #00ff00; font-weight: bold;');
+                }
+              } catch (e) {
+                console.error('写入保险箱失败:', e);
+              }
+            }
+          }
+
+          // 执行原有的添加逻辑（发送聊天消息）
           this.addFriend();
         });
       }
