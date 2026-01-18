@@ -53,53 +53,58 @@ if (typeof window.MessageRenderer === 'undefined') {
     }
 
      /**
-     * 🔥 从原始文本中解析消息（保持完美顺序）
+     * 🚀 开发者定制版：解析消息逻辑
+     * 目标：锁定机主名为“李至中”，并保持极致的兼容性
      */
     parseMessagesFromRawText(rawText) {
-      const messages = [];
-      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+      var messages = [];
+      if (!rawText) return messages;
 
-      let match;
-      let position = 0;
+      // 标准正则表达式
+      var messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+      var match;
+      var position = 0;
 
       while ((match = messageRegex.exec(rawText)) !== null) {
-        const [fullMatch, messageType, field1, field2, field3, field4] = match;
+        // 使用传统索引取值，这是最稳健的方式，不依赖解构赋值
+        var messageType = match[1];
+        var f1 = match[2];
+        var f3 = match[4];
+        var f4 = match[5];
 
-        // 根据消息类型正确映射字段
-        let sender, number, msgType, content;
+        var sender = "";
+        var number = match[3]; // 好友号/群号
+        var msgType = f3;
+        var content = f4;
 
+        // --- 逻辑分支开始 ---
         if (messageType === '群聊消息') {
-          // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
-          sender = field2; // 发送者
-          number = field1; // 群ID (用于匹配)
-          msgType = field3; // 消息类型
-          content = field4; // 消息内容
-        } else if (messageType === '我方群聊消息') {
-          // 我方群聊消息格式：[我方群聊消息|我|群ID|消息类型|消息内容]
-          sender = '我'; // 固定为"我"
-          number = field2; // 群ID (用于匹配)
-          msgType = field3; // 消息类型
-          content = field4; // 消息内容
-        } else {
-          // 普通消息格式：[我方消息|我|好友号|消息内容|时间] 或 [对方消息|好友名|好友号|消息类型|消息内容]
-          sender = field1;
-          number = field2;
-          msgType = field3;
-          content = field4;
+          sender = f1; // 群聊中 field1 通常是发送者
+        } 
+        else if (messageType === '我方群聊消息' || messageType === '我方消息') {
+          // 这里实现你的核心需求：强制锁定机主
+          sender = '李至中'; 
+        } 
+        else {
+          // 对方消息
+          sender = f1;
         }
+        // --- 逻辑分支结束 ---
 
         messages.push({
-          fullMatch: fullMatch,
+          fullMatch: match[0],
           messageType: messageType,
           sender: sender,
           number: number,
           msgType: msgType,
           content: content,
-          textPosition: match.index, // 🔥 关键：记录在原始文本中的位置
-          contextOrder: position++, // 🔥 关键：记录解析顺序
+          textPosition: match.index,
+          contextOrder: position++
         });
       }
-
+      return messages;
+    }
+    
       // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
       // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
       messages.sort((a, b) => a.textPosition - b.textPosition);
