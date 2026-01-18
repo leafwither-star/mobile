@@ -1845,34 +1845,28 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
    applyModernLayout() {
-    // 【关键修复】先获取容器，否则后面排序会报错
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // 1. 精细化扫描：建立 ID -> 属于该 ID 的最后时间的字典
     const timeMap = {};
     const orderMap = {};
     const mesBlocks = document.querySelectorAll('.mes');
     
     mesBlocks.forEach(block => {
       const text = block.innerText;
-      const lines = text.split('\n'); // 把消息拆成行来分析
+      const lines = text.split('\n');
       let currentTime = '';
       const mesId = parseInt(block.getAttribute('mesid') || 0);
 
       lines.forEach(line => {
-        // 如果这一行是时间行，更新当前时钟
         const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-        if (timeMatch) {
-          currentTime = timeMatch[1];
-        }
+        if (timeMatch) currentTime = timeMatch[1];
 
-        // 如果这一行包含 ID (无论是我方还是对方)
         const idMatch = line.match(/\|(\d+)\|/);
         if (idMatch && currentTime) {
           const id = idMatch[1];
-          // 只有最新的时间才会覆盖旧的时间
           timeMap[id] = currentTime;
+          // 记录谁的消息更新（mesId更大）
           if (!orderMap[id] || mesId > orderMap[id]) {
             orderMap[id] = mesId;
           }
@@ -1880,61 +1874,55 @@ if (typeof window.MessageApp === 'undefined') {
       });
     });
 
-    // --- 2. 执行置顶排序逻辑 ---
+    // 【关键修复 1】把数据存入全局，方便红点判定
+    window.latestOrderMap = orderMap;
+
+    // --- 2. 执行置顶排序逻辑 (保持不变) ---
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     if (items.length > 0) {
-        items.sort((a, b) => {
-            const idA = a.getAttribute('data-friend-id');
-            const idB = b.getAttribute('data-friend-id');
-            return (orderMap[idB] || 0) - (orderMap[idA] || 0); // 权重大的排前面
-        });
-        // 重新按顺序插入到页面中
+        items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
         items.forEach(item => listContainer.appendChild(item));
     }
 
-// --- 3. 贴纸与红点逻辑 (亲妈作者版) ---
+    // --- 3. 贴纸与红点逻辑 (加固版) ---
     items.forEach(item => {
       const id = item.getAttribute('data-friend-id');
       const time = timeMap[id];
-      const latestOrder = orderMap[id] || 0; // 该好友当前在酒馆里最新的消息 ID
+      const latestOrder = orderMap[id] || 0;
       
-      // 从本地存储读取上一次“点开聊天框”时记录的 ID
+      // 读取已读记录，如果没有读过，默认为 0
       const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
       if (time) {
-        // 1. 先处理时间戳 (保持你完美的样式)
+        // 1. 处理时间戳 (保持完美)
         const old = item.querySelector('.custom-timestamp');
         if (old) old.remove();
         item.style.position = 'relative';
         const timeSpan = document.createElement('span');
         timeSpan.className = 'custom-timestamp';
         timeSpan.innerText = time;
-        timeSpan.style.cssText = `
-          position: absolute; top: 10px; right: 15px;
-          font-size: 11px; color: #b0b0b0; font-family: sans-serif;
-          pointer-events: none; z-index: 5;
-        `;
+        timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
         item.appendChild(timeSpan);
 
-        // 2. 红点逻辑：如果酒馆有了新消息，且你还没点开看过
+        // 2. 红点处理
         let dot = item.querySelector('.unread-dot');
-        if (latestOrder > lastReadOrder) {
+        // 【关键修复 2】如果最新 ID 大于已读 ID，且最新 ID 确实存在
+        if (latestOrder > 0 && latestOrder > lastReadOrder) {
           if (!dot) {
             dot = document.createElement('div');
             dot.className = 'unread-dot';
-            // 这里的 left: 38px 和 top: -2px 是根据 45px 的头像微调的
             dot.style.cssText = `
               position: absolute; top: -2px; left: 38px; 
               width: 10px; height: 10px; background: #ff4d4f; 
               border-radius: 50%; border: 2px solid white; z-index: 10;
               box-shadow: 0 0 2px rgba(0,0,0,0.2);
             `;
-            // 寻找头像所在的那个容器并贴上去
-            const avatarContainer = item.querySelector('div[style*="relative"]') || item.firstElementChild;
+            // 确保找到头像容器，或者是第一层 div
+            const avatarContainer = item.querySelector('div') || item;
+            avatarContainer.style.position = 'relative'; 
             avatarContainer.appendChild(dot);
           }
         } else {
-          // 如果已经读过了，就把红点摘掉
           if (dot) dot.remove();
         }
       }
