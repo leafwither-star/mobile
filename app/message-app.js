@@ -6713,52 +6713,64 @@ applyChatDetailModernization() {
     }, 1000); // 每秒检查一次直到加载
 })();
 
-// --- 粘贴在文件末尾 ---
-(function startUnifiedListener() {
+(function startSafeListener() {
+    console.log("🛡️ [安全引擎] 正在启动，已加装防卡死保险栓...");
+    
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
     let lastMsgKey = "";
+    let isUpdating = false; // 【保险栓】标记是否正在装修，防止套娃
 
     const observer = new MutationObserver(() => {
-        // 1. 尝试触发红点刷新
-        if (typeof window.applyModernLayout === 'function') {
-            window.applyModernLayout();
-        }
+        if (isUpdating) return; // 如果正在装修中，闭眼不看，跳过监听
 
-        // 2. 检测并显示新消息弹窗
+        // 1. 只有检测到快讯变化时，才触发“精装修”
         const p = Array.from(document.querySelectorAll('p')).find(el => el.innerText.includes('[手机快讯]'));
         if (!p) return;
 
         const lines = p.innerText.trim().split('\n');
         const lastLine = lines[lines.length - 1];
 
+        // 判定：只有真的有新消息进来，才干活
         if (lastLine.includes('[对方消息|') && lastLine !== lastMsgKey) {
+            isUpdating = true; // 开启保险栓
+            
             lastMsgKey = lastLine;
             const parts = lastLine.split('|');
             const name = parts[1];
             const content = parts[4] ? parts[4].replace(']', '') : "发来一条消息";
 
+            // 执行红点刷新
+            try {
+                if (typeof window.applyModernLayout === 'function') {
+                    window.applyModernLayout();
+                }
+            } catch(e) { console.error("装修失败:", e); }
+
+            // 弹出通知
             if (!document.body.innerText.includes("generating...")) {
                 showToast(name, content);
             }
+
+            // 装修完工，1秒后才允许下一次监听（给浏览器喘息时间）
+            setTimeout(() => { isUpdating = false; }, 1000);
         }
     });
 
+    // 重点：我们只监听 body 的子节点变化，减少开销
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
     function showToast(name, text) {
         bubbleSound.play().catch(() => {});
         const toast = document.createElement('div');
-        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px) saturate(180%); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
-        toast.innerHTML = `<img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;"><div style="flex:1;"><div style="font-weight:700; font-size:16px; font-family:sans-serif;">${name}</div><div style="color:#444; font-size:14.5px; font-family:sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">${text}</div></div>`;
+        toast.style.cssText = "position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: 420px; min-height: 75px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); z-index: 10000000; display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); border: 1px solid rgba(255,255,255,0.5);";
+        toast.innerHTML = `<img src="https://i.postimg.cc/qqbCPK7f/image.gif" style="width: 50px; height: 50px; border-radius: 12px; margin-right: 15px;"><div style="flex:1;"><div style="font-weight:700; font-size:16px;">${name}</div><div style="color:#444; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${text}</div></div>`;
         document.body.appendChild(toast);
         setTimeout(() => toast.style.top = '25px', 100);
         toast.onclick = () => {
             toast.style.transform = 'translateX(-50%) scale(0.92)';
             setTimeout(() => {
                 toast.style.top = '-120px';
-                // 模拟点击进入消息详情
-                const items = document.querySelectorAll('.message-item');
-                items.forEach(item => { if(item.innerText.includes(name)) item.click(); });
+                if (window.app) window.app.currentView = 'messageDetail';
                 setTimeout(() => toast.remove(), 800);
             }, 150);
         };
