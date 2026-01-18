@@ -1844,53 +1844,62 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    // 2. 紧接着贴入这个全新的函数
-    applyModernLayout() {
-      const listContainer = document.getElementById('message-list');
-      if (!listContainer) return;
+    // 微信化补丁：无损添加时间戳 (作者亲妈专供稳定版)
+  applyModernLayout() {
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
 
-      const lastActivity = {};
-      document.querySelectorAll('.mes_text').forEach(log => {
-        const text = log.innerText;
-        const msgMatch = text.match(/\[(对方|我方)消息\|([^|]+)\|(\d+)\|([^|]+)\|(.*)\]/);
-        if (msgMatch) {
-          const id = msgMatch[3];
-          const timeMatch = text.match(/\[时间\|([^\]]+)\]/);
-          lastActivity[id] = {
-            content: msgMatch[5],
-            time: timeMatch ? timeMatch[1] : ''
-          };
+    // 1. 地毯式扫描：建立 ID -> 最新时间的字典
+    const timeMap = {};
+    const mesBlocks = document.querySelectorAll('.mes');
+    
+    mesBlocks.forEach(block => {
+      const text = block.innerText;
+      const idMatches = text.match(/\|(\d+)\|/g);
+      if (idMatches) {
+        const ids = idMatches.map(m => m.replace(/\|/g, ''));
+        const timeMatches = text.match(/\[时间\|(\d{1,2}:\d{2})\]/g);
+        if (timeMatches && timeMatches.length > 0) {
+          const latestTime = timeMatches[timeMatches.length - 1].match(/\d{1,2}:\d{2}/)[0];
+          ids.forEach(id => { timeMap[id] = latestTime; });
         }
-      });
+      }
+    });
 
-      const items = listContainer.querySelectorAll('.message-item');
-      items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        const data = lastActivity[id];
-        if (!data) return;
+    // 2. 贴纸逻辑：在不破坏原生结构的前提下，精准贴上时间戳
+    const items = listContainer.querySelectorAll('.message-item');
+    items.forEach(item => {
+      const id = item.getAttribute('data-friend-id');
+      const time = timeMap[id];
+      
+      if (time) {
+        // 先清理可能存在的旧标签
+        const old = item.querySelector('.custom-timestamp');
+        if (old) old.remove();
 
-        const nameEl = item.querySelector('.friend-name') || item.querySelector('span');
-        const imgEl = item.querySelector('img');
-        const name = nameEl ? nameEl.innerText : '未知';
-        const avatar = imgEl ? imgEl.src : '';
+        // 确保父容器可以承载定位
+        item.style.position = 'relative';
 
-        item.style.cssText = "display: flex; padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); align-items: center; cursor: pointer;";
-        item.innerHTML = `
-          <div style="position: relative; flex-shrink: 0;">
-            <img src="${avatar}" style="width: 45px; height: 45px; border-radius: 6px; object-fit: cover;">
-          </div>
-          <div style="flex: 1; margin-left: 12px; overflow: hidden; display: flex; flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; align-items: baseline;">
-              <span style="font-weight: 500; font-size: 15px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</span>
-              <span style="font-size: 11px; color: #b0b0b0;">${data.time}</span>
-            </div>
-            <div style="margin-top: 4px; font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${data.content}
-            </div>
-          </div>
+        // 创建时间戳元素
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'custom-timestamp';
+        timeSpan.innerText = time;
+        
+        // 样式适配：右上角对齐，不干扰原有文字
+        timeSpan.style.cssText = `
+          position: absolute;
+          top: 10px;
+          right: 15px;
+          font-size: 11px;
+          color: #b0b0b0;
+          font-family: sans-serif;
+          pointer-events: none;
+          z-index: 5;
         `;
-      });
-    }
+        item.appendChild(timeSpan);
+      }
+    });
+  }
 
     // 渲染添加好友界面
     renderAddFriend() {
