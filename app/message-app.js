@@ -6577,33 +6577,48 @@ renderAddFriendTab() {
                 
                 document.body.appendChild(toast);
                 
-                // --- 点击跳转逻辑（方案 A 模拟点击 + 强制唤醒） ---
-toast.onclick = () => {
-    console.log("🚀 尝试跳转至:", name);
+                // --- 终极跳转逻辑：直接调用函数 + DOM 辅助 ---
+                toast.onclick = () => {
+                    console.log("🚀 准备跳转至:", name);
+                    
+                    // 1. 获取正在运行的消息应用实例
+                    const app = window.messageApp; 
+                    
+                    // 2. 尝试寻找 ID (优先从全局账本找)
+                    let id = null;
+                    if (window.latestOrderMap) {
+                        id = Object.keys(window.latestOrderMap).find(k => name.includes(k) || k.includes(name));
+                    }
 
-    // 1. 先确保手机界面是打开的，并且处于列表页
-    // 如果你的系统有打开手机的全局方法（比如 openApp('messages')），请在这里调用
-    // 如果没有，我们直接尝试找列表项
-    
-    let target = Array.from(document.querySelectorAll('.message-item'))
-                      .find(item => item.innerText.includes(name));
-
-    if (target) {
-        target.click();
-    } else {
-        // 2. 兜底逻辑：如果找不到列表项（可能手机关着），先点一下手机图标
-        const phoneIcon = document.querySelector('.mobile-phone-icon'); // 换成你手机图标的真实选择器
-        if (phoneIcon) phoneIcon.click();
-        
-        // 稍微延迟一下等列表出来再点
-        setTimeout(() => {
-            target = Array.from(document.querySelectorAll('.message-item'))
-                          .find(item => item.innerText.includes(name));
-            if (target) target.click();
-        }, 300);
-    }
-    toast.remove();
-};
+                    // 3. 执行跳转
+                    if (app && typeof app.showMessageDetail === 'function' && id) {
+                        // 如果手机界面没开，先把它唤醒（调用主框架显示消息应用）
+                        if (window.mobilePhone) {
+                            window.mobilePhone.openApp('messages');
+                        }
+                        // 直接切到具体的聊天人
+                        app.showMessageDetail(id, name);
+                        console.log("✅ 已通过 messageApp 实例触发跳转");
+                    } else {
+                        // 兜底方案：如果没有找到 ID 或实例，尝试模拟点击
+                        const items = Array.from(document.querySelectorAll('.message-item'));
+                        const target = items.find(item => item.innerText.includes(name));
+                        if (target) {
+                            target.click();
+                        } else {
+                            // 如果连列表都找不到，尝试先点开手机图标
+                            const phoneIcon = document.querySelector('.mobile-phone-icon') || document.querySelector('#mobile-phone-icon');
+                            if (phoneIcon) {
+                                phoneIcon.click();
+                                setTimeout(() => {
+                                    const retry = Array.from(document.querySelectorAll('.message-item')).find(i => i.innerText.includes(name));
+                                    if (retry) retry.click();
+                                }, 400);
+                            }
+                        }
+                    }
+                    toast.remove();
+                };
 
                 setTimeout(() => { if(toast) toast.remove(); }, 6000);
             }
