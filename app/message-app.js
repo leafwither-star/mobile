@@ -5662,29 +5662,22 @@ renderAddFriendTab() {
     }
 
    // 显示消息详情页面
-showMessageDetail(friendId, friendName) {
-    console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
+    showMessageDetail(friendId, friendName) {
+      console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
 
-    // --- 🔴 增强版：点开即标记已读 ---
-    // 即使 latestOrderMap 还没生成，我们也给一个极大的数字 (比如 999999) 
-    // 确保只要点进去，红点就必须消失
-    const currentMax = (window.latestOrderMap && window.latestOrderMap[friendId]) ? window.latestOrderMap[friendId] : 999999;
-    
-    localStorage.setItem(`lastRead_${friendId}`, currentMax);
-    console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
+      // --- 🔴 增强版：点开即标记已读 ---
+      const currentMax = (window.latestOrderMap && window.latestOrderMap[friendId]) ? window.latestOrderMap[friendId] : 999999;
+      localStorage.setItem(`lastRead_${friendId}`, currentMax);
+      
+      if (typeof this.applyModernLayout === 'function') {
+          this.applyModernLayout();
+      }
+      // --- 标记结束 ---
 
-    // 【最关键的一行】标记完后，立刻命令界面重新检查并抹掉红点
-    if (typeof this.applyModernLayout === 'function') {
-        this.applyModernLayout();
-    }
-    // ----------------------------
-
-  // ... 原有的显示详情逻辑 ...
-}
+      // ✅ 注意：这里没有多余的 }，逻辑直接连下去
       this.currentView = 'messageDetail';
       this.currentFriendId = friendId;
       this.currentFriendName = friendName;
-      // 注意：currentIsGroup 状态在 selectFriend() 方法中已经设置
 
       // 通知主框架更新应用状态
       if (window.mobilePhone) {
@@ -5700,7 +5693,7 @@ showMessageDetail(friendId, friendName) {
 
       // 更新应用内容
       this.updateAppContent();
-    }
+    } // <--- 这是整个函数的结尾，只有一个
 
     // 立即应用好友专属背景
     applyFriendSpecificBackground(friendId) {
