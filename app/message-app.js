@@ -1844,70 +1844,60 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
+    const style = document.createElement('style');
+style.innerHTML = `
+    /* 无痕红点：靠属性驱动 */
+    .message-item[data-unread="true"]::after {
+        content: '';
+        position: absolute;
+        top: 10px;
+        left: 55px;
+        width: 10px;
+        height: 10px;
+        background: #ff4d4f;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        z-index: 999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+`;
+document.head.appendChild(style);
+    
    applyModernLayout() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // ... (中间提取 timeMap 和 orderMap 的逻辑保持不变) ...
+    // 提取数据（保持你原来的提取逻辑）
+    const orderMap = {};
     const mesBlocks = document.querySelectorAll('.mes');
-    const timeMap = {}; const orderMap = {};
     mesBlocks.forEach(block => {
         const text = block.innerText;
-        const lines = text.split('\n');
-        let currentTime = '';
         const mesId = parseInt(block.getAttribute('mesid') || 0);
-        lines.forEach(line => {
-            const timeMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-            if (timeMatch) currentTime = timeMatch[1];
-            const idMatch = line.match(/\|(\d+)\|/);
-            if (idMatch && currentTime) {
-                const id = idMatch[1];
-                timeMap[id] = currentTime;
-                if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
-            }
-        });
-    });
-
-    const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    
-    // --- 重点修复：不破坏结构，仅通过 CSS 覆盖 ---
-    items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        const time = timeMap[id];
-        const latestOrder = orderMap[id] || 0;
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-
-        if (time) {
-            // 采用绝对不改动原有 HTML 的方式更新文字
-            let timeSpan = item.querySelector('.custom-timestamp');
-            if (!timeSpan) {
-                timeSpan = document.createElement('span');
-                timeSpan.className = 'custom-timestamp';
-                // 使用 prepend (插在最前面) 通常比 appendChild 干扰更小
-                item.prepend(timeSpan);
-            }
-            timeSpan.innerText = time;
-            timeSpan.style.cssText = `position: absolute; top: 12px; right: 15px; font-size: 11px; color: #b0b0b0; z-index: 10; pointer-events: none;`;
-
-            // 红点处理
-            let dot = item.querySelector('.unread-dot');
-            if (latestOrder > lastReadOrder) {
-                if (!dot) {
-                    dot = document.createElement('div');
-                    dot.className = 'unread-dot';
-                    item.prepend(dot);
-                }
-                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 100; box-shadow: 0 0 4px rgba(0,0,0,0.3);`;
-            } else if (dot) {
-                dot.remove();
-            }
+        const idMatch = text.match(/\|(\d+)\|/);
+        if (idMatch) {
+            const id = idMatch[1];
+            if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
         }
     });
 
-    // 置顶逻辑保持（仅在必要时排序）
-    if (items.length > 0) {
-        const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
-        if (items[0] !== sorted[0]) sorted.forEach(el => listContainer.appendChild(el));
+    // 渲染：只改属性，不改 HTML
+    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.forEach(item => {
+        const id = item.getAttribute('data-friend-id');
+        const latestOrder = orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+        
+        if (latestOrder > lastReadOrder) {
+            item.setAttribute('data-unread', 'true'); // 激活 CSS 红点
+        } else {
+            item.removeAttribute('data-unread');      // 关闭 CSS 红点
+        }
+    });
+
+    // 排序逻辑（只有顺序变了才挪动，保护头像）
+    const sorted = [...items].sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+    if (items.length > 0 && items[0] !== sorted[0]) {
+        sorted.forEach(el => listContainer.appendChild(el));
     }
 }
     
