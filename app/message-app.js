@@ -6511,8 +6511,8 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/** * 🛠️ 永久通讯录补丁 - 强制注入逻辑
- * 无论插件原本逻辑如何，都会在这里把 localStorage 的好友合并进去
+/** * 🛠️ 永久通讯录补丁 - 数据驱动终极版
+ * 解决新窗口打开时，永久联系人没有索引(idx)导致红点和排序失效的问题
  */
 (function injectPermanentFriends() {
     const interval = setInterval(() => {
@@ -6528,24 +6528,31 @@ renderAddFriendTab() {
                     const savedData = localStorage.getItem('permanent_friends');
                     if (savedData) {
                         const permanentFriends = JSON.parse(savedData);
-                        const friendPattern = /\[好友id\|([^|]*)\|(\d+)\]/;
-
-                        // 🔥 【新增】获取当前窗口最新的聊天上下文，不跨窗口
-                        const context = typeof window.SillyTavern !== 'undefined' ? window.SillyTavern.getContext() : null;
+                        const context = (window.SillyTavern && window.SillyTavern.getContext) ? window.SillyTavern.getContext() : null;
                         const chatLog = (context && context.chat) ? context.chat : [];
                         
                         permanentFriends.forEach(friendStr => {
-                            const match = friendStr.match(friendPattern);
+                            const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
                             if (match) {
                                 const fName = match[1];
                                 const fId = match[2];
                                 
                                 if (!contacts.some(c => String(c.number) === String(fId))) {
-                                    // 🔥 【关键照搬】模拟原生的联系人对象格式
-                                    const tempObj = { name: fName, number: fId, isGroup: false };
                                     
-                                    // 🔥 【核心调用】直接让原作者的函数去当前窗口里找最后一条消息
-                                    // 如果找到了就显示消息内容，找不到就是原生默认的“暂无消息”
+                                    // 🔍 【核心改进】手动为永久好友找回在当前窗口的消息序号和时间
+                                    let foundIdx = -1;
+                                    let foundTime = 0;
+                                    
+                                    // 倒序查找当前聊天记录，定位该好友最后一次出现的索引
+                                    for (let i = chatLog.length - 1; i >= 0; i--) {
+                                        if (chatLog[i].mes && chatLog[i].mes.includes(`|${fId}|`)) {
+                                            foundIdx = i;
+                                            foundTime = chatLog[i].send_date || Date.now();
+                                            break;
+                                        }
+                                    }
+
+                                    const tempObj = { name: fName, number: fId, isGroup: false };
                                     const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
 
                                     contacts.push({
@@ -6553,8 +6560,11 @@ renderAddFriendTab() {
                                         number: fId,
                                         name: fName,
                                         isGroup: false,
-                                        lastMessage: nativeMsg, // ✨ 以前这里是写死的文字，现在是实时内容
-                                        time: "" // 时间通常原生也会自动处理，这里保持空即可
+                                        lastMessage: nativeMsg,
+                                        // 🔥 补全这两个字段，红点和排序才能复活！
+                                        messageIndex: foundIdx, 
+                                        addTime: foundTime,
+                                        time: "" 
                                     });
                                 }
                             }
@@ -6566,7 +6576,7 @@ renderAddFriendTab() {
                 
                 return contacts;
             };
-            console.log('%c🚀 李至中的永久通讯录补丁已激活（实时简讯版）！', 'color: #00ffff; font-weight: bold;');
+            console.log('%c🚀 李至中的永久通讯录补丁（红点修复版）已激活！', 'color: #00ffff; font-weight: bold;');
         }
     }, 1000);
 })();
