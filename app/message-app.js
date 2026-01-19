@@ -6511,7 +6511,7 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/* OS 5.1.6 修正版 - 解决语法错误 */
+/* OS 5.1.7 - 强力保活版 */
 (function() {
     const FRIENDS_LIST = [
         { n: "陈一众", id: "103" },
@@ -6521,70 +6521,81 @@ renderAddFriendTab() {
         { n: "服务通知", id: "100" }
     ];
 
-    // 1. 动态染色：解决红包不红
     function applyStyles() {
         document.querySelectorAll('.message-bubble, .mes_text').forEach(el => {
             if (el.innerText.includes('红包') && !el.hasAttribute('data-styled')) {
-                el.style.cssText = "background:linear-gradient(135deg,#f25542 0%,#d84332 100%)!important;color:#fff6e1!important;padding:12px;border-radius:12px;box-shadow:0 4px 10px rgba(216,67,50,0.3);";
+                el.style.cssText = "background:linear-gradient(135deg,#f25542 0%,#d84332 100%)!important;color:#fff6e1!important;padding:12px;border-radius:12px;";
                 el.setAttribute('data-styled', 'true');
             }
         });
     }
 
-    // 2. 核心逻辑注入
     const patchInterval = setInterval(() => {
+        // 关键：确保 window.friendRenderer 及其核心函数存在
         if (!window.friendRenderer || !window.friendRenderer.extractFriendsFromContext) return;
-        clearInterval(patchInterval);
+        
+        // 只有第一次需要重写函数
+        if (!window.friendRenderer.isPatched) {
+            const oldExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
+            window.friendRenderer.extractFriendsFromContext = function() {
+                let contacts = oldExtract() || [];
+                const context = window.SillyTavern?.getContext?.() || {};
+                const chat = context.chat || [];
 
-        const oldExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
-        window.friendRenderer.extractFriendsFromContext = function() {
-            let contacts = oldExtract();
-            const chat = window.SillyTavern?.getContext?.()?.chat || [];
-
-            FRIENDS_LIST.forEach(f => {
-                if (contacts.some(c => String(c.number) === f.id)) return;
-                
-                let last = "暂无消息", score = -1, idx = -1;
-                chat.forEach((log, i) => {
-                    const m = log.mes || "";
-                    if (m.includes(`|${f.id}|`)) {
-                        const t = m.match(/\[时间\|(\d+):(\d+)\]/);
-                        const s = (t ? (parseInt(t[1]) * 60 + parseInt(t[2])) : 0) * 1000 + i;
-                        if (s >= score) {
-                            score = s; idx = i;
-                            const typeMatch = m.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
-                            last = typeMatch ? (typeMatch[1] === '文字' ? typeMatch[2].split('|')[0] : `[${typeMatch[1]}]`) : "新消息";
+                FRIENDS_LIST.forEach(f => {
+                    // 如果列表里已经有了，就不重复添加
+                    if (contacts.some(c => String(c.number) === f.id)) return;
+                    
+                    let last = "暂无消息", score = 0, idx = -1;
+                    chat.forEach((log, i) => {
+                        const m = log.mes || "";
+                        if (m.includes(`|${f.id}|`)) {
+                            const t = m.match(/\[时间\|(\d+):(\d+)\]/);
+                            const s = (t ? (parseInt(t[1]) * 60 + parseInt(t[2])) : 0) * 1000 + i;
+                            if (s >= score) {
+                                score = s; idx = i;
+                                const typeMatch = m.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
+                                last = typeMatch ? (typeMatch[1] === '文字' ? typeMatch[2].split('|')[0] : `[${typeMatch[1]}]`) : "新动态";
+                            }
                         }
-                    }
-                });
+                    });
 
-                if (idx !== -1) {
+                    // 即使没说话，也强行让他在联系人列表里占个位
                     contacts.push({
                         character: f.n, number: f.id, name: f.n, isGroup: false,
-                        lastMessage: last, messageIndex: idx + 10000, addTime: score
+                        lastMessage: last, 
+                        messageIndex: idx === -1 ? -1 : idx + 10000, 
+                        addTime: score || (100 - FRIENDS_LIST.indexOf(f)) // 保底排序
                     });
-                }
-            });
-            return contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
-        };
-        setInterval(applyStyles, 1000);
+                });
+                return contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+            };
+            window.friendRenderer.isPatched = true;
+            console.log("✅ OS 5.1.7 核心逻辑已挂载");
+        }
+        
+        applyStyles();
     }, 1000);
 
-    // 3. 弹窗逻辑
+    // 弹窗逻辑（简化版）
     let lastKey = "";
     setInterval(() => {
-        const fr = window.friendRenderer?.extractFriendsFromContext?.() || [];
-        if (!fr.length) return;
-        const top = [...fr].sort((a,b) => b.messageIndex - a.messageIndex)[0];
+        if (!window.friendRenderer?.isPatched) return;
+        const fr = window.friendRenderer.extractFriendsFromContext();
+        if (!fr || fr.length === 0) return;
+        
+        const top = [...fr].sort((a,b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
+        if (!top || top.messageIndex < 0) return;
+        
         const key = `${top.number}_${top.lastMessage}`;
-        if (top.lastMessage !== "暂无消息" && key !== lastKey) {
+        if (key !== lastKey) {
             if (lastKey !== "" && !document.querySelector('.generating')) {
                 new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(()=>{});
                 const t = document.createElement('div');
-                t.style.cssText = "position:fixed;top:30px;left:50%;transform:translateX(-50%);width:320px;background:#fff;padding:15px;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,0.2);z-index:9999;border-left:5px solid #d84332;";
-                t.innerHTML = `<strong>${top.name}</strong><br><small>${top.lastMessage}</small>`;
+                t.style.cssText = "position:fixed;top:30px;left:50%;transform:translateX(-50%);width:300px;background:#fff;padding:12px;border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,0.3);z-index:999999;border-left:5px solid #d84332;color:#333;";
+                t.innerHTML = `<strong>${top.name}</strong><br><span style="font-size:12px">${top.lastMessage}</span>`;
                 document.body.appendChild(t);
-                setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),500); }, 3000);
+                setTimeout(() => t.remove(), 4000);
             }
             lastKey = key;
         }
