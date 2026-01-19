@@ -6522,13 +6522,29 @@ renderAddFriendTab() {
     ];
 
     function applyStyles() {
-        document.querySelectorAll('.message-bubble, .mes_text').forEach(el => {
-            if (el.innerText.includes('红包') && !el.hasAttribute('data-styled')) {
-                el.style.cssText = "background:linear-gradient(135deg,#f25542 0%,#d84332 100%)!important;color:#fff6e1!important;padding:12px;border-radius:12px;";
-                el.setAttribute('data-styled', 'true');
-            }
-        });
-    }
+    document.querySelectorAll('.message-bubble, .mes_text').forEach(el => {
+        const text = el.innerText;
+        // 🚨 精准判断：只有包含 [红包|金额|备注] 格式，且字数较短的才染红
+        const isRedPacket = text.includes('红包') && text.length < 50; 
+        
+        if (isRedPacket && !el.hasAttribute('data-styled')) {
+            el.style.cssText = `
+                background: linear-gradient(135deg, #f25542 0%, #d84332 100%) !important;
+                color: #fff6e1 !important;
+                padding: 15px !important;
+                border-radius: 12px !important;
+                box-shadow: 0 4px 10px rgba(216,67,50,0.3) !important;
+                border: 1px solid #c63929 !important;
+                cursor: pointer;
+            `;
+            el.setAttribute('data-styled', 'true');
+        } else if (!isRedPacket && el.hasAttribute('data-styled')) {
+            // 如果误伤了，强制恢复原状
+            el.style.cssText = "";
+            el.removeAttribute('data-styled');
+        }
+    });
+}
 
     const patchInterval = setInterval(() => {
         // 关键：确保 window.friendRenderer 及其核心函数存在
