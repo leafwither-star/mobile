@@ -6512,24 +6512,23 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================
-   🚀 李至中手机系统 (OS 5.1.10) - 稳定回归与排序强化版
+   🚀 李至中手机系统 (OS 5.1.5) - 终极修复：红点/弹窗/红包全量版
    ============================================================ */
 
 (function injectSocialSystem() {
     const CLOUD_FRIENDS = ["[好友id|陈一众|103]", "[好友id|曹信|102]", "[好友id|张主任|104]", "[好友id|张小满|105]", "[好友id|服务通知|100]"];
     
-    // 🎨 红包实时染色：改为“深度查找”模式，解决不红的问题
+    // 🎨 红包实时染色逻辑
     function colorizeRedPackets() {
-        const els = document.querySelectorAll('.message-bubble, .mes_text, .p-chat-message');
-        els.forEach(msg => {
-            const text = msg.innerText;
-            // 只要包含红包标识符且没被染色
-            if (text.includes('红包') && text.includes('|') && !msg.hasAttribute('data-red-packet')) {
-                msg.style.setProperty('background', 'linear-gradient(135deg, #f25542 0%, #d84332 100%)', 'important');
-                msg.style.setProperty('color', '#fff6e1', 'important');
-                msg.style.setProperty('border-radius', '12px', 'important');
-                msg.style.setProperty('padding', '12px', 'important');
-                msg.setAttribute('data-red-packet', 'true');
+        const messages = document.querySelectorAll('.message-bubble, .mes_text');
+        messages.forEach(msg => {
+            if (msg.innerText.includes('红包') && !msg.classList.contains('red-packet-styled')) {
+                msg.style.background = 'linear-gradient(135deg, #f25542 0%, #d84332 100%)';
+                msg.style.color = '#fff6e1';
+                msg.style.borderRadius = '12px';
+                msg.style.padding = '12px';
+                msg.style.boxShadow = '0 4px 10px rgba(216,67,50,0.3)';
+                msg.classList.add('red-packet-styled');
             }
         });
     }
@@ -6560,10 +6559,8 @@ renderAddFriendTab() {
                                         const tMatch = text.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
                                         const h = tMatch ? parseInt(tMatch[1]) : 0;
                                         const m = tMatch ? parseInt(tMatch[2]) : 0;
-                                        
-                                        // 🚀 排序强化：时间得分(h*60+m)占大头，消息索引(i)占小头
-                                        // 即使时间相同，后面出的消息(i更大)得分也更高
-                                        const currentScore = (h * 60 + m) * 10000 + i;
+                                        // 组合分数：时间权重 + 消息在对话中的位置权重
+                                        const currentScore = (h * 60 + m) * 1000 + i;
 
                                         if (currentScore >= maxTimeScore) {
                                             maxTimeScore = currentScore;
@@ -6583,34 +6580,33 @@ renderAddFriendTab() {
                                         character: fName, number: fId, name: fName, isGroup: false,
                                         lastMessage: lastMsg, 
                                         messageIndex: newestMsgIdx + 10000, 
-                                        addTime: maxTimeScore // 用于排序的绝对依据
+                                        addTime: maxTimeScore
                                     });
                                 }
                             }
                         }
                     });
-                    
-                    // 📏 严格排序逻辑
                     contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
-                } catch (e) { console.error("[OS Error]", e); }
+                } catch (e) { console.error(e); }
                 return contacts;
             };
             
+            // 启动定时染色
             setInterval(colorizeRedPackets, 1000);
         }
     }, 1000);
 })();
 
-// 弹窗逻辑（保留 5.1.5 的成功经验）
-(function toastSystem() {
+// 弹窗逻辑单独抽离，确保“我方回话”后依然能弹窗
+(function improvedToastNotification() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
     let lastMsgKey = localStorage.getItem('last_notified_key') || "";
 
     const observer = new MutationObserver(() => {
-        if (!window.friendRenderer) return;
-        const friends = window.friendRenderer.extractFriendsFromContext();
-        if (!friends || friends.length === 0) return;
+        const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
+        if (friends.length === 0) return;
         
+        // 抓取置顶且有最新动态的那位
         const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
         if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
 
@@ -6619,19 +6615,22 @@ renderAddFriendTab() {
             lastMsgKey = currentKey;
             localStorage.setItem('last_notified_key', lastMsgKey);
 
+            // ⚠️ 删除了对 [我方消息] 的拦截，确保只要有变动就弹窗，满足“窥屏作者”需求
             if (!(document.querySelector('.swiping, .generating'))) {
                 bubbleSound.play().catch(() => {});
-                
-                const toast = document.createElement('div');
-                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 15px; display: flex; align-items: center; padding: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); z-index: 1000000; border: 1px solid rgba(0,0,0,0.1); color: #333; transition: all 0.4s ease; opacity: 0; transform: translateX(-50%) translateY(-20px); pointer-events: none;";
-                toast.innerHTML = `<div style="font-size:18px; margin-right:10px;">💬</div><div><div style="font-weight:bold; font-size:14px;">${latestFriend.name}</div><div style="font-size:12px; opacity:0.8;">${latestFriend.lastMessage}</div></div>`;
-                document.body.appendChild(toast);
-                
-                setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 50);
-                setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => toast.remove(), 400); }, 3500);
+                showToast(latestFriend.name, latestFriend.lastMessage);
             }
         }
     });
+
+    function showToast(name, msg) {
+        const toast = document.createElement('div');
+        toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 999999; border: 1px solid rgba(0,0,0,0.1); color: black; transition: all 0.5s ease; opacity: 0; transform: translateX(-50%) translateY(-20px);";
+        toast.innerHTML = `<div style="font-size:20px; margin-right:12px;">💬</div><div><div style="font-weight:600;">${name}</div><div style="font-size:13px; color:#444;">${msg}</div></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 100);
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => toast.remove(), 500); }, 4000);
+    }
 
     observer.observe(document.body, { childList: true, subtree: true });
 })();
