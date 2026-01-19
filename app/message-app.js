@@ -6590,84 +6590,35 @@ renderAddFriendTab() {
     };
     setInterval(hackNames, 200);
 
-    /* 🧧 OS 5.50.0 终极合体：精装修卡片 + 酷炫旋转弹窗 */
-const fixRedPacket = () => {
-    // 1. 扫描所有消息，把文字变成精致卡片
-    const containers = document.querySelectorAll('.message-text, .mes_text, .text-wrapper, p');
-    containers.forEach(el => {
-        const raw = el.innerText;
-        // 匹配红包格式
-        if (raw.includes('红包') && raw.includes('|') && !el.classList.contains('packet-final-fixed')) {
-            const parts = raw.split('|');
-            const wish = parts[parts.length - 1].replace(']', '').trim() || "恭喜发财";
-            const amount = parts[parts.length - 2] || "0";
-            const sender = parts[1] || "陈一众";
-
-            el.classList.add('packet-final-fixed');
-
-            // 暴力剥离酒馆原生气泡的丑边框
-            let bubble = el.closest('.message-bubble') || el.closest('.mes_text') || el.parentElement;
-            if (bubble) {
-                bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; width:fit-content !important;";
+    // 【C：红包视觉美化补丁】
+    const fixRedPacket = () => {
+        const bubbles = document.querySelectorAll('.message-text:not(.packet-fixed)');
+        bubbles.forEach(b => {
+            if (b.innerText.includes('|')) {
+                const parts = b.innerText.split('|');
+                if (parts.length >= 2 && !isNaN(parts[0].trim())) {
+                    const amount = parts[0].trim();
+                    const wish = parts[1].trim();
+                    b.classList.add('packet-fixed');
+                    b.style.background = "transparent";
+                    b.style.border = "none";
+                    b.innerHTML = `
+                        <div class="red-packet-inner" style="width: 210px; background: #fa9e3b; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer;">
+                            <div style="padding: 10px; display: flex; align-items: center;">
+                                <div style="font-size: 24px; margin-right: 10px;">🧧</div>
+                                <div style="color: white; line-height: 1.4;">
+                                    <div style="font-size: 14px; font-weight: 500;">${wish}</div>
+                                    <div style="font-size: 11px; opacity: 0.9;">领取红包</div>
+                                </div>
+                            </div>
+                            <div style="background: #fff; padding: 3px 10px; font-size: 10px; color: #aaa; border-top: 1px solid rgba(0,0,0,0.05);">微信红包</div>
+                        </div>`;
+                    b.onclick = () => { alert(`李至中成功领取红包：￥${amount}`); b.style.opacity = "0.6"; };
+                }
             }
-
-            // 渲染精美红包卡片外壳
-            el.style.fontSize = "0px";
-            el.innerHTML = `
-                <div class="real-wechat-card" style="width:230px; background:#fa9e3b; border-radius:4px; overflow:hidden; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.15); text-align:left;">
-                    <div style="padding:12px 15px; display:flex; align-items:center;">
-                        <div style="width:36px; height:44px; background:#f89423; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:24px; color:#fff; margin-right:12px;">🧧</div>
-                        <div style="color:white; font-size:15px; font-weight:500; font-family:sans-serif;">${wish}</div>
-                    </div>
-                    <div style="background:white; padding:4px 15px; font-size:11px; color:#999; border-top:1px solid rgba(0,0,0,0.05); font-family:sans-serif;">微信红包</div>
-                </div>
-            `;
-
-            // 绑定你刚才觉得惊艳的弹窗逻辑
-            el.onclick = (e) => {
-                e.stopPropagation();
-                triggerGoldenOpen(sender, wish, amount);
-            };
-        }
-    });
-};
-
-// 【酷炫旋转弹窗核心函数】
-function triggerGoldenOpen(sender, wish, amount) {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2147483647; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); font-family:sans-serif;";
-    overlay.innerHTML = `
-        <div id="p-container" style="width:300px; height:420px; background:#cf4e46; border-radius:16px; position:relative; display:flex; flex-direction:column; align-items:center; color:#fbd69b; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform:scale(0.8); opacity:0;">
-            <div style="position:absolute; top:15px; right:20px; font-size:30px; cursor:pointer; opacity:0.5;" onclick="this.parentElement.parentElement.remove()">×</div>
-            <div style="margin-top:50px; font-size:20px; font-weight:bold;">${sender}</div>
-            <div style="margin-top:10px; opacity:0.8;">给你发了一个红包</div>
-            <div style="margin-top:40px; font-size:22px; width:80%; text-align:center; line-height:1.4;">${wish}</div>
-            <div id="p-btn-rotate" style="margin-top:60px; width:90px; height:90px; background:#fbd69b; color:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:36px; font-weight:bold; cursor:pointer; box-shadow:0 4px 20px rgba(0,0,0,0.3); transition: transform 0.8s ease;">開</div>
-        </div>`;
-    
-    document.body.appendChild(overlay);
-    setTimeout(() => { 
-        const c = document.getElementById('p-container');
-        c.style.transform="scale(1)"; c.style.opacity="1"; 
-    }, 10);
-
-    const btn = document.getElementById('p-btn-rotate');
-    btn.onclick = () => {
-        btn.style.transform = "rotateY(720deg)";
-        setTimeout(() => {
-            document.getElementById('p-container').innerHTML = `
-                <div style="position:absolute; top:15px; right:20px; font-size:30px; cursor:pointer; opacity:0.3;" onclick="this.parentElement.parentElement.remove()">×</div>
-                <div style="margin-top:70px; font-size:16px;">${sender}的红包</div>
-                <div style="margin-top:40px; font-size:54px; font-weight:bold;">${amount}<span style="font-size:20px;"> 元</span></div>
-                <div style="margin-top:30px; opacity:0.9;">已存入零钱，可直接使用</div>
-                <div style="margin-top:auto; margin-bottom:40px; opacity:0.6; font-size:14px;">查看领取详情 ></div>
-            `;
-        }, 700);
+        });
     };
-}
-
-// 别忘了把执行频率调高
-setInterval(fixRedPacket, 500);
+    setInterval(fixRedPacket, 500);
 })();
 
 // 【辅助逻辑：iOS 风格消息通知弹窗】
