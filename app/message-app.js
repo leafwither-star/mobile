@@ -6512,107 +6512,134 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================
-   🚀 李至中手机系统 (OS 5.0) - 终极整合补丁
-   包含：常驻好友、多端同步、上帝视角红点、高级弹窗、排序保险
+   🚀 李至中手机系统 (OS 5.10.0) - 终极稳定版
+   包含：快讯精准抓取、时间修正、iOS通知、强力排序
    ============================================================ */
 
-/* ============================================================
-   🚀 李至中手机系统 (OS 5.0) - 终极整合补丁
-   包含：常驻好友、多端同步、上帝视角红点、高级弹窗、排序保险
-   ============================================================ */
-
-(function injectPermanentFriends() {
-    // 1. 常驻好友名单（即使清空缓存，这些人在所有设备也永远存在）
-    const CLOUD_FRIENDS = [
-        "[好友id|陈一众|103]",
-        "[好友id|曹信|102]",
-        "[好友id|张主任|104]",
-        "[好友id|张小满|105]",
-        "[好友id|服务通知|100]"
-    ];
+(function injectEnhancedMobileSystem() {
+    // 1. 常驻好友名单
+    const CLOUD_IDS = ["103", "102", "104", "105", "100"];
+    const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
-            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             
+            // 【核心 A：接管底层数据提取逻辑】
+            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             window.friendRenderer.extractFriendsFromContext = function() {
-                let contacts = originalExtract();
-                try {
-                    const localData = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-                    const allPermanent = [...new Set([...CLOUD_FRIENDS, ...localData])];
-                    const context = window.SillyTavern?.getContext?.() || {};
-                    const chatLog = context.chat || [];
+                const context = window.SillyTavern?.getContext?.() || {};
+                const chatLog = context.chat || [];
+                let contacts = [];
 
-                    allPermanent.forEach((friendStr, index) => {
-                        const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
-                        if (match) {
-                            const fName = match[1]; const fId = match[2];
-                            if (!contacts.some(c => String(c.number) === String(fId))) {
-                                let foundIdx = -1; let foundTime = 0;
+                // 寻找包含 [手机快讯] 的最后一条消息
+                let mobileText = "";
+                for (let i = chatLog.length - 1; i >= 0; i--) {
+                    const mes = chatLog[i].mes || "";
+                    if (mes.includes('[手机快讯]')) {
+                        mobileText = mes.substring(mes.lastIndexOf('[手机快讯]'));
+                        break;
+                    }
+                }
+
+                CLOUD_IDS.forEach(fId => {
+                    let item = {
+                        character: ID_TO_NAME[fId],
+                        name: ID_TO_NAME[fId],
+                        number: fId,
+                        lastMessage: "暂无新消息",
+                        lastMessageTime: "08:00",
+                        messageIndex: -1,
+                        addTime: 0
+                    };
+
+                    if (mobileText) {
+                        const lines = mobileText.split('\n');
+                        for (let j = lines.length - 1; j >= 0; j--) {
+                            if (lines[j].includes(`|${fId}|`)) {
+                                // 修正时间
+                                const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
+                                if (tMatch) item.lastMessageTime = tMatch[1];
                                 
-                                // 🔍 倒序锁定：对方消息强制 +10000 权重，确保红点不灭
-                                for (let i = chatLog.length - 1; i >= 0; i--) {
-                                    const mesText = chatLog[i].mes || "";
-                                    if (mesText.includes(`|${fId}|`) && mesText.includes('[对方消息|')) {
-                                        foundIdx = i + 10000; 
-                                        foundTime = chatLog[i].send_date || Date.now();
-                                        break; 
-                                    }
+                                // 修正内容
+                                const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
+                                if (cMatch) {
+                                    let content = cMatch[1].split('|')[0];
+                                    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
-                                // 🕒 保底寻找：即使只有我方消息，也要能置顶排序
-                                if (foundTime === 0) {
-                                    for (let i = chatLog.length - 1; i >= 0; i--) {
-                                        if ((chatLog[i].mes || "").includes(`|${fId}|`)) {
-                                            foundIdx = i;
-                                            foundTime = (chatLog[i].send_date || Date.now()) - index;
-                                            break;
-                                        }
-                                    }
-                                }
-                                const tempObj = { name: fName, number: fId, isGroup: false };
-                                const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
-                                contacts.push({
-                                    character: fName, number: fId, name: fName, isGroup: false,
-                                    lastMessage: nativeMsg, messageIndex: foundIdx, addTime: foundTime
-                                });
+                                
+                                // 修正排序与权重 (行号 + 对方消息大额权重)
+                                item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
+                                item.addTime = item.messageIndex; 
+                                break;
                             }
                         }
-                    });
-                    // 📏 强力排序保险
-                    contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
-                } catch (e) { console.error('[补丁] 注入失败:', e); }
-                return contacts;
+                    }
+                    contacts.push(item);
+                });
+
+                return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
-            console.log('%c🚀 OS 5.0 核心逻辑已加载', 'color: #00ff00; font-weight: bold;');
+
+            // 【核心 B：界面时间强制修正哨兵】
+            const uiObserver = new MutationObserver(() => {
+                const friends = window.friendRenderer.extractFriendsFromContext();
+                friends.forEach(f => {
+                    const el = document.querySelector(`.message-item[data-friend-id="${f.number}"], [data-friend-id="${f.number}"]`);
+                    if (el) {
+                        const ts = el.querySelector('.custom-timestamp');
+                        if (ts && f.lastMessageTime && ts.innerText !== f.lastMessageTime) {
+                            ts.innerText = f.lastMessageTime;
+                        }
+                    }
+                });
+            });
+            uiObserver.observe(document.body, { childList: true, subtree: true });
+
+            console.log('%c🚀 OS 5.10.0 核心逻辑已加载', 'color: #00ff00; font-weight: bold;');
         }
     }, 1000);
 })();
 
+// 【辅助逻辑：iOS 风格消息通知弹窗】
 (function theiOSNotificationOnly() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
     let lastMsgKey = localStorage.getItem('last_notified_key') || "";
+    
     const observer = new MutationObserver(() => {
         if (typeof window.applyModernLayout === 'function') window.applyModernLayout();
+        
         const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
         if (friends.length === 0) return;
+
+        // 找到最新的一条消息
         const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
         if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
+
         const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
         if (currentKey !== lastMsgKey) {
             if (lastMsgKey === "") { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
             if (latestFriend.lastMessage.includes('[我方消息|')) { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
+            
             lastMsgKey = currentKey;
             localStorage.setItem('last_notified_key', lastMsgKey);
+
+            // 只有非生成状态才弹窗
             if (!(document.querySelector('.swiping, .generating') || document.body.innerText.includes("generating..."))) {
                 bubbleSound.play().catch(() => {});
                 const cleanMsg = latestFriend.lastMessage.replace(/\[.*?\]/g, '').replace(/\|/g, '');
+                
                 const toast = document.createElement('div');
                 toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease; opacity: 0; transform: translateX(-50%) translateY(-20px);";
                 toast.innerHTML = `<div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div><div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div><div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanMsg}</div></div>`;
+                
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 100);
-                setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500); }, 5000);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+                    setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500);
+                }, 5000);
             }
         }
     });
