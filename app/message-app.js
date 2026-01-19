@@ -6511,110 +6511,128 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/* OS 5.1.7 - 强力保活版 */
-(function() {
-    const FRIENDS_LIST = [
-        { n: "陈一众", id: "103" },
-        { n: "曹信", id: "102" },
-        { n: "张主任", id: "104" },
-        { n: "张小满", id: "105" },
-        { n: "服务通知", id: "100" }
-    ];
+/* ============================================================
+   🚀 李至中手机系统 (OS 5.1.10) - 稳定回归与排序强化版
+   ============================================================ */
 
-    function applyStyles() {
-    document.querySelectorAll('.message-bubble, .mes_text').forEach(el => {
-        const text = el.innerText;
-        // 🚨 精准判断：只有包含 [红包|金额|备注] 格式，且字数较短的才染红
-        const isRedPacket = text.includes('红包') && text.length < 50; 
-        
-        if (isRedPacket && !el.hasAttribute('data-styled')) {
-            el.style.cssText = `
-                background: linear-gradient(135deg, #f25542 0%, #d84332 100%) !important;
-                color: #fff6e1 !important;
-                padding: 15px !important;
-                border-radius: 12px !important;
-                box-shadow: 0 4px 10px rgba(216,67,50,0.3) !important;
-                border: 1px solid #c63929 !important;
-                cursor: pointer;
-            `;
-            el.setAttribute('data-styled', 'true');
-        } else if (!isRedPacket && el.hasAttribute('data-styled')) {
-            // 如果误伤了，强制恢复原状
-            el.style.cssText = "";
-            el.removeAttribute('data-styled');
-        }
-    });
-}
+(function injectSocialSystem() {
+    const CLOUD_FRIENDS = ["[好友id|陈一众|103]", "[好友id|曹信|102]", "[好友id|张主任|104]", "[好友id|张小满|105]", "[好友id|服务通知|100]"];
+    
+    // 🎨 红包实时染色：改为“深度查找”模式，解决不红的问题
+    function colorizeRedPackets() {
+        const els = document.querySelectorAll('.message-bubble, .mes_text, .p-chat-message');
+        els.forEach(msg => {
+            const text = msg.innerText;
+            // 只要包含红包标识符且没被染色
+            if (text.includes('红包') && text.includes('|') && !msg.hasAttribute('data-red-packet')) {
+                msg.style.setProperty('background', 'linear-gradient(135deg, #f25542 0%, #d84332 100%)', 'important');
+                msg.style.setProperty('color', '#fff6e1', 'important');
+                msg.style.setProperty('border-radius', '12px', 'important');
+                msg.style.setProperty('padding', '12px', 'important');
+                msg.setAttribute('data-red-packet', 'true');
+            }
+        });
+    }
 
-    const patchInterval = setInterval(() => {
-        // 关键：确保 window.friendRenderer 及其核心函数存在
-        if (!window.friendRenderer || !window.friendRenderer.extractFriendsFromContext) return;
-        
-        // 只有第一次需要重写函数
-        if (!window.friendRenderer.isPatched) {
-            const oldExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
+    const interval = setInterval(() => {
+        if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
+            clearInterval(interval);
+            
+            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             window.friendRenderer.extractFriendsFromContext = function() {
-                let contacts = oldExtract() || [];
-                const context = window.SillyTavern?.getContext?.() || {};
-                const chat = context.chat || [];
-
-                FRIENDS_LIST.forEach(f => {
-                    // 如果列表里已经有了，就不重复添加
-                    if (contacts.some(c => String(c.number) === f.id)) return;
+                let contacts = originalExtract();
+                try {
+                    const context = window.SillyTavern?.getContext?.() || {};
+                    const chatLog = context.chat || [];
                     
-                    let last = "暂无消息", score = 0, idx = -1;
-                    chat.forEach((log, i) => {
-                        const m = log.mes || "";
-                        if (m.includes(`|${f.id}|`)) {
-                            const t = m.match(/\[时间\|(\d+):(\d+)\]/);
-                            const s = (t ? (parseInt(t[1]) * 60 + parseInt(t[2])) : 0) * 1000 + i;
-                            if (s >= score) {
-                                score = s; idx = i;
-                                const typeMatch = m.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
-                                last = typeMatch ? (typeMatch[1] === '文字' ? typeMatch[2].split('|')[0] : `[${typeMatch[1]}]`) : "新动态";
+                    CLOUD_FRIENDS.forEach((friendStr) => {
+                        const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
+                        if (match) {
+                            const fName = match[1]; const fId = match[2];
+                            if (!contacts.some(c => String(c.number) === String(fId))) {
+                                let lastMsg = "暂无新消息";
+                                let maxTimeScore = -1;
+                                let newestMsgIdx = -1;
+
+                                chatLog.forEach((log, i) => {
+                                    const text = log.mes || "";
+                                    if (text.includes(`|${fId}|`)) {
+                                        const tMatch = text.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
+                                        const h = tMatch ? parseInt(tMatch[1]) : 0;
+                                        const m = tMatch ? parseInt(tMatch[2]) : 0;
+                                        
+                                        // 🚀 排序强化：时间得分(h*60+m)占大头，消息索引(i)占小头
+                                        // 即使时间相同，后面出的消息(i更大)得分也更高
+                                        const currentScore = (h * 60 + m) * 10000 + i;
+
+                                        if (currentScore >= maxTimeScore) {
+                                            maxTimeScore = currentScore;
+                                            newestMsgIdx = i;
+                                            const cMatch = text.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
+                                            if (cMatch) {
+                                                const type = cMatch[1];
+                                                const content = cMatch[2].split('|')[0];
+                                                lastMsg = (type === '文字' || type === '表情包') ? content : `[${type}] ${content}`;
+                                            }
+                                        }
+                                    }
+                                });
+
+                                if (newestMsgIdx !== -1) {
+                                    contacts.push({
+                                        character: fName, number: fId, name: fName, isGroup: false,
+                                        lastMessage: lastMsg, 
+                                        messageIndex: newestMsgIdx + 10000, 
+                                        addTime: maxTimeScore // 用于排序的绝对依据
+                                    });
+                                }
                             }
                         }
                     });
-
-                    // 即使没说话，也强行让他在联系人列表里占个位
-                    contacts.push({
-                        character: f.n, number: f.id, name: f.n, isGroup: false,
-                        lastMessage: last, 
-                        messageIndex: idx === -1 ? -1 : idx + 10000, 
-                        addTime: score || (100 - FRIENDS_LIST.indexOf(f)) // 保底排序
-                    });
-                });
-                return contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+                    
+                    // 📏 严格排序逻辑
+                    contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+                } catch (e) { console.error("[OS Error]", e); }
+                return contacts;
             };
-            window.friendRenderer.isPatched = true;
-            console.log("✅ OS 5.1.7 核心逻辑已挂载");
+            
+            setInterval(colorizeRedPackets, 1000);
         }
-        
-        applyStyles();
     }, 1000);
+})();
 
-    // 弹窗逻辑（简化版）
-    let lastKey = "";
-    setInterval(() => {
-        if (!window.friendRenderer?.isPatched) return;
-        const fr = window.friendRenderer.extractFriendsFromContext();
-        if (!fr || fr.length === 0) return;
+// 弹窗逻辑（保留 5.1.5 的成功经验）
+(function toastSystem() {
+    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    let lastMsgKey = localStorage.getItem('last_notified_key') || "";
+
+    const observer = new MutationObserver(() => {
+        if (!window.friendRenderer) return;
+        const friends = window.friendRenderer.extractFriendsFromContext();
+        if (!friends || friends.length === 0) return;
         
-        const top = [...fr].sort((a,b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
-        if (!top || top.messageIndex < 0) return;
-        
-        const key = `${top.number}_${top.lastMessage}`;
-        if (key !== lastKey) {
-            if (lastKey !== "" && !document.querySelector('.generating')) {
-                new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(()=>{});
-                const t = document.createElement('div');
-                t.style.cssText = "position:fixed;top:30px;left:50%;transform:translateX(-50%);width:300px;background:#fff;padding:12px;border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,0.3);z-index:999999;border-left:5px solid #d84332;color:#333;";
-                t.innerHTML = `<strong>${top.name}</strong><br><span style="font-size:12px">${top.lastMessage}</span>`;
-                document.body.appendChild(t);
-                setTimeout(() => t.remove(), 4000);
+        const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
+        if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
+
+        const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
+        if (currentKey !== lastMsgKey) {
+            lastMsgKey = currentKey;
+            localStorage.setItem('last_notified_key', lastMsgKey);
+
+            if (!(document.querySelector('.swiping, .generating'))) {
+                bubbleSound.play().catch(() => {});
+                
+                const toast = document.createElement('div');
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 15px; display: flex; align-items: center; padding: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); z-index: 1000000; border: 1px solid rgba(0,0,0,0.1); color: #333; transition: all 0.4s ease; opacity: 0; transform: translateX(-50%) translateY(-20px); pointer-events: none;";
+                toast.innerHTML = `<div style="font-size:18px; margin-right:10px;">💬</div><div><div style="font-weight:bold; font-size:14px;">${latestFriend.name}</div><div style="font-size:12px; opacity:0.8;">${latestFriend.lastMessage}</div></div>`;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 50);
+                setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => toast.remove(), 400); }, 3500);
             }
-            lastKey = key;
         }
-    }, 2000);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
 })();
 
