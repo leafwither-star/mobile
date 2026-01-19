@@ -6512,7 +6512,8 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================
-   🚀 李至中手机系统 (OS 5.12.5) - 终极整合定稿版
+   🚀 李至中手机系统 (OS 5.10.0) - 终极稳定版
+   包含：快讯精准抓取、时间修正、iOS通知、强力排序
    ============================================================ */
 
 (function injectEnhancedMobileSystem() {
@@ -6524,12 +6525,14 @@ renderAddFriendTab() {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
             
+            // 【核心 A：接管底层数据提取逻辑】
             const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
                 let contacts = [];
 
+                // 寻找包含 [手机快讯] 的最后一条消息
                 let mobileText = "";
                 for (let i = chatLog.length - 1; i >= 0; i--) {
                     const mes = chatLog[i].mes || "";
@@ -6546,31 +6549,54 @@ renderAddFriendTab() {
                         number: fId,
                         lastMessage: "暂无新消息",
                         lastMessageTime: "08:00",
-                        messageIndex: -1
+                        messageIndex: -1,
+                        addTime: 0
                     };
 
                     if (mobileText) {
                         const lines = mobileText.split('\n');
                         for (let j = lines.length - 1; j >= 0; j--) {
                             if (lines[j].includes(`|${fId}|`)) {
+                                // 修正时间
                                 const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                                 if (tMatch) item.lastMessageTime = tMatch[1];
                                 
+                                // 修正内容
                                 const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
                                 if (cMatch) {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
+                                
+                                // 修正排序与权重 (行号 + 对方消息大额权重)
                                 item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
+                                item.addTime = item.messageIndex; 
                                 break;
                             }
                         }
                     }
                     contacts.push(item);
                 });
+
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
-            console.log('%c🚀 OS 5.12.5 数据引擎已就绪', 'color: #00ff00; font-weight: bold;');
+
+            // 【核心 B：界面时间强制修正哨兵】
+            const uiObserver = new MutationObserver(() => {
+                const friends = window.friendRenderer.extractFriendsFromContext();
+                friends.forEach(f => {
+                    const el = document.querySelector(`.message-item[data-friend-id="${f.number}"], [data-friend-id="${f.number}"]`);
+                    if (el) {
+                        const ts = el.querySelector('.custom-timestamp');
+                        if (ts && f.lastMessageTime && ts.innerText !== f.lastMessageTime) {
+                            ts.innerText = f.lastMessageTime;
+                        }
+                    }
+                });
+            });
+            uiObserver.observe(document.body, { childList: true, subtree: true });
+
+            console.log('%c🚀 OS 5.10.0 核心逻辑已加载', 'color: #00ff00; font-weight: bold;');
         }
     }, 1000);
 })();
@@ -6582,9 +6608,11 @@ renderAddFriendTab() {
     
     const observer = new MutationObserver(() => {
         if (typeof window.applyModernLayout === 'function') window.applyModernLayout();
+        
         const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
         if (friends.length === 0) return;
 
+        // 找到最新的一条消息
         const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
         if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
 
@@ -6592,78 +6620,28 @@ renderAddFriendTab() {
         if (currentKey !== lastMsgKey) {
             if (lastMsgKey === "") { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
             if (latestFriend.lastMessage.includes('[我方消息|')) { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
+            
             lastMsgKey = currentKey;
             localStorage.setItem('last_notified_key', lastMsgKey);
 
+            // 只有非生成状态才弹窗
             if (!(document.querySelector('.swiping, .generating') || document.body.innerText.includes("generating..."))) {
                 bubbleSound.play().catch(() => {});
                 const cleanMsg = latestFriend.lastMessage.replace(/\[.*?\]/g, '').replace(/\|/g, '');
+                
                 const toast = document.createElement('div');
                 toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease; opacity: 0; transform: translateX(-50%) translateY(-20px);";
                 toast.innerHTML = `<div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div><div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div><div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanMsg}</div></div>`;
+                
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 100);
                 setTimeout(() => {
-                    toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)';
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(-20px)';
                     setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500);
                 }, 5000);
             }
         }
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-})();
-
-// 【核心 C：终极 UI 强制修正逻辑】
-(function finalUIFixer() {
-    const forceFix = () => {
-        if (!window.friendRenderer) return;
-        const friends = window.friendRenderer.extractFriendsFromContext();
-        
-        friends.forEach(f => {
-            const el = document.querySelector(`.message-item[data-friend-id="${f.number}"]`);
-            if (!el) return;
-
-            // 1. 强制修正时间
-            const ts = el.querySelector('.custom-timestamp');
-            if (ts && f.lastMessageTime) ts.innerText = f.lastMessageTime;
-
-            // 2. 强制绘制红点 (针对权重高的未读消息)
-            let dot = el.querySelector('.unread-dot');
-            if (f.messageIndex > 50000) { 
-                if (!dot) {
-                    dot = document.createElement('div');
-                    dot.className = 'unread-dot';
-                    dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
-                    el.appendChild(dot);
-                }
-            }
-        });
-
-        // 3. 强制物理重排位置
-        const anyEl = document.querySelector('.message-item[data-friend-id]');
-        const container = anyEl ? anyEl.parentElement : null;
-        if (container) {
-            Array.from(container.children)
-                .filter(n => n.hasAttribute('data-friend-id'))
-                .sort((a, b) => {
-                    const fA = friends.find(f => f.number == a.getAttribute('data-friend-id'));
-                    const fB = friends.find(f => f.number == b.getAttribute('data-friend-id'));
-                    return (fB?.messageIndex || 0) - (fA?.messageIndex || 0);
-                })
-                .forEach(node => container.appendChild(node));
-        }
-    };
-
-    let isGen = false;
-    const observer = new MutationObserver(() => {
-        const active = document.querySelector('.swiping, .generating, #send_spinner');
-        if (active) isGen = true;
-        else if (isGen) {
-            isGen = false;
-            // 在生成结束后的 200ms, 1000ms, 2500ms 各刷一次，彻底盖过系统延迟
-            [200, 1000, 2500].forEach(t => setTimeout(forceFix, t));
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('messageAppRender', forceFix);
 })();
