@@ -6511,98 +6511,52 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/* ============================================================
-   🚀 李至中手机系统 (OS 5.1.11) - 强效挂载版
-   ============================================================ */
-
-(function() {
+(function injectPermanentFriends() {
     const CLOUD_FRIENDS = ["[好友id|陈一众|103]", "[好友id|曹信|102]", "[好友id|张主任|104]", "[好友id|张小满|105]", "[好友id|服务通知|100]"];
-
-    const mountPatch = () => {
-        // 检查渲染器是否就绪
-        if (!window.friendRenderer || !window.friendRenderer.extractFriendsFromContext) return;
-
-        // 如果已经挂载过，且联系人数量正常，就不再重复挂载
-        if (window.friendRenderer.isPatched) return;
-
-        console.log("🚀 发现好友渲染器，正在强力挂载联系人...");
-        const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
-        
-        window.friendRenderer.extractFriendsFromContext = function() {
-            let contacts = originalExtract() || [];
-            try {
-                const context = window.SillyTavern?.getContext?.() || {};
-                const chatLog = context.chat || [];
-                
-                CLOUD_FRIENDS.forEach((friendStr) => {
-                    const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
-                    if (match) {
-                        const fName = match[1]; const fId = match[2];
-                        // 即使原本没有，我们也强行注入
-                        if (!contacts.some(c => String(c.number) === String(fId))) {
-                            let lastMsg = "暂无新消息", maxScore = 0, newestIdx = -1;
-
-                            chatLog.forEach((log, i) => {
-                                const text = log.mes || "";
-                                if (text.includes(`|${fId}|`)) {
-                                    const tMatch = text.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
-                                    const h = tMatch ? parseInt(tMatch[1]) : 0;
-                                    const m = tMatch ? parseInt(tMatch[2]) : 0;
-                                    const currentScore = (h * 60 + m) * 1000 + i;
-
-                                    if (currentScore >= maxScore) {
-                                        maxScore = currentScore;
-                                        newestIdx = i;
-                                        const cMatch = text.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
-                                        if (cMatch) {
-                                            const type = cMatch[1];
-                                            const content = cMatch[2].split('|')[0];
-                                            lastMsg = (type === '文字' || type === '表情包') ? content : `[${type}] ${content}`;
+    const interval = setInterval(() => {
+        if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
+            clearInterval(interval);
+            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
+            window.friendRenderer.extractFriendsFromContext = function() {
+                let contacts = originalExtract();
+                try {
+                    const context = window.SillyTavern?.getContext?.() || {};
+                    const chatLog = context.chat || [];
+                    CLOUD_FRIENDS.forEach((friendStr, index) => {
+                        const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
+                        if (match) {
+                            const fName = match[1]; const fId = match[2];
+                            if (!contacts.some(c => String(c.number) === String(fId))) {
+                                let foundIdx = -1; let maxTimeScore = 0; let lastMsg = "暂无新消息";
+                                
+                                // 🔥 核心改进：全量扫描最后 5 条消息，解析时间戳
+                                const recentLogs = chatLog.slice(-5);
+                                recentLogs.forEach((log, i) => {
+                                    const text = log.mes || "";
+                                    if (text.includes(`|${fId}|`)) {
+                                        // 提取 [时间|HH:mm]
+                                        const tMatch = text.match(/\[时间\|(\d{2}):(\d{2})\]/);
+                                        const timeScore = tMatch ? (parseInt(tMatch[1]) * 60 + parseInt(tMatch[2])) : 0;
+                                        if (timeScore >= maxTimeScore) {
+                                            maxTimeScore = timeScore;
+                                            foundIdx = (text.includes('[对方消息|')) ? (i + 10000) : i;
+                                            // 提取纯净消息内容
+                                            const msgMatch = text.match(/文字\|([^\]]+)\]/) || text.match(/图片\|([^\]]+)\]/);
+                                            lastMsg = msgMatch ? msgMatch[1] : "新社交动态";
                                         }
                                     }
-                                }
-                            });
-
-                            contacts.push({
-                                character: fName, number: fId, name: fName, isGroup: false,
-                                lastMessage: lastMsg, 
-                                messageIndex: newestIdx === -1 ? -1 : newestIdx + 10000, 
-                                addTime: maxScore || (100 - CLOUD_FRIENDS.indexOf(friendStr)) // 保底排序
-                            });
+                                });
+                                contacts.push({
+                                    character: fName, number: fId, name: fName, isGroup: false,
+                                    lastMessage: lastMsg, messageIndex: foundIdx, addTime: maxTimeScore || (Date.now() - index)
+                                });
+                            }
                         }
-                    }
-                });
-                // 强制最终排序
-                contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
-            } catch (e) { console.error("挂载逻辑异常:", e); }
-            return contacts;
-        };
-        
-        window.friendRenderer.isPatched = true;
-    };
-
-    // 每 1000 毫秒扫描一次，直到成功挂载
-    const patchTimer = setInterval(mountPatch, 1000);
-})();
-
-// 弹窗逻辑保持简单
-(function toastNotify() {
-    let lastKey = "";
-    setInterval(() => {
-        if (!window.friendRenderer || !window.friendRenderer.isPatched) return;
-        const friends = window.friendRenderer.extractFriendsFromContext();
-        if (!friends || !friends.length) return;
-        const top = [...friends].sort((a,b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
-        if (!top || top.messageIndex < 0) return;
-        
-        const key = `${top.number}_${top.lastMessage}`;
-        if (lastKey !== "" && key !== lastKey && !document.querySelector('.generating')) {
-            const t = document.createElement('div');
-            t.style.cssText = "position:fixed;top:30px;left:50%;transform:translateX(-50%);width:300px;background:white;padding:12px;border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,0.2);z-index:999999;border-left:5px solid #007aff;color:black;";
-            t.innerHTML = `<strong>${top.name}</strong><br><small>${top.lastMessage}</small>`;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 4000);
+                    });
+                    contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+                } catch (e) { console.error(e); }
+                return contacts;
+            };
         }
-        lastKey = key;
-    }, 2000);
+    }, 1000);
 })();
