@@ -6511,119 +6511,83 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/* ============================================================
-   🚀 李至中手机系统 (OS 5.1.5) - 终极修复：红点/弹窗/红包全量版
-   ============================================================ */
+/* OS 5.1.6 修正版 - 解决语法错误 */
+(function() {
+    const FRIENDS_LIST = [
+        { n: "陈一众", id: "103" },
+        { n: "曹信", id: "102" },
+        { n: "张主任", id: "104" },
+        { n: "张小满", id: "105" },
+        { n: "服务通知", id: "100" }
+    ];
 
-(function injectSocialSystem() {
-    const CLOUD_FRIENDS = ["[好友id|陈一众|103]", "[好友id|曹信|102]", "[好友id|张主任|104]", "[好友id|张小满|105]", "[好友id|服务通知|100]"];
-    
-    // 🎨 红包实时染色逻辑
-    function colorizeRedPackets() {
-        const messages = document.querySelectorAll('.message-bubble, .mes_text');
-        messages.forEach(msg => {
-            if (msg.innerText.includes('红包') && !msg.classList.contains('red-packet-styled')) {
-                msg.style.background = 'linear-gradient(135deg, #f25542 0%, #d84332 100%)';
-                msg.style.color = '#fff6e1';
-                msg.style.borderRadius = '12px';
-                msg.style.padding = '12px';
-                msg.style.boxShadow = '0 4px 10px rgba(216,67,50,0.3)';
-                msg.classList.add('red-packet-styled');
+    // 1. 动态染色：解决红包不红
+    function applyStyles() {
+        document.querySelectorAll('.message-bubble, .mes_text').forEach(el => {
+            if (el.innerText.includes('红包') && !el.hasAttribute('data-styled')) {
+                el.style.cssText = "background:linear-gradient(135deg,#f25542 0%,#d84332 100%)!important;color:#fff6e1!important;padding:12px;border-radius:12px;box-shadow:0 4px 10px rgba(216,67,50,0.3);";
+                el.setAttribute('data-styled', 'true');
             }
         });
     }
 
-    const interval = setInterval(() => {
-        if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
-            clearInterval(interval);
-            
-            const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
-            window.friendRenderer.extractFriendsFromContext = function() {
-                let contacts = originalExtract();
-                try {
-                    const context = window.SillyTavern?.getContext?.() || {};
-                    const chatLog = context.chat || [];
-                    
-                    CLOUD_FRIENDS.forEach((friendStr) => {
-                        const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
-                        if (match) {
-                            const fName = match[1]; const fId = match[2];
-                            if (!contacts.some(c => String(c.number) === String(fId))) {
-                                let lastMsg = "暂无新消息";
-                                let maxTimeScore = -1;
-                                let newestMsgIdx = -1;
+    // 2. 核心逻辑注入
+    const patchInterval = setInterval(() => {
+        if (!window.friendRenderer || !window.friendRenderer.extractFriendsFromContext) return;
+        clearInterval(patchInterval);
 
-                                chatLog.forEach((log, i) => {
-                                    const text = log.mes || "";
-                                    if (text.includes(`|${fId}|`)) {
-                                        const tMatch = text.match(/\[时间\|(\d{1,2}):(\d{2})\]/);
-                                        const h = tMatch ? parseInt(tMatch[1]) : 0;
-                                        const m = tMatch ? parseInt(tMatch[2]) : 0;
-                                        // 组合分数：时间权重 + 消息在对话中的位置权重
-                                        const currentScore = (h * 60 + m) * 1000 + i;
+        const oldExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
+        window.friendRenderer.extractFriendsFromContext = function() {
+            let contacts = oldExtract();
+            const chat = window.SillyTavern?.getContext?.()?.chat || [];
 
-                                        if (currentScore >= maxTimeScore) {
-                                            maxTimeScore = currentScore;
-                                            newestMsgIdx = i;
-                                            const cMatch = text.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
-                                            if (cMatch) {
-                                                const type = cMatch[1];
-                                                const content = cMatch[2].split('|')[0];
-                                                lastMsg = (type === '文字' || type === '表情包') ? content : `[${type}] ${content}`;
-                                            }
-                                        }
-                                    }
-                                });
-
-                                if (newestMsgIdx !== -1) {
-                                    contacts.push({
-                                        character: fName, number: fId, name: fName, isGroup: false,
-                                        lastMessage: lastMsg, 
-                                        messageIndex: newestMsgIdx + 10000, 
-                                        addTime: maxTimeScore
-                                    });
-                                }
-                            }
+            FRIENDS_LIST.forEach(f => {
+                if (contacts.some(c => String(c.number) === f.id)) return;
+                
+                let last = "暂无消息", score = -1, idx = -1;
+                chat.forEach((log, i) => {
+                    const m = log.mes || "";
+                    if (m.includes(`|${f.id}|`)) {
+                        const t = m.match(/\[时间\|(\d+):(\d+)\]/);
+                        const s = (t ? (parseInt(t[1]) * 60 + parseInt(t[2])) : 0) * 1000 + i;
+                        if (s >= score) {
+                            score = s; idx = i;
+                            const typeMatch = m.match(/\|(图片|文字|位置|红包|表情包)\|([^\]]+)\]/);
+                            last = typeMatch ? (typeMatch[1] === '文字' ? typeMatch[2].split('|')[0] : `[${typeMatch[1]}]`) : "新消息";
                         }
+                    }
+                });
+
+                if (idx !== -1) {
+                    contacts.push({
+                        character: f.n, number: f.id, name: f.n, isGroup: false,
+                        lastMessage: last, messageIndex: idx + 10000, addTime: score
                     });
-                    contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
-                } catch (e) { console.error(e); }
-                return contacts;
-            };
-            
-            // 启动定时染色
-            setInterval(colorizeRedPackets, 1000);
-        }
+                }
+            });
+            return contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+        };
+        setInterval(applyStyles, 1000);
     }, 1000);
-})();
 
-// 弹窗逻辑单独抽离，确保“我方回话”后依然能弹窗
-(function improvedToastNotification() {
-    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-    let lastMsgKey = localStorage.getItem('last_notified_key') || "";
-
-    const observer = new MutationObserver(() => {
-        const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
-        if (friends.length === 0) return;
-        
-        // 抓取置顶且有最新动态的那位
-        const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
-        if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
-
-        const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
-        if (currentKey !== lastMsgKey) {
-            lastMsgKey = currentKey;
-            localStorage.setItem('last_notified_key', lastMsgKey);
-
-            // ⚠️ 删除了对 [我方消息] 的拦截，确保只要有变动就弹窗，满足“窥屏作者”需求
-            if (!(document.querySelector('.swiping, .generating'))) {
-                bubbleSound.play().catch(() => {});
-                showToast(latestFriend.name, latestFriend.lastMessage);
+    // 3. 弹窗逻辑
+    let lastKey = "";
+    setInterval(() => {
+        const fr = window.friendRenderer?.extractFriendsFromContext?.() || [];
+        if (!fr.length) return;
+        const top = [...fr].sort((a,b) => b.messageIndex - a.messageIndex)[0];
+        const key = `${top.number}_${top.lastMessage}`;
+        if (top.lastMessage !== "暂无消息" && key !== lastKey) {
+            if (lastKey !== "" && !document.querySelector('.generating')) {
+                new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(()=>{});
+                const t = document.createElement('div');
+                t.style.cssText = "position:fixed;top:30px;left:50%;transform:translateX(-50%);width:320px;background:#fff;padding:15px;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,0.2);z-index:9999;border-left:5px solid #d84332;";
+                t.innerHTML = `<strong>${top.name}</strong><br><small>${top.lastMessage}</small>`;
+                document.body.appendChild(t);
+                setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),500); }, 3000);
             }
+            lastKey = key;
         }
-    });
-
-    function showToast(name, msg) {
-        const toast = document.createElement('div');
-        toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 999999; border: 1px solid
+    }, 2000);
+})();
 
