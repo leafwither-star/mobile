@@ -6511,148 +6511,107 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-/** * 🛠️ 永久通讯录补丁 - 数据驱动终极版
- * 解决新窗口打开时，永久联系人没有索引(idx)导致红点和排序失效的问题
- */
+/* ============================================================
+   🚀 李至中手机系统 (OS 5.0) - 终极整合补丁
+   包含：常驻好友、多端同步、上帝视角红点、高级弹窗、排序保险
+   ============================================================ */
+
 (function injectPermanentFriends() {
+    // 1. 常驻好友名单（即使清空缓存，这些人在所有设备也永远存在）
+    const CLOUD_FRIENDS = [
+        "[好友id|陈一众|103]",
+        "[好友id|曹信|102]",
+        "[好友id|张主任|104]",
+        "[好友id|张小满|105]",
+        "[好友id|服务通知|100]"
+    ];
+
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
-            
             const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             
             window.friendRenderer.extractFriendsFromContext = function() {
                 let contacts = originalExtract();
-                
                 try {
-                    const savedData = localStorage.getItem('permanent_friends');
-                    if (savedData) {
-                        const permanentFriends = JSON.parse(savedData);
-                        const context = (window.SillyTavern && window.SillyTavern.getContext) ? window.SillyTavern.getContext() : null;
-                        const chatLog = (context && context.chat) ? context.chat : [];
-                        
-                        permanentFriends.forEach(friendStr => {
-                            const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
-                            if (match) {
-                                const fName = match[1];
-                                const fId = match[2];
+                    const localData = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
+                    const allPermanent = [...new Set([...CLOUD_FRIENDS, ...localData])];
+                    const context = window.SillyTavern?.getContext?.() || {};
+                    const chatLog = context.chat || [];
+
+                    allPermanent.forEach((friendStr, index) => {
+                        const match = friendStr.match(/\[好友id\|([^|]*)\|(\d+)\]/);
+                        if (match) {
+                            const fName = match[1]; const fId = match[2];
+                            if (!contacts.some(c => String(c.number) === String(fId))) {
+                                let foundIdx = -1; let foundTime = 0;
                                 
-                                if (!contacts.some(c => String(c.number) === String(fId))) {
-                                    
-                                    // 🔍 【核心改进】手动为永久好友找回在当前窗口的消息序号和时间
-                                    let foundIdx = -1;
-                                    let foundTime = 0;
-                                    
-                                    // 🔍 倒序查找：只有“对方消息”才能更新红点索引 (messageIndex)
-for (let i = chatLog.length - 1; i >= 0; i--) {
-    const mesText = chatLog[i].mes || "";
-    // 判定条件：包含该好友ID，且必须是“对方”发来的
-    if (mesText.includes(`|${fId}|`) && mesText.includes('[对方消息|')) {
-        foundIdx = i;
-        foundTime = chatLog[i].send_date || Date.now();
-        break; 
-    }
-}
-
-// 🕒 补充查找：如果上面的对方消息没找到，我们要找“最后活跃时间”供置顶使用
-//（即使最后一句是我方发的，也要能置顶，但没红点）
-if (foundIdx === -1) {
-    for (let i = chatLog.length - 1; i >= 0; i--) {
-        if ((chatLog[i].mes || "").includes(`|${fId}|`)) {
-            // 这里只记时间，不记 Index（或者记一个较小的 Index），确保不误触发红点
-            foundTime = chatLog[i].send_date || Date.now();
-            break;
-        }
-    }
-}
-
-                                    const tempObj = { name: fName, number: fId, isGroup: false };
-                                    const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
-
-                                    contacts.push({
-                                        character: fName,
-                                        number: fId,
-                                        name: fName,
-                                        isGroup: false,
-                                        lastMessage: nativeMsg,
-                                        // 🔥 补全这两个字段，红点和排序才能复活！
-                                        messageIndex: foundIdx, 
-                                        addTime: foundTime,
-                                        time: "" 
-                                    });
+                                // 🔍 倒序锁定：对方消息强制 +10000 权重，确保红点不灭
+                                for (let i = chatLog.length - 1; i >= 0; i--) {
+                                    const mesText = chatLog[i].mes || "";
+                                    if (mesText.includes(`|${fId}|`) && mesText.includes('[对方消息|')) {
+                                        foundIdx = i + 10000; 
+                                        foundTime = chatLog[i].send_date || Date.now();
+                                        break; 
+                                    }
                                 }
+                                // 🕒 保底寻找：即使只有我方消息，也要能置顶排序
+                                if (foundTime === 0) {
+                                    for (let i = chatLog.length - 1; i >= 0; i--) {
+                                        if ((chatLog[i].mes || "").includes(`|${fId}|`)) {
+                                            foundIdx = i;
+                                            foundTime = (chatLog[i].send_date || Date.now()) - index;
+                                            break;
+                                        }
+                                    }
+                                }
+                                const tempObj = { name: fName, number: fId, isGroup: false };
+                                const nativeMsg = window.friendRenderer.getLastMessageForContact(chatLog, tempObj);
+                                contacts.push({
+                                    character: fName, number: fId, name: fName, isGroup: false,
+                                    lastMessage: nativeMsg, messageIndex: foundIdx, addTime: foundTime
+                                });
                             }
-                        });
-                    }
-                } catch (e) {
-                    console.error('[补丁] 注入永久好友失败:', e);
-                }
-                
+                        }
+                    });
+                    // 📏 强力排序保险
+                    contacts.sort((a, b) => (b.addTime || 0) - (a.addTime || 0));
+                } catch (e) { console.error('[补丁] 注入失败:', e); }
                 return contacts;
             };
-            console.log('%c🚀 李至中的永久通讯录补丁（红点修复版）已激活！', 'color: #00ffff; font-weight: bold;');
+            console.log('%c🚀 OS 5.0 核心逻辑已加载', 'color: #00ff00; font-weight: bold;');
         }
     }, 1000);
 })();
 
 (function theiOSNotificationOnly() {
     const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-    
-    // 🔥 关键改进：lastMsgKey 不再只是个空字符串，我们从 localStorage 恢复，防止新窗口重复弹窗
     let lastMsgKey = localStorage.getItem('last_notified_key') || "";
-
     const observer = new MutationObserver(() => {
-        // 1. 触发布局刷新（保持红点同步）
         if (typeof window.applyModernLayout === 'function') window.applyModernLayout();
-
-        // 2. 获取数据源：直接看 extractFriendsFromContext 抓到了什么
         const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
         if (friends.length === 0) return;
-
-        // 3. 找到那个 messageIndex 最大的（也就是最后发消息的那个人）
         const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
-        
         if (!latestFriend || !latestFriend.lastMessage || latestFriend.lastMessage === "暂无新消息") return;
-
-        // 生成一个唯一的判定 Key：ID + 消息内容
         const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
-
-        // 4. 判定：如果这条消息的 Key 和上次不一样，说明是真·新消息
         if (currentKey !== lastMsgKey) {
-            // 检查：如果是刚开窗口，我们只记录 Key，不弹窗（避免把老消息当新消息弹出来）
-            if (lastMsgKey === "") {
-                lastMsgKey = currentKey;
-                localStorage.setItem('last_notified_key', lastMsgKey);
-                return;
-            }
-
+            if (lastMsgKey === "") { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
+            if (latestFriend.lastMessage.includes('[我方消息|')) { lastMsgKey = currentKey; localStorage.setItem('last_notified_key', lastMsgKey); return; }
             lastMsgKey = currentKey;
             localStorage.setItem('last_notified_key', lastMsgKey);
-
-            // 只有当角色没在生成中，且没有误触发时弹窗
-            if (!document.body.innerText.includes("generating...")) {
+            if (!(document.querySelector('.swiping, .generating') || document.body.innerText.includes("generating..."))) {
                 bubbleSound.play().catch(() => {});
-                
+                const cleanMsg = latestFriend.lastMessage.replace(/\[.*?\]/g, '').replace(/\|/g, '');
                 const toast = document.createElement('div');
-                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease;";
-                
-                toast.innerHTML = `
-                    <div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div>
-                    <div style="flex:1; min-width:0;">
-                        <div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div>
-                        <div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${latestFriend.lastMessage}</div>
-                    </div>
-                `;
-                
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; border: 1px solid rgba(0,0,0,0.05); color: black; pointer-events: none; transition: all 0.5s ease; opacity: 0; transform: translateX(-50%) translateY(-20px);";
+                toast.innerHTML = `<div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div><div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div><div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanMsg}</div></div>`;
                 document.body.appendChild(toast);
-                
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    toast.style.transform = 'translateX(-50%) translateY(-20px)';
-                    setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500);
-                }, 5000);
+                setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 100);
+                setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-20px)'; setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500); }, 5000);
             }
         }
     });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+})();
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
