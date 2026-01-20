@@ -6529,15 +6529,15 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-    🚀 李至中手机系统 (OS 5.12.5) - 全功能终极整合版
-    包含：时间戳找回、红包 10px 定位、全屏拆红包动画、iOS 通知提醒
+    🚀 李至中手机系统 (OS 5.12.2) - 深度融合修复版
+    包含：时间戳找回、测试版红点逻辑、安全稳定锁、红包美化
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 注入全局样式 (包含红点、时间、红包、弹窗)
+    // 1. 注入全局样式
     const styleId = 'mobile-system-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
@@ -6554,65 +6554,21 @@ renderAddFriendTab() {
                 position: absolute !important; top: 10px !important; right: 15px !important;
                 font-size: 11px !important; color: #b0b0b0 !important; z-index: 5 !important;
             }
-
-            /* 红包核心去污与 10px 位置锁定 */
-            .message-received[title='红包'] .message-text:after,
-            .message-sent[title='红包'] .message-text:after,
-            .message-received[title='红包'] .message-text:before,
-            .message-sent[title='红包'] .message-text:before { 
-                display: none !important; content: "" !important; 
-            }
             .beautiful-packet {
                 background: linear-gradient(135deg, #fa9e3b 0%, #ff7849 100%) !important;
                 color: white !important; border-radius: 8px !important;
-                padding: 12px 16px !important; min-width: 210px;
+                padding: 10px 15px !important; min-width: 190px;
                 cursor: pointer; display: inline-block; position: relative;
-                box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
-                margin: 5px 0 5px 10px !important; /* 锁定 10px 位置 */
-                font-size: 15px !important; transition: all 0.2s ease;
+                box-shadow: 0 3px 10px rgba(250,158,59,0.2); margin: 4px 0;
+                font-size: 14px !important; transition: all 0.2s ease;
             }
-            .packet-top { display: flex; align-items: center; gap: 8px; font-weight: bold; }
-            .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 5px; padding-top: 3px; }
-
-            /* 弹窗交互层样式 */
-            #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
-            .packet-dialog { width: 300px; height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5); animation: packetIn 0.3s ease-out; font-family: sans-serif; }
-            @keyframes packetIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-            .open-btn-anim { width: 90px; height: 90px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; cursor: pointer; margin-top: 60px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
-            .open-btn-anim.spin { transform: rotateY(720deg); }
+            .packet-top { display: flex; align-items: center; gap: 8px; }
+            .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 3px; }
         `;
         document.head.appendChild(style);
     }
 
-    // --- 红包全屏弹窗逻辑 ---
-    window.launchPerfectPacket = (wish, amount) => {
-        if (document.getElementById('perfect-overlay')) return;
-        const overlay = document.createElement('div');
-        overlay.id = 'perfect-overlay';
-        overlay.innerHTML = `
-            <div class="packet-dialog">
-                <div style="position:absolute; top:20px; right:20px; font-size:28px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
-                <div style="margin-top:60px; opacity:0.8;">来自好友的红包</div>
-                <div style="margin-top:30px; font-size:22px; font-weight:bold; padding:0 20px; text-align:center;">${wish}</div>
-                <div id="p-open-target" class="open-btn-anim">開</div>
-            </div>`;
-        document.body.appendChild(overlay);
-
-        document.getElementById('p-open-target').onclick = function() {
-            this.classList.add('spin');
-            setTimeout(() => {
-                const dialog = this.closest('.packet-dialog');
-                dialog.innerHTML = `
-                    <div style="position:absolute; top:20px; right:20px; font-size:28px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
-                    <div style="margin-top:100px; font-size:50px; font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
-                    <div style="margin-top:20px; opacity:0.9;">已存入零钱，可用于发放红包</div>
-                    <div style="margin-top:auto; margin-bottom:50px; border:1px solid #fbd69b; padding:4px 15px; border-radius:4px; font-size:13px; cursor:pointer;">查看领取详情 ></div>
-                `;
-            }, 650);
-        };
-    };
-
-    // 2. 名字拦截器 (保持运行)
+    // 2. 名字拦截器
     setInterval(() => {
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
@@ -6626,7 +6582,7 @@ renderAddFriendTab() {
 
     let isHandling = false;
 
-    // 3. 核心功能挂载 (数据提取 + UI哨兵)
+    // 3. 核心功能挂载
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
@@ -6666,67 +6622,79 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
 
-            // --- UI 哨兵监控 (时间戳修正 + 红包渲染) ---
+            // --- 定义排版函数 ---
+            if (window.messageApp) {
+                window.messageApp.applyModernLayout = function() {
+                    const listContainer = document.getElementById('message-list');
+                    if (!listContainer) return;
+
+                    const timeMap = {};
+                    const orderMap = {};
+                    const friends = window.friendRenderer.extractFriendsFromContext();
+                    
+                    friends.forEach(f => {
+                        orderMap[f.number] = f.messageIndex;
+                        timeMap[f.number] = f.lastMessageTime;
+                    });
+
+                    // 排序
+                    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+                    items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+                    items.forEach(item => {
+                        listContainer.appendChild(item);
+                        const id = item.getAttribute('data-friend-id');
+                        
+                        // 渲染时间
+                        let ts = item.querySelector('.custom-timestamp') || document.createElement('span');
+                        if (!ts.parentNode) { ts.className = 'custom-timestamp'; item.appendChild(ts); }
+                        ts.innerText = timeMap[id] || "08:00";
+
+                        // 渲染红点
+                        const lastRead = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+                        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+                        if (orderMap[id] > 50000 && orderMap[id] > lastRead) {
+                            const dot = document.createElement('div');
+                            dot.className = 'unread-dot';
+                            item.appendChild(dot);
+                        }
+
+                        // 绑定点击
+                        if (!item.dataset.lsn) {
+                            item.dataset.lsn = "true";
+                            item.addEventListener('click', () => {
+                                localStorage.setItem(`lastRead_${id}`, orderMap[id]);
+                                const d = item.querySelector('.unread-dot');
+                                if (d) d.remove();
+                            });
+                        }
+                    });
+                };
+            }
+
+            // --- UI 监控 ---
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    const friends = window.friendRenderer.extractFriendsFromContext();
-                    
-                    // A. 列表 UI 修正 (时间戳 + 红点)
-                    friends.forEach(f => {
-                        const el = document.querySelector(`.message-item[data-friend-id="${f.number}"]`);
-                        if (el) {
-                            // 强制修正时间戳
-                            let ts = el.querySelector('.custom-timestamp');
-                            if (!ts) { ts = document.createElement('span'); ts.className = 'custom-timestamp'; el.appendChild(ts); }
-                            if (f.lastMessageTime && ts.innerText !== f.lastMessageTime) {
-                                ts.innerText = f.lastMessageTime;
-                            }
-
-                            // 红点刷新
-                            const lastRead = parseInt(localStorage.getItem(`lastRead_${f.number}`) || 0);
-                            el.querySelectorAll('.unread-dot').forEach(d => d.remove());
-                            if (f.messageIndex > 50000 && f.messageIndex > lastRead) {
-                                const dot = document.createElement('div');
-                                dot.className = 'unread-dot';
-                                el.appendChild(dot);
-                            }
-
-                            // 绑定点击已读
-                            if (!el.dataset.lsn) {
-                                el.dataset.lsn = "true";
-                                el.addEventListener('click', () => {
-                                    localStorage.setItem(`lastRead_${f.number}`, f.messageIndex);
-                                    const d = el.querySelector('.unread-dot'); if (d) d.remove();
-                                });
-                            }
-                        }
-                    });
-
-                    // B. 红包渲染逻辑
+                    // 红包逻辑
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                        const rawText = msg.innerText;
-                        if (rawText.includes('红包') && rawText.includes('|')) {
+                        if (msg.innerText.includes('|')) {
                             msg.classList.add('fixed');
-                            const amt = (rawText.match(/\d+\.\d+/) || ["0.00"])[0];
-                            const wish = (rawText.match(/红包\|[\d.]+\|([^\]]+)\]/) || [null, "恭喜发财"])[1].trim();
-                            
+                            const parts = msg.innerText.split('|');
+                            const amt = parts[0].trim();
+                            const wish = parts[1]?.split(']')[0].trim() || "恭喜发财";
                             msg.style.fontSize = "0px";
                             const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important;";
-                            
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div class="packet-top">🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { 
-                                e.stopPropagation(); 
-                                window.launchPerfectPacket(wish, amt);
-                            };
+                            card.onclick = (e) => { e.stopPropagation(); card.style.opacity = "0.7"; };
                             msg.appendChild(card);
                         }
                     });
-                } catch (e) { console.error("System Monitor Error:", e); }
+                    if (window.messageApp?.applyModernLayout) window.messageApp.applyModernLayout();
+                } catch (e) { console.error(e); }
                 setTimeout(() => { isHandling = false; }, 100);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
@@ -6738,8 +6706,7 @@ renderAddFriendTab() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
         const observer = new MutationObserver(() => {
-            if (typeof window.friendRenderer?.extractFriendsFromContext !== 'function') return;
-            const friends = window.friendRenderer.extractFriendsFromContext();
+            const friends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') ? window.friendRenderer.extractFriendsFromContext() : [];
             if (friends.length === 0) return;
             const latest = friends[0];
             const currentKey = `${latest.number}_${latest.lastMessage}`;
@@ -6747,8 +6714,8 @@ renderAddFriendTab() {
                 if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|')) {
                     bubbleSound.play().catch(()=>{});
                     const toast = document.createElement('div');
-                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 15px; padding: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 999999; transition: 0.5s; opacity: 0; transform: translate(-50%, -20px); pointer-events: none;";
-                    toast.innerHTML = `<div style="font-weight:bold; color:#000;">${latest.name}</div><div style="font-size:13px; color:#555;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div>`;
+                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 15px; padding: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 999999; transition: 0.5s; opacity: 0; transform: translate(-50%, -20px);";
+                    toast.innerHTML = `<div style="font-weight:bold;">${latest.name}</div><div style="font-size:13px; color:#555;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div>`;
                     document.body.appendChild(toast);
                     setTimeout(()=>{ toast.style.opacity="1"; toast.style.transform="translate(-50%, 0)"; },100);
                     setTimeout(()=>{ toast.style.opacity="0"; setTimeout(()=>toast.remove(),500); }, 4000);
@@ -6759,4 +6726,4 @@ renderAddFriendTab() {
         });
         observer.observe(document.body, { childList: true, subtree: true });
     })();
-})();
+})()
