@@ -6529,8 +6529,8 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-    🚀 李至中手机系统 (OS 5.12.9) - 深度融合修复版
-    包含：时间戳找回、测试版红点逻辑、安全稳定锁、红包美化
+    🚀 李至中手机系统 (OS 5.12.14) - 终极插件适配版
+    特别修复：彻底屏蔽插件原生红包样式与 :after 伪元素
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
@@ -6538,7 +6538,7 @@ renderAddFriendTab() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 全量样式注入 (圆角12px/位置0px/弹窗动画)
+    // 1. 全量样式注入 (重点：强制覆盖插件自带的 renderer.css)
     const styleId = 'mobile-system-unified-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
@@ -6547,6 +6547,13 @@ renderAddFriendTab() {
             .custom-timestamp { position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; z-index: 10; }
             .unread-dot { position: absolute; top: 10px; left: 56px; width: 10px; height: 10px; background: #ff4d4f; border-radius: 50%; border: 1.5px solid white; z-index: 11; }
             
+            /* 【核心修复】强制屏蔽插件作者写的 :after 伪元素 */
+            .message-text[data-custom-packet="true"]::after,
+            .message-text[data-custom-packet="true"]::before {
+                content: none !important;
+                display: none !important;
+            }
+
             /* 红包气泡美化 */
             .beautiful-packet {
                 background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important;
@@ -6557,15 +6564,28 @@ renderAddFriendTab() {
                 cursor: pointer;
                 display: block !important;
                 width: fit-content;
-                margin: 5px 0 5px 0px !important; 
+                margin: 5px 0 !important; 
                 box-shadow: 0 6px 16px rgba(250,158,59,0.35) !important;
                 font-size: 15px !important;
+                line-height: 1.4 !important;
                 position: relative;
+                z-index: 999;
+                text-align: left !important;
                 overflow: visible !important;
             }
-            /* 清除原生背景 */
-            div[title='红包'] .message-content, .message-received[title='红包'] .message-content {
-                background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; overflow: visible !important;
+
+            /* 强力抹除插件原有的红包样式 */
+            .message-text[data-custom-packet="true"] {
+                font-size: 0px !important;
+                color: transparent !important;
+                background: none !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            
+            /* 清除父级原生背景 */
+            .message-text[data-custom-packet="true"] {
+                padding: 0 !important;
             }
 
             /* 弹窗层样式 */
@@ -6602,7 +6622,7 @@ renderAddFriendTab() {
         };
     };
 
-    // 3. 名字拦截器 (每500ms检查一次标题)
+    // 3. 名字拦截器
     setInterval(() => {
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
@@ -6663,10 +6683,8 @@ renderAddFriendTab() {
                 const items = Array.from(listContainer.querySelectorAll('.message-item'));
                 
                 items.sort((a, b) => {
-                    const idA = a.getAttribute('data-friend-id');
-                    const idB = b.getAttribute('data-friend-id');
-                    const findA = friends.find(f => f.number === idA)?.messageIndex || 0;
-                    const findB = friends.find(f => f.number === idB)?.messageIndex || 0;
+                    const findA = friends.find(f => f.number === a.getAttribute('data-friend-id'))?.messageIndex || 0;
+                    const findB = friends.find(f => f.number === b.getAttribute('data-friend-id'))?.messageIndex || 0;
                     return findB - findA;
                 });
 
@@ -6691,35 +6709,31 @@ renderAddFriendTab() {
                         item.dataset.lsn = "true";
                         item.addEventListener('click', () => {
                             localStorage.setItem(`lastRead_${id}`, fData.messageIndex);
-                            const d = item.querySelector('.unread-dot');
-                            if (d) d.remove();
+                            const d = item.querySelector('.unread-dot'); if (d) d.remove();
                         });
                     }
                 });
             };
 
-            // --- DOM 监控 (红包/列表更新) ---
+            // --- DOM 监控 (核心修复版) ---
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 1. 扫描所有包含“红包|”的消息
                     document.querySelectorAll('.message-text').forEach(msg => {
-                        // 只有包含“红包|”且还没生成过美化包的才处理
-                        if (msg.innerText.includes('红包|') && !msg.querySelector('.beautiful-packet')) {
-                            const raw = msg.innerText;
-                            // 提取金额和祝福语
+                        const raw = msg.innerText;
+                        // 识别特征：包含红包关键词
+                        if ((raw.includes('红包|') || (raw.includes('￥') && raw.includes('|'))) && !msg.querySelector('.beautiful-packet')) {
+                            
+                            // 1. 提取数据
                             const amtMatch = raw.match(/\d+(\.\d+)?/);
                             const amt = amtMatch ? amtMatch[0] : "0.00";
-                            const wishMatch = raw.match(/\|([^\]]+)\]/);
-                            const wish = wishMatch ? wishMatch[1] : "恭喜发财";
+                            const wish = raw.includes('|') ? raw.split('|')[1].replace(']', '') : "恭喜发财";
 
-                            // 2. 强力抹除原始文本视觉 (关键修复：防止文字残留)
-                            msg.style.setProperty('font-size', '0px', 'important');
-                            msg.style.setProperty('color', 'transparent', 'important');
-                            msg.style.display = "block";
+                            // 2. 打上自定义标签（用于CSS彻底屏蔽作者的伪元素）
+                            msg.setAttribute('data-custom-packet', 'true');
 
-                            // 3. 抹除父级原生背景
+                            // 3. 强力清除父级气泡背景
                             const bubble = msg.closest('.message-content');
                             if (bubble) {
                                 bubble.style.cssText = "background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; overflow: visible !important;";
@@ -6729,26 +6743,25 @@ renderAddFriendTab() {
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `
-                                <div style="pointer-events: none;">🧧 ${wish}</div>
-                                <div style="font-size:11px; opacity:0.8; margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:3px; pointer-events: none;">
+                                <div>🧧 ${wish}</div>
+                                <div style="font-size:11px; opacity:0.8; margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:3px;">
                                     微信红包 (￥${amt})
                                 </div>
                             `;
                             
-                            // 5. 绑定点击
                             card.onclick = (e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
                                 window.launchPerfectPacket(wish, amt);
                             };
                             
+                            // 5. 暴力清空除自己以外的所有内容并插入
+                            msg.innerHTML = ''; 
                             msg.appendChild(card);
                         }
                     });
 
                     if (window.messageApp?.applyModernLayout) window.messageApp.applyModernLayout();
                 } catch (e) { console.error("UI渲染错误:", e); }
-                // 增加冷却时间，防止频繁触发导致卡顿
                 setTimeout(() => { isHandling = false; }, 300);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
