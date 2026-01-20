@@ -1901,8 +1901,11 @@ applyModernLayout() {
         // 4. 渲染时间戳和红点
         items.forEach(item => {
             const id = item.getAttribute('data-friend-id');
-            const time = timeMap[id];
-            const latestOrder = orderMap[id] || 0;
+            const data = friendsData.find(f => f.number === id); // 获取最新的抓取数据
+            if (!data) return;
+
+            const time = data.lastMessageTime;
+            const latestOrder = data.messageIndex || 0;
             const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
             // --- 时间显示 ---
@@ -1916,30 +1919,30 @@ applyModernLayout() {
                 timeSpan.innerText = time;
             }
 
-            // --- 红点逻辑 ---
+            // --- 红点逻辑：终极判定标准 ---
             item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
 
-            if (latestOrder > 50000 && latestOrder > lastReadOrder) {
+            // 只要数据里标记了有 UNREAD 标签，且当前的索引比本地存的已读索引大，就显示红点
+            if (data.hasUnreadTag && latestOrder > lastReadOrder) {
                 let dot = document.createElement('div');
                 dot.className = 'unread-dot'; 
                 item.appendChild(dot);
             }
 
             // --- 绑定点击已读逻辑 ---
-            // 这里将两个监听逻辑合并，确保 item 作用域正确
             if (!item.dataset.layoutListener) {
                 item.dataset.layoutListener = "true";
                 item.addEventListener('click', () => {
-                    const currentOrder = window.latestOrderMap ? window.latestOrderMap[id] : latestOrder;
-                    localStorage.setItem(`lastRead_${id}`, currentOrder);
+                    // 点击时，把当前的 messageIndex（包含50万权重）锁死进本地存储
+                    localStorage.setItem(`lastRead_${id}`, latestOrder);
                     
                     const d = item.querySelector('.unread-dot');
                     if (d) d.remove();
                     console.log(`✅ 已标记联系人 ${id} 为已读`);
                 });
             }
-        }); 
-    } // applyModernLayout 函数结束
+        });
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6628,28 +6631,39 @@ renderAddFriendTab() {
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
-                let mobileText = "";
-                for (let i = chatLog.length - 1; i >= 0; i--) {
-                    if ((chatLog[i].mes || "").includes('[手机快讯]')) {
-                        mobileText = chatLog[i].mes.substring(chatLog[i].mes.lastIndexOf('[手机快讯]'));
-                        break;
+                
+                // 核心修复：穿透折叠框！累加所有历史消息里的手机快讯
+                let fullMobileText = "";
+                chatLog.forEach(entry => {
+                    if ((entry.mes || "").includes('[手机快讯]')) {
+                        fullMobileText += entry.mes + "\n";
                     }
-                }
+                });
+
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
-                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1 };
-                    if (mobileText) {
-                        const lines = mobileText.split('\n');
+                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
+                    
+                    if (fullMobileText) {
+                        const lines = fullMobileText.split('\n');
                         for (let j = lines.length - 1; j >= 0; j--) {
                             if (lines[j].includes(`|${fId}|`)) {
+                                // 抓取时间
                                 const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                                 if (tMatch) item.lastMessageTime = tMatch[1];
+                                
+                                // 抓取内容
                                 const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
                                 if (cMatch) {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
-                                item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
+                                
+                                // 判定红点：必须含有 [UNREAD] 且是对方消息
+                                item.hasUnreadTag = lines[j].includes('[UNREAD]') && lines[j].includes('[对方消息|');
+                                
+                                // 排序权重：有红点的给 500,000，对方消息给 100,000，我方消息按索引
+                                item.messageIndex = j + (item.hasUnreadTag ? 500000 : (lines[j].includes('[对方消息|') ? 100000 : 0));
                                 break;
                             }
                         }
