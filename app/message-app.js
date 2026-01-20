@@ -6516,8 +6516,8 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-   🚀 李至中手机系统 (OS 5.12.0) - 全功能修复合体版
-   包含：顶部改名修复、红点点击消除、快讯抓取、红包美化
+    🚀 李至中手机系统 (OS 5.12.1) - 安全稳定版
+    修复：防止递归卡死、红点点击消除、名字拦截、红包美化
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
@@ -6543,12 +6543,13 @@ renderAddFriendTab() {
                 padding: 10px 15px !important; min-width: 190px;
                 cursor: pointer; display: inline-block; position: relative;
                 box-shadow: 0 3px 10px rgba(250,158,59,0.2); margin: 4px 0;
+                font-size: 14px !important;
             }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. 【核心 A：名字拦截器】解决详情页标题不显示名字的问题
+    // 2. 【核心 A：名字拦截器】
     const hackNames = () => {
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
@@ -6559,13 +6560,16 @@ renderAddFriendTab() {
             }
         }
     };
-    setInterval(hackNames, 200);
+    setInterval(hackNames, 500); // 降低频率至500ms，减轻压力
 
-    // 3. 【核心 B：底层数据与红点逻辑】
+    // 3. 【核心 B：底层数据与安全监控逻辑】
+    let isHandling = false; // 【关键锁】防止死循环卡死
+    
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
             
+            // 劫持数据提取逻辑
             const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
@@ -6592,7 +6596,6 @@ renderAddFriendTab() {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
-                                // 计算权重
                                 item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
                                 break;
                             }
@@ -6603,64 +6606,65 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
 
-            // 界面监控：负责画红点和排版
+            // 安全版 UI 监控
             const uiObserver = new MutationObserver(() => {
-                const friends = window.friendRenderer.extractFriendsFromContext();
-                friends.forEach(f => {
-                    const el = document.querySelector(`.message-item[data-friend-id="${f.number}"], [data-friend-id="${f.number}"]`);
-                    if (el) {
-                        // 时间修正
-                        const ts = el.querySelector('.custom-timestamp');
-                        if (ts && f.lastMessageTime) ts.innerText = f.lastMessageTime;
+                if (isHandling) return; // 锁住时跳过
+                isHandling = true;
 
-                        // 红点逻辑：比对 localStorage 已读记录
-                        const lastRead = parseInt(localStorage.getItem(`lastRead_${f.number}`) || 0);
-                        let dot = el.querySelector('.unread-dot-custom');
-                        
-                        if (f.messageIndex > 50000 && f.messageIndex > lastRead) {
-                            if (!dot) {
-                                dot = document.createElement('div');
-                                dot.className = 'unread-dot-custom';
-                                el.appendChild(dot);
+                try {
+                    const friends = window.friendRenderer.extractFriendsFromContext();
+                    friends.forEach(f => {
+                        const el = document.querySelector(`.message-item[data-friend-id="${f.number}"], [data-friend-id="${f.number}"]`);
+                        if (el) {
+                            // 红点逻辑
+                            const lastRead = parseInt(localStorage.getItem(`lastRead_${f.number}`) || 0);
+                            let dot = el.querySelector('.unread-dot-custom');
+                            
+                            if (f.messageIndex > 50000 && f.messageIndex > lastRead) {
+                                if (!dot) {
+                                    dot = document.createElement('div');
+                                    dot.className = 'unread-dot-custom';
+                                    el.appendChild(dot);
+                                }
+                            } else if (dot) {
+                                dot.remove();
                             }
-                        } else if (dot) {
-                            dot.remove();
-                        }
 
-                        // 点击事件：点开后立刻标记为已读并移除红点
-                        if (!el.dataset.listenerSet) {
-                            el.dataset.listenerSet = "true";
-                            el.addEventListener('click', () => {
-                                localStorage.setItem(`lastRead_${f.number}`, f.messageIndex);
-                                if (dot) dot.remove();
-                            });
+                            // 点击事件绑定
+                            if (!el.dataset.listenerSet) {
+                                el.dataset.listenerSet = "true";
+                                el.addEventListener('click', () => {
+                                    localStorage.setItem(`lastRead_${f.number}`, f.messageIndex);
+                                    const d = el.querySelector('.unread-dot-custom');
+                                    if (d) d.remove();
+                                });
+                            }
                         }
-                    }
-                });
+                    });
 
-                // 红包渲染 (基础版，中午你可以据此微调)
-                document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                    if (msg.innerText.includes('|')) {
-                        msg.classList.add('fixed');
-                        const parts = msg.innerText.split('|');
-                        const amt = parts[0].trim();
-                        const wish = parts[1]?.trim() || "恭喜发财";
-                        msg.style.fontSize = "0px";
-                        const card = document.createElement('div');
-                        card.className = 'beautiful-packet';
-                        card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:10px;opacity:0.8;margin-top:4px;">微信红包 (￥${amt})</div>`;
-                        msg.appendChild(card);
-                    }
-                });
+                    // 红包美化处理
+                    document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+                        if (msg.innerText.includes('|')) {
+                            msg.classList.add('fixed');
+                            const parts = msg.innerText.split('|');
+                            const amt = parts[0].trim();
+                            const wish = parts[1]?.trim() || "恭喜发财";
+                            msg.style.fontSize = "0px";
+                            const card = document.createElement('div');
+                            card.className = 'beautiful-packet';
+                            card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:10px;opacity:0.8;margin-top:4px;">微信红包 (￥${amt})</div>`;
+                            msg.appendChild(card);
+                        }
+                    });
+                } catch (e) { console.error("UI处理出错", e); }
+
+                // 100ms后解锁，给浏览器喘息机会
+                setTimeout(() => { isHandling = false; }, 100);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
 })();
-
-/* ============================================================ 
-   接在 injectUltimateMobileSystem 后面 
-   ============================================================ */
 
 // 【辅助逻辑：iOS 风格消息通知弹窗】
 (function theiOSNotificationOnly() {
@@ -6675,7 +6679,6 @@ renderAddFriendTab() {
 
         const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
         if (currentKey !== lastMsgKey) {
-            // 如果是初始状态或我方发送，只记录不弹窗
             if (lastMsgKey === "" || latestFriend.lastMessage.includes('[我方消息|')) { 
                 lastMsgKey = currentKey; 
                 localStorage.setItem('last_notified_key', lastMsgKey); 
@@ -6684,7 +6687,6 @@ renderAddFriendTab() {
             lastMsgKey = currentKey;
             localStorage.setItem('last_notified_key', lastMsgKey);
 
-            // 只有非生成状态才弹窗
             if (!(document.querySelector('.swiping, .generating') || document.body.innerText.includes("generating..."))) {
                 bubbleSound.play().catch(() => {});
                 const cleanMsg = latestFriend.lastMessage.replace(/\[.*?\]/g, '').replace(/\|/g, '');
@@ -6705,5 +6707,3 @@ renderAddFriendTab() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
 })();
-
-// 注意：这里原本的 finalUIFixer 已经不需要了，因为它已经合并进了主逻辑的 uiObserver 中。;
