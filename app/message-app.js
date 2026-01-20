@@ -6512,25 +6512,25 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-   🚀 李至中手机系统 (OS 5.11.0) - 红点+红包修复合体版
-   包含：快讯抓取、时间修正、iOS通知、红点绘制、红包劫持
+   🚀 李至中手机系统 (OS 5.12.0) - 全功能修复合体版
+   包含：顶部改名修复、红点点击消除、快讯抓取、红包美化
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 注入红包与红点的样式 (只注入一次)
+    // 1. 注入全局样式
     const styleId = 'mobile-system-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
             .unread-dot-custom {
-                position: absolute !important; top: 8px !important; left: 52px !important;
-                width: 11px !important; height: 11px !important;
+                position: absolute !important; top: 10px !important; left: 56px !important;
+                width: 10px !important; height: 10px !important;
                 background: #ff4d4f !important; border-radius: 50% !important;
-                border: 2px solid white !important; z-index: 999 !important;
+                border: 1.5px solid white !important; z-index: 999 !important;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
             }
             .beautiful-packet {
@@ -6544,11 +6544,24 @@ renderAddFriendTab() {
         document.head.appendChild(style);
     }
 
+    // 2. 【核心 A：名字拦截器】解决详情页标题不显示名字的问题
+    const hackNames = () => {
+        const titleEl = document.getElementById('app-title');
+        if (titleEl) {
+            const match = titleEl.innerText.match(/\d+/);
+            const currentId = match ? match[0] : (window.messageApp?.currentChatId);
+            if (currentId && ID_TO_NAME[currentId] && titleEl.innerText !== ID_TO_NAME[currentId]) {
+                titleEl.innerText = ID_TO_NAME[currentId];
+            }
+        }
+    };
+    setInterval(hackNames, 200);
+
+    // 3. 【核心 B：底层数据与红点逻辑】
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
             
-            // --- A. 接管数据逻辑 ---
             const originalExtract = window.friendRenderer.extractFriendsFromContext.bind(window.friendRenderer);
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
@@ -6563,7 +6576,7 @@ renderAddFriendTab() {
                     }
                 }
                 CLOUD_IDS.forEach(fId => {
-                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无新消息", lastMessageTime: "08:00", messageIndex: -1, addTime: 0 };
+                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无新消息", lastMessageTime: "08:00", messageIndex: -1 };
                     if (mobileText) {
                         const lines = mobileText.split('\n');
                         for (let j = lines.length - 1; j >= 0; j--) {
@@ -6575,9 +6588,8 @@ renderAddFriendTab() {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
-                                // 权重计算：对方消息 +100000 (这就是红点的判定标准)
+                                // 计算权重
                                 item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
-                                item.addTime = item.messageIndex; 
                                 break;
                             }
                         }
@@ -6587,19 +6599,21 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
 
-            // --- B. 界面监控哨兵 (核心绘制逻辑) ---
+            // 界面监控：负责画红点和排版
             const uiObserver = new MutationObserver(() => {
                 const friends = window.friendRenderer.extractFriendsFromContext();
                 friends.forEach(f => {
                     const el = document.querySelector(`.message-item[data-friend-id="${f.number}"], [data-friend-id="${f.number}"]`);
                     if (el) {
-                        // 1. 修正时间显示
+                        // 时间修正
                         const ts = el.querySelector('.custom-timestamp');
-                        if (ts && f.lastMessageTime && ts.innerText !== f.lastMessageTime) ts.innerText = f.lastMessageTime;
+                        if (ts && f.lastMessageTime) ts.innerText = f.lastMessageTime;
 
-                        // 2. 绘制红点逻辑
+                        // 红点逻辑：比对 localStorage 已读记录
+                        const lastRead = parseInt(localStorage.getItem(`lastRead_${f.number}`) || 0);
                         let dot = el.querySelector('.unread-dot-custom');
-                        if (f.messageIndex > 50000) { // 只要权重高，就说明是未读的对方消息
+                        
+                        if (f.messageIndex > 50000 && f.messageIndex > lastRead) {
                             if (!dot) {
                                 dot = document.createElement('div');
                                 dot.className = 'unread-dot-custom';
@@ -6608,12 +6622,22 @@ renderAddFriendTab() {
                         } else if (dot) {
                             dot.remove();
                         }
+
+                        // 点击事件：点开后立刻标记为已读并移除红点
+                        if (!el.dataset.listenerSet) {
+                            el.dataset.listenerSet = "true";
+                            el.addEventListener('click', () => {
+                                localStorage.setItem(`lastRead_${f.number}`, f.messageIndex);
+                                if (dot) dot.remove();
+                            });
+                        }
                     }
                 });
 
-                // 3. 红包卡片化逻辑 (查找暗号消息)
-                document.querySelectorAll('.message-text').forEach(msg => {
-                    if (msg.innerText.includes('|') && !msg.querySelector('.beautiful-packet')) {
+                // 红包渲染 (基础版，中午你可以据此微调)
+                document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+                    if (msg.innerText.includes('|')) {
+                        msg.classList.add('fixed');
                         const parts = msg.innerText.split('|');
                         const amt = parts[0].trim();
                         const wish = parts[1]?.trim() || "恭喜发财";
@@ -6621,35 +6645,61 @@ renderAddFriendTab() {
                         const card = document.createElement('div');
                         card.className = 'beautiful-packet';
                         card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:10px;opacity:0.8;margin-top:4px;">微信红包 (￥${amt})</div>`;
-                        card.onclick = () => { if(window.top.triggerGoldenOpen) window.top.triggerGoldenOpen("红包详情", wish, amt); };
                         msg.appendChild(card);
                     }
                 });
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
-            
-            // --- C. 劫持发红包按钮 ---
-            const app = window.messageApp || (window.top && window.top.messageApp);
-            if (app && app.__proto__) {
-                app.__proto__.insertRedpackMessage = function() {
-                    const amountInput = document.getElementById('redpack-amount-input');
-                    const messageInput = document.getElementById('redpack-message-input');
-                    if (!amountInput) return;
-                    const amount = parseFloat(amountInput.value) || 0;
-                    const blessing = (messageInput ? messageInput.value.trim() : '') || '恭喜发财，大吉大利';
-                    const targetInput = document.querySelector('#message-detail-input') || document.querySelector('#message-send-input');
-                    if (targetInput && amount >= 0.01) {
-                        targetInput.value = `${amount.toFixed(2)} | ${blessing}`;
-                        document.querySelector('#detail-send-btn')?.click();
-                        document.getElementById('redpack-input-panel')?.remove();
-                    }
-                };
-            }
         }
     }, 1000);
 })();
 
-// 【辅助逻辑：iOS 风格消息通知弹窗 - 保持不变】
+/* ============================================================ 
+   接在 injectUltimateMobileSystem 后面 
+   ============================================================ */
+
+// 【辅助逻辑：iOS 风格消息通知弹窗】
 (function theiOSNotificationOnly() {
-    /* ... 你原来的 iOS 弹窗代码 ... */
+    const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    let lastMsgKey = localStorage.getItem('last_notified_key') || "";
+    
+    const observer = new MutationObserver(() => {
+        const friends = window.friendRenderer ? window.friendRenderer.extractFriendsFromContext() : [];
+        if (friends.length === 0) return;
+        const latestFriend = [...friends].sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0))[0];
+        if (!latestFriend || latestFriend.lastMessage === "暂无新消息") return;
+
+        const currentKey = `${latestFriend.number}_${latestFriend.lastMessage}`;
+        if (currentKey !== lastMsgKey) {
+            // 如果是初始状态或我方发送，只记录不弹窗
+            if (lastMsgKey === "" || latestFriend.lastMessage.includes('[我方消息|')) { 
+                lastMsgKey = currentKey; 
+                localStorage.setItem('last_notified_key', lastMsgKey); 
+                return; 
+            }
+            lastMsgKey = currentKey;
+            localStorage.setItem('last_notified_key', lastMsgKey);
+
+            // 只有非生成状态才弹窗
+            if (!(document.querySelector('.swiping, .generating') || document.body.innerText.includes("generating..."))) {
+                bubbleSound.play().catch(() => {});
+                const cleanMsg = latestFriend.lastMessage.replace(/\[.*?\]/g, '').replace(/\|/g, '');
+                
+                const toast = document.createElement('div');
+                toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 18px; display: flex; align-items: center; padding: 0 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 2147483647; color: black; transition: all 0.5s ease; opacity: 0; transform: translateX(-50%) translateY(-20px); pointer-events: none;";
+                toast.innerHTML = `<div style="width:45px; height:45px; background:linear-gradient(135deg, #007aff, #005bb5); border-radius:10px; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:20px;">💬</div><div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:15px; margin-bottom:2px;">${latestFriend.name}</div><div style="color:#666; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanMsg}</div></div>`;
+                
+                document.body.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; }, 100);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+                    setTimeout(() => { if(toast.parentNode) toast.remove(); }, 500);
+                }, 5000);
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 })();
+
+// 注意：这里原本的 finalUIFixer 已经不需要了，因为它已经合并进了主逻辑的 uiObserver 中。;
