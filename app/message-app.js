@@ -1845,101 +1845,93 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
 applyModernLayout() {
-        const listContainer = document.getElementById('message-list');
-        if (!listContainer) return;
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
 
-        const timeMap = {};
-        const orderMap = {};
-        
-        // 1. 获取数据
-        const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                                ? window.friendRenderer.extractFriendsFromContext() : [];
-        
-        extractedFriends.forEach(f => {
-            orderMap[f.number] = f.messageIndex || 0;
-            if (f.lastMessageTime) {
-                timeMap[f.number] = f.lastMessageTime;
-            } else if (f.addTime) {
-                const d = new Date(f.addTime);
-                timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-            } else {
-                timeMap[f.number] = "08:00";
-            }
-        });
+    const timeMap = {};
+    const orderMap = {};
+    const unreadSignal = {}; // 🚀 存放 [unread] 信号弹
 
-        // 2. 扫描 DOM 校准
-        const mesBlocks = document.querySelectorAll('.mes');
-        mesBlocks.forEach(block => {
-            const text = block.innerText;
-            const mesId = parseInt(block.getAttribute('mesid') || 0); 
+    // 1. 获取基础数据
+    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
+                            ? window.friendRenderer.extractFriendsFromContext() : [];
+    
+    extractedFriends.forEach(f => {
+        orderMap[f.number] = f.messageIndex || 0;
+        timeMap[f.number] = f.lastMessageTime || "08:00";
+        if (f.hasUnread) unreadSignal[f.number] = true; // 抓取 extract 里的信号
+    });
+
+    // 2. 扫描 DOM 校准 (保留你的原有逻辑并增强)
+    const mesBlocks = document.querySelectorAll('.mes');
+    mesBlocks.forEach(block => {
+        const text = block.innerText;
+        const mesId = parseInt(block.getAttribute('mesid') || 0); 
+        const idMatch = text.match(/\|(\d+)\|/);
+        
+        if (idMatch) {
+            const id = idMatch[1];
+            // 🚀 如果这条消息包含 [unread]，记录下来
+            if (text.includes('[unread]')) unreadSignal[id] = true;
+
             const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-            const idMatch = text.match(/\|(\d+)\|/);
+            if (timeMatch) timeMap[id] = timeMatch[1];
             
-            if (idMatch) {
-                const id = idMatch[1];
-                if (timeMatch) timeMap[id] = timeMatch[1];
-                const isPeer = text.includes('[对方消息|');
-                const newWeight = isPeer ? (100000 + mesId) : mesId;
-                if (!orderMap[id] || newWeight > orderMap[id]) {
-                    orderMap[id] = newWeight;
-                }
+            const isPeer = text.includes('[对方消息|');
+            const newWeight = isPeer ? (100000 + mesId) : mesId;
+            if (!orderMap[id] || newWeight > orderMap[id]) {
+                orderMap[id] = newWeight;
             }
-        });
+        }
+    });
 
-        window.latestOrderMap = orderMap;
+    window.latestOrderMap = orderMap;
 
-        // 3. 执行排序
-        const items = Array.from(listContainer.querySelectorAll('.message-item'));
-        items.sort((a, b) => {
-            const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
-            const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
-            return weightB - weightA;
-        });
+    // 3. 执行排序
+    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+    items.forEach(item => listContainer.appendChild(item));
+
+    // 4. 渲染时间戳和红点
+    items.forEach(item => {
+        const id = item.getAttribute('data-friend-id');
+        const time = timeMap[id];
+        const latestOrder = orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+
+        // --- 时间显示 ---
+        let timeSpan = item.querySelector('.custom-timestamp') || document.createElement('span');
+        if (!timeSpan.parentNode) {
+            timeSpan.className = 'custom-timestamp';
+            item.appendChild(timeSpan);
+        }
+        timeSpan.innerText = time;
+
+        // --- 红点逻辑 (双保险) ---
+        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
         
-        items.forEach(item => listContainer.appendChild(item));
+        // 判定逻辑：如果有 [unread] 信号弹，或者符合你的权重逻辑
+        if (unreadSignal[id] || (latestOrder > 50000 && latestOrder > lastReadOrder)) {
+            let dot = document.createElement('div');
+            dot.className = 'unread-dot'; 
+            item.appendChild(dot);
+        }
 
-        // 4. 渲染时间戳和红点
-        items.forEach(item => {
-            const id = item.getAttribute('data-friend-id');
-            const time = timeMap[id];
-            const latestOrder = orderMap[id] || 0;
-            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-
-            // --- 时间显示 ---
-            let timeSpan = item.querySelector('.custom-timestamp');
-            if (time) {
-                if (!timeSpan) {
-                    timeSpan = document.createElement('span');
-                    timeSpan.className = 'custom-timestamp';
-                    item.appendChild(timeSpan);
-                }
-                timeSpan.innerText = time;
-            }
-
-            // --- 红点逻辑 ---
-            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-
-            if (latestOrder > 50000 && latestOrder > lastReadOrder) {
-                let dot = document.createElement('div');
-                dot.className = 'unread-dot'; 
-                item.appendChild(dot);
-            }
-
-            // --- 绑定点击已读逻辑 ---
-            // 这里将两个监听逻辑合并，确保 item 作用域正确
-            if (!item.dataset.layoutListener) {
-                item.dataset.layoutListener = "true";
-                item.addEventListener('click', () => {
-                    const currentOrder = window.latestOrderMap ? window.latestOrderMap[id] : latestOrder;
-                    localStorage.setItem(`lastRead_${id}`, currentOrder);
-                    
-                    const d = item.querySelector('.unread-dot');
-                    if (d) d.remove();
-                    console.log(`✅ 已标记联系人 ${id} 为已读`);
-                });
-            }
-        }); 
-    } // applyModernLayout 函数结束
+        // --- 绑定点击已读逻辑 ---
+        if (!item.dataset.layoutListener) {
+            item.dataset.layoutListener = "true";
+            item.addEventListener('click', () => {
+                const currentOrder = window.latestOrderMap ? window.latestOrderMap[id] : latestOrder;
+                localStorage.setItem(`lastRead_${id}`, currentOrder);
+                // 🚀 点击后同时清除信号
+                unreadSignal[id] = false;
+                const d = item.querySelector('.unread-dot');
+                if (d) d.remove();
+                console.log(`✅ 已标记联系人 ${id} 为已读`);
+            });
+        }
+    }); 
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6529,15 +6521,15 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-    🚀 李至中手机系统 (OS 5.12.2) - 深度融合修复版
-    包含：时间戳找回、测试版红点逻辑、安全稳定锁、红包美化
+    🚀 李至中手机系统 (OS 5.12.3) - 深度融合修复版
+    包含：[unread]信号弹红点、红包全屏美化、视觉去污、iOS通知同步
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 注入全局样式
+    // 1. 注入全局样式 (已加入红包视觉去污与左移逻辑)
     const styleId = 'mobile-system-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
@@ -6554,21 +6546,27 @@ renderAddFriendTab() {
                 position: absolute !important; top: 10px !important; right: 15px !important;
                 font-size: 11px !important; color: #b0b0b0 !important; z-index: 5 !important;
             }
+            /* 红包本体美化：抹除原有文字残留并左移 */
+            .message-received[title='红包'] .message-text:after,
+            .message-sent[title='红包'] .message-text:after { content: none !important; display: none !important; }
+            
             .beautiful-packet {
                 background: linear-gradient(135deg, #fa9e3b 0%, #ff7849 100%) !important;
                 color: white !important; border-radius: 8px !important;
                 padding: 10px 15px !important; min-width: 190px;
                 cursor: pointer; display: inline-block; position: relative;
-                box-shadow: 0 3px 10px rgba(250,158,59,0.2); margin: 4px 0;
+                box-shadow: 0 3px 10px rgba(250,158,59,0.2); 
+                margin: 4px 0 4px -25px !important; /* 强制左移靠近头像 */
                 font-size: 14px !important; transition: all 0.2s ease;
+                z-index: 10;
             }
-            .packet-top { display: flex; align-items: center; gap: 8px; }
+            .packet-top { display: flex; align-items: center; gap: 8px; font-weight: bold; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 3px; }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. 名字拦截器
+    // 2. 名字拦截器 (保持原样)
     setInterval(() => {
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
@@ -6582,12 +6580,36 @@ renderAddFriendTab() {
 
     let isHandling = false;
 
+    // --- [新增] 全屏红包弹窗函数 ---
+    window.launchPerfectPacket = (wish, amount) => {
+        if (document.getElementById('perfect-overlay')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'perfect-overlay';
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2147483647; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px);";
+        overlay.innerHTML = `<div id="p-container" style="width:300px; height:420px; background:#cf4e46; border-radius:16px; position:relative; display:flex; flex-direction:column; align-items:center; color:#fbd69b; transition:all 0.4s ease; transform:scale(0.8); opacity:0; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+            <div style="position:absolute; top:15px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+            <div style="margin-top:50px; font-size:18px;">红包来自联系人</div>
+            <div style="margin-top:40px; font-size:22px; width:80%; text-align:center;">${wish}</div>
+            <div id="p-btn" style="margin-top:60px; width:90px; height:90px; background:#fbd69b; color:#333; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:36px; font-weight:bold; cursor:pointer;">開</div>
+        </div>`;
+        document.body.appendChild(overlay);
+        setTimeout(() => { document.getElementById('p-container').style.transform="scale(1)"; document.getElementById('p-container').style.opacity="1"; }, 10);
+        document.getElementById('p-btn').onclick = () => {
+            document.getElementById('p-btn').style.transform = "rotateY(720deg)";
+            setTimeout(() => {
+                document.getElementById('p-container').innerHTML = `<div style="position:absolute; top:15px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+                <div style="margin-top:100px; font-size:54px; font-weight:bold;">${amount}<span style="font-size:20px;"> 元</span></div>
+                <div style="margin-top:20px;">已存入零钱</div>`;
+            }, 700);
+        };
+    };
+
     // 3. 核心功能挂载
     const interval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(interval);
 
-            // --- 劫持数据提取逻辑 ---
+            // --- 劫持数据提取逻辑 (增强：支持[unread]信号抓取) ---
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
@@ -6600,14 +6622,15 @@ renderAddFriendTab() {
                     }
                 }
                 CLOUD_IDS.forEach(fId => {
-                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无新消息", lastMessageTime: "08:00", messageIndex: -1 };
+                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无新消息", lastMessageTime: "08:00", messageIndex: -1, hasUnread: false };
                     if (mobileText) {
                         const lines = mobileText.split('\n');
                         for (let j = lines.length - 1; j >= 0; j--) {
                             if (lines[j].includes(`|${fId}|`)) {
+                                if (lines[j].includes('[unread]')) item.hasUnread = true; // 🚀 捕获信号弹
                                 const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                                 if (tMatch) item.lastMessageTime = tMatch[1];
-                                const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
+                                const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音)\|([^\]]+)\]/);
                                 if (cMatch) {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
@@ -6622,43 +6645,39 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
 
-            // --- 定义排版函数 ---
+            // --- 定义排版函数 (增强：[unread]优先红点) ---
             if (window.messageApp) {
                 window.messageApp.applyModernLayout = function() {
                     const listContainer = document.getElementById('message-list');
                     if (!listContainer) return;
 
-                    const timeMap = {};
-                    const orderMap = {};
                     const friends = window.friendRenderer.extractFriendsFromContext();
-                    
+                    const timeMap = {}; const orderMap = {}; const unreadMap = {};
                     friends.forEach(f => {
                         orderMap[f.number] = f.messageIndex;
                         timeMap[f.number] = f.lastMessageTime;
+                        unreadMap[f.number] = f.hasUnread;
                     });
 
-                    // 排序
                     const items = Array.from(listContainer.querySelectorAll('.message-item'));
                     items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
                     items.forEach(item => {
                         listContainer.appendChild(item);
                         const id = item.getAttribute('data-friend-id');
                         
-                        // 渲染时间
                         let ts = item.querySelector('.custom-timestamp') || document.createElement('span');
                         if (!ts.parentNode) { ts.className = 'custom-timestamp'; item.appendChild(ts); }
                         ts.innerText = timeMap[id] || "08:00";
 
-                        // 渲染红点
-                        const lastRead = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+                        // 红点：[unread]信号 优先级高于 权重判定
                         item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-                        if (orderMap[id] > 50000 && orderMap[id] > lastRead) {
+                        const lastRead = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+                        if (unreadMap[id] || (orderMap[id] > 50000 && orderMap[id] > lastRead)) {
                             const dot = document.createElement('div');
                             dot.className = 'unread-dot';
                             item.appendChild(dot);
                         }
 
-                        // 绑定点击
                         if (!item.dataset.lsn) {
                             item.dataset.lsn = "true";
                             item.addEventListener('click', () => {
@@ -6671,25 +6690,34 @@ renderAddFriendTab() {
                 };
             }
 
-            // --- UI 监控 ---
+            // --- UI 监控 (增强：红包视觉彻底去污) ---
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 红包逻辑
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                        if (msg.innerText.includes('|')) {
+                        if (msg.innerText.includes('|红包|')) {
                             msg.classList.add('fixed');
                             const parts = msg.innerText.split('|');
-                            const amt = parts[0].trim();
-                            const wish = parts[1]?.split(']')[0].trim() || "恭喜发财";
+                            const amt = parts[parts.length-2] || "1.00";
+                            const wish = parts[parts.length-1]?.split(']')[0].trim() || "恭喜发财";
+                            
+                            // 物理抹除：防止残留文字
+                            msg.innerHTML = ''; 
                             msg.style.fontSize = "0px";
+                            msg.style.color = "transparent";
+
                             const bubble = msg.closest('.message-content');
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                            
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div class="packet-top">🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { e.stopPropagation(); card.style.opacity = "0.7"; };
+                            card.onclick = (e) => { 
+                                e.stopPropagation(); 
+                                window.launchPerfectPacket(wish, amt);
+                                card.style.opacity = "0.7"; 
+                            };
                             msg.appendChild(card);
                         }
                     });
@@ -6701,7 +6729,7 @@ renderAddFriendTab() {
         }
     }, 1000);
 
-    // 4. iOS 通知逻辑
+    // 4. iOS 通知逻辑 (保持原样)
     (function theiOSNotificationOnly() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
