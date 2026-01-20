@@ -1851,40 +1851,35 @@ if (typeof window.MessageApp === 'undefined') {
     const timeMap = {};
     const orderMap = {};
     
-    // 1. 【第一道保险】直接从好友提取器拿数据（这是最稳的，不受页面文本限制）
+    // 1. 获取数据
     const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
                              ? window.friendRenderer.extractFriendsFromContext() : [];
     
     extractedFriends.forEach(f => {
         orderMap[f.number] = f.messageIndex || 0;
-        // 如果提取到了时间就用原生的，没有就给个保底
         if (f.addTime) {
             const d = new Date(f.addTime);
             timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
     });
 
-    // 2. 【第二道保险】扫描页面 DOM（用于校准最新的实时消息）
+    // 2. 扫描 DOM 校准
     const mesBlocks = document.querySelectorAll('.mes');
     mesBlocks.forEach(block => {
         const text = block.innerText;
         const mesId = parseInt(block.getAttribute('mesid') || 0);
-        
         const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
         const idMatch = text.match(/\|(\d+)\|/);
-        
         if (idMatch) {
             const id = idMatch[1];
             if (timeMatch) timeMap[id] = timeMatch[1];
-            if (!orderMap[id] || mesId > orderMap[id]) {
-                orderMap[id] = mesId;
-            }
+            if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
         }
     });
 
     window.latestOrderMap = orderMap;
 
-    // 3. 执行置顶排序
+    // 3. 执行排序
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
     items.forEach(item => listContainer.appendChild(item));
@@ -1896,7 +1891,7 @@ if (typeof window.MessageApp === 'undefined') {
         const latestOrder = orderMap[id] || 0;
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-        // --- 修复点 A：处理时间戳 (即便没有 time，也保持占位或跳过，不影响红点) ---
+        // --- 修正时间显示 ---
         let timeSpan = item.querySelector('.custom-timestamp');
         if (time) {
             if (!timeSpan) {
@@ -1908,21 +1903,30 @@ if (typeof window.MessageApp === 'undefined') {
             timeSpan.innerText = time;
         }
 
-        // --- 修复点 B：红点逻辑 (彻底脱离 if(time) 的限制) ---
-        let dot = item.querySelector('.unread-dot');
-        // 只要最新消息 ID > 0 且 大于已读记录，就亮！
-        if (latestOrder > 0 && latestOrder > lastReadOrder) {
-            if (!dot) {
-                dot = document.createElement('div');
-                dot.className = 'unread-dot';
-                dot.style.cssText = `position: absolute; top: 10px; left: 58px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999 !important; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
-                item.appendChild(dot);
-            }
-        } else {
-            if (dot) dot.remove();
+        // --- 修复点 B：红点逻辑 (彻底解决多胞胎与消失问题) ---
+        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+
+        if (latestOrder > 50000 && latestOrder > lastReadOrder) {
+            let dot = document.createElement('div');
+            dot.className = 'unread-dot'; // 统一类名
+            dot.style.cssText = `position: absolute; top: 10px; left: 56px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
+            item.appendChild(dot);
         }
-    });
-}
+
+        // --- 新增：点击后立刻标记已读并移除红点 ---
+        if (!item.dataset.readListener) {
+            item.dataset.readListener = "true";
+            item.addEventListener('click', () => {
+                const currentOrder = window.latestOrderMap ? window.latestOrderMap[id] : latestOrder;
+                localStorage.setItem(`lastRead_${id}`, currentOrder);
+                // 点击时立即寻找并删除红点
+                const d = item.querySelector('.unread-dot');
+                if (d) d.remove();
+                console.log(`✅ 已标记联系人 ${id} 为已读`);
+            });
+        }
+    }); // 这里是 items.forEach 的结束
+} // 这里是 applyModernLayout() 函数的结束，刚才你漏了这个！
     
     // 渲染添加好友界面
     renderAddFriend() {
