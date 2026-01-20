@@ -6567,7 +6567,6 @@ renderAddFriendTab() {
             div[title='红包'] .message-content, .message-received[title='红包'] .message-content {
                 background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; overflow: visible !important;
             }
-            div[title='红包'] .message-text { font-size: 0px !important; color: transparent !important; }
 
             /* 弹窗层样式 */
             #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
@@ -6704,25 +6703,53 @@ renderAddFriendTab() {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 精准红包处理
-                    document.querySelectorAll('.message-text:not(.packet-fixed)').forEach(msg => {
-                        if (msg.innerText.includes('红包|')) {
-                            msg.classList.add('packet-fixed');
+                    // 1. 扫描所有包含“红包|”的消息
+                    document.querySelectorAll('.message-text').forEach(msg => {
+                        // 只有包含“红包|”且还没生成过美化包的才处理
+                        if (msg.innerText.includes('红包|') && !msg.querySelector('.beautiful-packet')) {
                             const raw = msg.innerText;
-                            const amt = (raw.match(/\d+\.\d+/) || ["0.00"])[0];
-                            const wish = (raw.match(/\|([^\]]+)\]/) || [null, "恭喜发财"])[1];
-                            
-                            msg.style.fontSize = "0px";
+                            // 提取金额和祝福语
+                            const amtMatch = raw.match(/\d+(\.\d+)?/);
+                            const amt = amtMatch ? amtMatch[0] : "0.00";
+                            const wishMatch = raw.match(/\|([^\]]+)\]/);
+                            const wish = wishMatch ? wishMatch[1] : "恭喜发财";
+
+                            // 2. 强力抹除原始文本视觉 (关键修复：防止文字残留)
+                            msg.style.setProperty('font-size', '0px', 'important');
+                            msg.style.setProperty('color', 'transparent', 'important');
+                            msg.style.display = "block";
+
+                            // 3. 抹除父级原生背景
+                            const bubble = msg.closest('.message-content');
+                            if (bubble) {
+                                bubble.style.cssText = "background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; overflow: visible !important;";
+                            }
+
+                            // 4. 创建红包卡片
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
-                            card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px;opacity:0.8;margin-top:5px;border-top:1px solid rgba(255,255,255,0.2);padding-top:3px;">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                            card.innerHTML = `
+                                <div style="pointer-events: none;">🧧 ${wish}</div>
+                                <div style="font-size:11px; opacity:0.8; margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:3px; pointer-events: none;">
+                                    微信红包 (￥${amt})
+                                </div>
+                            `;
+                            
+                            // 5. 绑定点击
+                            card.onclick = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.launchPerfectPacket(wish, amt);
+                            };
+                            
                             msg.appendChild(card);
                         }
                     });
+
                     if (window.messageApp?.applyModernLayout) window.messageApp.applyModernLayout();
                 } catch (e) { console.error("UI渲染错误:", e); }
-                setTimeout(() => { isHandling = false; }, 100);
+                // 增加冷却时间，防止频繁触发导致卡顿
+                setTimeout(() => { isHandling = false; }, 300);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
