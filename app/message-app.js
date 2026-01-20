@@ -6538,11 +6538,16 @@ renderAddFriendTab() {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            /* 基础组件样式 */
+            /* 基础组件样式：补齐时间戳 */
+            .custom-timestamp { position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; z-index: 10; }
             .unread-dot { position: absolute; top: 10px; left: 56px; width: 10px; height: 10px; background: #ff4d4f; border-radius: 50%; border: 1.5px solid white; z-index: 11; }
             
-            /* 红包通用逻辑：彻底封印原生文字和气泡尾巴 */
-            .message-text[data-custom-packet="true"] { font-size: 0px !important; color: transparent !important; }
+            /* 红包通用逻辑：彻底封印原生文字 */
+            .message-text[data-custom-packet="true"] { 
+                font-size: 0px !important; 
+                line-height: 0 !important; 
+                color: transparent !important; 
+            }
             .message-text[data-custom-packet="true"]::after,
             .message-text[data-custom-packet="true"]::before { content: none !important; display: none !important; }
 
@@ -6553,6 +6558,7 @@ renderAddFriendTab() {
                 border-radius: 12px !important; 
                 padding: 12px 16px !important;
                 min-width: 195px !important;
+                max-width: 220px !important; /* 限制最大宽度防止机主红包溢出 */
                 cursor: pointer;
                 display: block !important;
                 box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
@@ -6560,19 +6566,19 @@ renderAddFriendTab() {
                 position: relative;
                 z-index: 999;
                 text-align: left !important;
+                line-height: 1.4 !important;
             }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
 
-            /* 【关键修复】区分发送方和接收方的红包位置 */
-            /* 1. 对方发的红包 (左侧) */
+            /* 红包位置适配 */
+            /* 对方发的红包 (左侧) */
             .message-detail:not(.message-sent) .beautiful-packet {
                 margin-left: -40px !important;
             }
-            /* 2. 李至中发的红包 (右侧) */
+            /* 李至中发的红包 (右侧) */
             .message-detail.message-sent .beautiful-packet {
-                margin-right: -10px !important; /* 微调右边距防止贴边 */
-                margin-left: auto !important;
-                float: right;
+                margin-right: -5px !important;
+                margin-left: auto !important; /* 核心：向右靠齐 */
             }
 
             /* 抹除机主专属气泡背景，让红包裸露 */
@@ -6590,7 +6596,7 @@ renderAddFriendTab() {
         document.head.appendChild(style);
     }
 
-    // 2. 弹窗与渲染核心 (保持之前的逻辑)
+    // 2. 弹窗与渲染核心
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
@@ -6614,13 +6620,11 @@ renderAddFriendTab() {
         };
     };
 
-    // 3. 核心抓取与渲染
+    // 3. 核心抓取与渲染逻辑
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
 
-            // 劫持渲染列表
-            const originalExtract = window.friendRenderer.extractFriendsFromContext;
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
@@ -6655,12 +6659,22 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 4. UI渲染监控
+            // 4. UI 渲染与名字拦截
             let isHandling = false;
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
+                    // 补齐标题拦截
+                    const titleEl = document.getElementById('app-title');
+                    if (titleEl) {
+                        const match = titleEl.innerText.match(/\d+/);
+                        const currentId = match ? match[0] : null;
+                        if (currentId && ID_TO_NAME[currentId] && titleEl.innerText !== ID_TO_NAME[currentId]) {
+                            titleEl.innerText = ID_TO_NAME[currentId];
+                        }
+                    }
+
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
@@ -6670,7 +6684,6 @@ renderAddFriendTab() {
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                             const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
 
-                            // 抹除父级容器
                             const bubble = msg.closest('.message-content');
                             if (bubble) {
                                 bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
@@ -6690,7 +6703,7 @@ renderAddFriendTab() {
         }
     }, 1000);
 
-    // 5. iOS 横幅逻辑 (带小图标模拟)
+    // 5. iOS 横幅逻辑 (保持原版完整性)
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
