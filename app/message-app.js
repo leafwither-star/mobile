@@ -1851,67 +1851,110 @@ if (typeof window.MessageApp === 'undefined') {
     const timeMap = {};
     const orderMap = {};
     
-    // 1. 获取数据
+    // 1. 获取数据（这里会调用我们刚才在核心B里劫持好的新逻辑）
     const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                             ? window.friendRenderer.extractFriendsFromContext() : [];
+                            ? window.friendRenderer.extractFriendsFromContext() : [];
     
     extractedFriends.forEach(f => {
+        // 记录排序权重
         orderMap[f.number] = f.messageIndex || 0;
-        if (f.addTime) {
+        
+        // --- 【关键修正：时间映射】 ---
+        // 优先使用我们从[手机快讯]里解析出来的 lastMessageTime
+        if (f.lastMessageTime) {
+            timeMap[f.number] = f.lastMessageTime;
+        } 
+        // 只有当快讯里没时间时，才去尝试解析 f.addTime (酒馆默认时间)
+        else if (f.addTime) {
             const d = new Date(f.addTime);
             timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } else {
+            timeMap[f.number] = "08:00"; // 最终保底
         }
     });
 
-    // 2. 扫描 DOM 校准
+    // 2. 扫描 DOM 校准 (二次确认排序权重与时间)
     const mesBlocks = document.querySelectorAll('.mes');
     mesBlocks.forEach(block => {
         const text = block.innerText;
-        const mesId = parseInt(block.getAttribute('mesid') || 0);
+        // 使用原生的消息 ID 作为基础权重
+        const mesId = parseInt(block.getAttribute('mesid') || 0); 
         const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
         const idMatch = text.match(/\|(\d+)\|/);
+        
         if (idMatch) {
             const id = idMatch[1];
+            // 实时校准时间
             if (timeMatch) timeMap[id] = timeMatch[1];
-            if (!orderMap[id] || mesId > orderMap[id]) orderMap[id] = mesId;
+            
+            // --- 【优化：权重保护】 ---
+            // 只有当新的 mesId 真的更大，且不破坏[对方消息]的10万级权重时才更新
+            const isPeer = text.includes('[对方消息|');
+            const newWeight = isPeer ? (100000 + mesId) : mesId;
+            
+            if (!orderMap[id] || newWeight > orderMap[id]) {
+                orderMap[id] = newWeight;
+            }
         }
     });
 
     window.latestOrderMap = orderMap;
 
-    // 3. 执行排序
+    // 3. 执行排序 (应用最新权重)
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
+    items.sort((a, b) => {
+        const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
+        const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
+        return weightB - weightA;
+    });
+    
+    // 重新挂载，完成视觉排序
     items.forEach(item => listContainer.appendChild(item));
 
-    // 4. 渲染时间戳和红点
-    items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        const time = timeMap[id];
-        const latestOrder = orderMap[id] || 0;
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+    // --- 4. 渲染时间戳和红点 (极致校准版) ---
+        items.forEach(item => {
+            const id = item.getAttribute('data-friend-id');
+            const time = timeMap[id];
+            const latestOrder = orderMap[id] || 0;
+            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-        // --- 修正时间显示 ---
-        let timeSpan = item.querySelector('.custom-timestamp');
-        if (time) {
-            if (!timeSpan) {
-                timeSpan = document.createElement('span');
-                timeSpan.className = 'custom-timestamp';
-                timeSpan.style.cssText = `position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; pointer-events: none; z-index: 5;`;
-                item.appendChild(timeSpan);
+            // --- 修正时间显示 ---
+            let timeSpan = item.querySelector('.custom-timestamp');
+            if (time) {
+                if (!timeSpan) {
+                    timeSpan = document.createElement('span');
+                    timeSpan.className = 'custom-timestamp';
+                    // 样式已在 Style 标签中定义，这里保持逻辑挂载即可
+                    item.appendChild(timeSpan);
+                }
+                if (timeSpan.innerText !== time) {
+                    timeSpan.innerText = time;
+                }
             }
-            timeSpan.innerText = time;
-        }
 
-        // --- 修复点 B：红点逻辑 (彻底解决多胞胎与消失问题) ---
-        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+            // --- 修复点 B：红点逻辑 (清空并重绘) ---
+            // 暴力清理所有旧红点（包括旧版本的各种残留类名）
+            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
 
-        if (latestOrder > 50000 && latestOrder > lastReadOrder) {
-            let dot = document.createElement('div');
-            dot.className = 'unread-dot'; // 统一类名
-            dot.style.cssText = `position: absolute; top: 10px; left: 56px; width: 10px; height: 10px; background: #ff4d4f !important; border-radius: 50%; border: 1.5px solid white; z-index: 9999; display: block !important; box-shadow: 0 0 4px rgba(0,0,0,0.3); pointer-events: none;`;
-            item.appendChild(dot);
-        }
+            // 权重判定：只有对方消息 (>50000) 且 未读时才渲染
+            if (latestOrder > 50000 && latestOrder > lastReadOrder) {
+                let dot = document.createElement('div');
+                dot.className = 'unread-dot'; 
+                // 采用你测试成功的 CSS 样式 (已定义在 style 标签中)
+                item.appendChild(dot);
+            }
+
+            // --- 绑定点击已读逻辑 ---
+            if (!item.dataset.layoutListener) {
+                item.dataset.layoutListener = "true";
+                item.addEventListener('click', () => {
+                    localStorage.setItem(`lastRead_${id}`, latestOrder);
+                    const d = item.querySelector('.unread-dot');
+                    if (d) d.remove();
+                });
+            }
+        });
+    } 
 
         // --- 新增：点击后立刻标记已读并移除红点 ---
         if (!item.dataset.readListener) {
