@@ -6529,20 +6529,27 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 /* ============================================================ 
-    🚀 李至中手机系统 (OS 5.12.2) - 深度融合修复版
-    包含：时间戳找回、测试版红点逻辑、安全稳定锁、红包美化
+    🚀 李至中手机系统 (OS 5.12.4) - 终极全功能修复整合版
+    包含：
+    1. 红包：锁定 10px 位置、彻底去污、实装全屏旋转开红包动画。
+    2. 时间：实装哨兵模式，强制列表显示最后一条消息时间，解决跳回首条问题。
+    3. 列表：修复排序权重、红点逻辑、联系人姓名拦截。
+    4. 稳定：严格检查括号匹配，防止脚本运行中断。
    ============================================================ */
 
 (function injectUltimateMobileSystem() {
+    // --- 基础配置 ---
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
+    let isHandling = false;
 
-    // 1. 注入全局样式
-    const styleId = 'mobile-system-style';
+    // --- 1. 样式注入 (CSS 补丁) ---
+    const styleId = 'mobile-system-style-final';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
+            /* 基础组件：红点与时间戳 */
             .unread-dot {
                 position: absolute !important; top: 10px !important; left: 56px !important;
                 width: 10px !important; height: 10px !important;
@@ -6554,64 +6561,100 @@ renderAddFriendTab() {
                 position: absolute !important; top: 10px !important; right: 15px !important;
                 font-size: 11px !important; color: #b0b0b0 !important; z-index: 5 !important;
             }
+
+            /* 红包专项：去污与 10px 偏移定位 */
+            .message-received[title='红包'] .message-text:after,
+            .message-sent[title='红包'] .message-text:after,
+            .message-received[title='红包'] .message-text:before,
+            .message-sent[title='红包'] .message-text:before { 
+                display: none !important; content: "" !important; 
+            }
             .beautiful-packet {
                 background: linear-gradient(135deg, #fa9e3b 0%, #ff7849 100%) !important;
                 color: white !important; border-radius: 8px !important;
-                padding: 10px 15px !important; min-width: 190px;
+                padding: 12px 16px !important; min-width: 210px;
                 cursor: pointer; display: inline-block; position: relative;
-                box-shadow: 0 3px 10px rgba(250,158,59,0.2); margin: 4px 0;
-                font-size: 14px !important; transition: all 0.2s ease;
+                box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
+                margin: 5px 0 5px 10px !important; /* 调整此值可改变红包横向位置 */
+                font-size: 15px !important; transition: all 0.2s ease;
             }
-            .packet-top { display: flex; align-items: center; gap: 8px; }
-            .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 3px; }
+            .packet-top { display: flex; align-items: center; gap: 8px; font-weight: bold; }
+            .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 5px; padding-top: 3px; }
+
+            /* 弹窗层美化动画 */
+            #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
+            .packet-dialog { width: 300px; height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5); animation: packetIn 0.3s ease-out; font-family: sans-serif; }
+            @keyframes packetIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            .open-btn-anim { width: 90px; height: 90px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; cursor: pointer; margin-top: 60px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.6s; }
+            .open-btn-anim.spin { transform: rotateY(720deg); }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. 名字拦截器
-    setInterval(() => {
-        const titleEl = document.getElementById('app-title');
-        if (titleEl) {
-            const match = titleEl.innerText.match(/\d+/);
-            const currentId = match ? match[0] : (window.messageApp?.currentChatId);
-            if (currentId && ID_TO_NAME[currentId] && titleEl.innerText !== ID_TO_NAME[currentId]) {
-                titleEl.innerText = ID_TO_NAME[currentId];
-            }
-        }
-    }, 500);
+    // --- 2. 弹窗动画功能函数 ---
+    window.launchPerfectPacket = (wish, amount) => {
+        if (document.getElementById('perfect-overlay')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'perfect-overlay';
+        overlay.innerHTML = `
+            <div class="packet-dialog">
+                <div style="position:absolute; top:20px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+                <div style="margin-top:60px; opacity:0.8;">来自好友的红包</div>
+                <div style="margin-top:30px; font-size:22px; font-weight:bold; padding:0 20px; text-align:center;">${wish}</div>
+                <div id="p-open-target" class="open-btn-anim">開</div>
+            </div>`;
+        document.body.appendChild(overlay);
 
-    let isHandling = false;
+        document.getElementById('p-open-target').onclick = function() {
+            this.classList.add('spin');
+            setTimeout(() => {
+                const dialog = this.closest('.packet-dialog');
+                dialog.innerHTML = `
+                    <div style="position:absolute; top:20px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+                    <div style="margin-top:100px; font-size:50px; font-weight:bold;">${amount}<span style="font-size:20px"> 元</span></div>
+                    <div style="margin-top:20px; opacity:0.9;">已存入零钱</div>
+                    <div style="margin-top:auto; margin-bottom:40px; border:1px solid #fbd69b; padding:4px 15px; border-radius:4px; font-size:13px;">查看领取详情 ></div>
+                `;
+            }, 650);
+        };
+    };
 
-    // 3. 核心功能挂载
-    const interval = setInterval(() => {
+    // --- 3. 核心挂载与逻辑接管 ---
+    const initInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
-            clearInterval(interval);
+            clearInterval(initInterval);
 
-            // --- 劫持数据提取逻辑 ---
+            // 【数据提取逻辑：解决排序与时间提取】
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
                 let contacts = [];
                 let mobileText = "";
+
+                // 倒序寻找最后一次出现的[手机快讯]
                 for (let i = chatLog.length - 1; i >= 0; i--) {
                     if ((chatLog[i].mes || "").includes('[手机快讯]')) {
                         mobileText = chatLog[i].mes.substring(chatLog[i].mes.lastIndexOf('[手机快讯]'));
                         break;
                     }
                 }
+
                 CLOUD_IDS.forEach(fId => {
-                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无新消息", lastMessageTime: "08:00", messageIndex: -1 };
+                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1 };
                     if (mobileText) {
                         const lines = mobileText.split('\n');
                         for (let j = lines.length - 1; j >= 0; j--) {
                             if (lines[j].includes(`|${fId}|`)) {
+                                // 时间抓取
                                 const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                                 if (tMatch) item.lastMessageTime = tMatch[1];
+                                // 内容抓取
                                 const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
                                 if (cMatch) {
                                     let content = cMatch[1].split('|')[0];
                                     item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
                                 }
+                                // 排序权重计算
                                 item.messageIndex = 1000 + j + (lines[j].includes('[对方消息|') ? 100000 : 0);
                                 break;
                             }
@@ -6622,108 +6665,73 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => (b.messageIndex || 0) - (a.messageIndex || 0));
             };
 
-            // --- 定义排版函数 ---
-            if (window.messageApp) {
-                window.messageApp.applyModernLayout = function() {
-                    const listContainer = document.getElementById('message-list');
-                    if (!listContainer) return;
-
-                    const timeMap = {};
-                    const orderMap = {};
-                    const friends = window.friendRenderer.extractFriendsFromContext();
-                    
-                    friends.forEach(f => {
-                        orderMap[f.number] = f.messageIndex;
-                        timeMap[f.number] = f.lastMessageTime;
-                    });
-
-                    // 排序
-                    const items = Array.from(listContainer.querySelectorAll('.message-item'));
-                    items.sort((a, b) => (orderMap[b.getAttribute('data-friend-id')] || 0) - (orderMap[a.getAttribute('data-friend-id')] || 0));
-                    items.forEach(item => {
-                        listContainer.appendChild(item);
-                        const id = item.getAttribute('data-friend-id');
-                        
-                        // 渲染时间
-                        let ts = item.querySelector('.custom-timestamp') || document.createElement('span');
-                        if (!ts.parentNode) { ts.className = 'custom-timestamp'; item.appendChild(ts); }
-                        ts.innerText = timeMap[id] || "08:00";
-
-                        // 渲染红点
-                        const lastRead = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-                        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-                        if (orderMap[id] > 50000 && orderMap[id] > lastRead) {
-                            const dot = document.createElement('div');
-                            dot.className = 'unread-dot';
-                            item.appendChild(dot);
-                        }
-
-                        // 绑定点击
-                        if (!item.dataset.lsn) {
-                            item.dataset.lsn = "true";
-                            item.addEventListener('click', () => {
-                                localStorage.setItem(`lastRead_${id}`, orderMap[id]);
-                                const d = item.querySelector('.unread-dot');
-                                if (d) d.remove();
-                            });
-                        }
-                    });
-                };
-            }
-
-            // --- UI 监控 ---
+            // 【UI 监控哨兵：强制渲染最后消息时间 & 美化红包】
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 红包逻辑
+                    const friends = window.friendRenderer.extractFriendsFromContext();
+                    
+                    // A. 处理联系人列表项 (时间锁 & 红点)
+                    friends.forEach(f => {
+                        const el = document.querySelector(`.message-item[data-friend-id="${f.number}"]`);
+                        if (el) {
+                            // 强制更新时间戳 (解决跳回第一条的问题)
+                            let ts = el.querySelector('.custom-timestamp');
+                            if (!ts) { ts = document.createElement('span'); ts.className = 'custom-timestamp'; el.appendChild(ts); }
+                            if (f.lastMessageTime && ts.innerText !== f.lastMessageTime) {
+                                ts.innerText = f.lastMessageTime;
+                            }
+
+                            // 红点逻辑：仅在存在新[对方消息]时显示
+                            const lastRead = parseInt(localStorage.getItem(`lastRead_${f.number}`) || 0);
+                            const dot = el.querySelector('.unread-dot');
+                            if (f.messageIndex > 50000 && f.messageIndex > lastRead) {
+                                if (!dot) { const d = document.createElement('div'); d.className = 'unread-dot'; el.appendChild(d); }
+                            } else if (dot) { dot.remove(); }
+
+                            // 绑定点击清除红点
+                            if (!el.dataset.lsn) {
+                                el.dataset.lsn = "true";
+                                el.onclick = () => { localStorage.setItem(`lastRead_${f.number}`, f.messageIndex); if(el.querySelector('.unread-dot')) el.querySelector('.unread-dot').remove(); };
+                            }
+                        }
+                    });
+
+                    // B. 处理聊天区域的红包渲染
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                        if (msg.innerText.includes('|')) {
+                        const raw = msg.innerText;
+                        if (raw.includes('红包') && raw.includes('|')) {
                             msg.classList.add('fixed');
-                            const parts = msg.innerText.split('|');
-                            const amt = parts[0].trim();
-                            const wish = parts[1]?.split(']')[0].trim() || "恭喜发财";
+                            const amt = (raw.match(/\d+\.\d+/) || ["0.00"])[0];
+                            const wish = (raw.match(/红包\|[\d.]+\|([^\]]+)\]/) || [null, "恭喜发财"])[1].trim();
+
                             msg.style.fontSize = "0px";
                             const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important;";
+
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div class="packet-top">🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { e.stopPropagation(); card.style.opacity = "0.7"; };
+                            card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
                             msg.appendChild(card);
                         }
                     });
-                    if (window.messageApp?.applyModernLayout) window.messageApp.applyModernLayout();
-                } catch (e) { console.error(e); }
+
+                    // C. 页面顶部名字拦截
+                    const titleEl = document.getElementById('app-title');
+                    if (titleEl) {
+                        const match = titleEl.innerText.match(/\d+/);
+                        const currentId = match ? match[0] : null;
+                        if (currentId && ID_TO_NAME[currentId] && titleEl.innerText !== ID_TO_NAME[currentId]) {
+                            titleEl.innerText = ID_TO_NAME[currentId];
+                        }
+                    }
+                } catch (e) { console.error("Mobile System Guard Error:", e); }
                 setTimeout(() => { isHandling = false; }, 100);
             });
+
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
-
-    // 4. iOS 通知逻辑
-    (function theiOSNotificationOnly() {
-        const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-        let lastMsgKey = localStorage.getItem('last_notified_key') || "";
-        const observer = new MutationObserver(() => {
-            const friends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') ? window.friendRenderer.extractFriendsFromContext() : [];
-            if (friends.length === 0) return;
-            const latest = friends[0];
-            const currentKey = `${latest.number}_${latest.lastMessage}`;
-            if (currentKey !== lastMsgKey) {
-                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|')) {
-                    bubbleSound.play().catch(()=>{});
-                    const toast = document.createElement('div');
-                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 15px; padding: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 999999; transition: 0.5s; opacity: 0; transform: translate(-50%, -20px);";
-                    toast.innerHTML = `<div style="font-weight:bold;">${latest.name}</div><div style="font-size:13px; color:#555;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div>`;
-                    document.body.appendChild(toast);
-                    setTimeout(()=>{ toast.style.opacity="1"; toast.style.transform="translate(-50%, 0)"; },100);
-                    setTimeout(()=>{ toast.style.opacity="0"; setTimeout(()=>toast.remove(),500); }, 4000);
-                }
-                lastMsgKey = currentKey;
-                localStorage.setItem('last_notified_key', lastMsgKey);
-            }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-    })();
-})()
+})();
