@@ -1845,71 +1845,104 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
 applyModernLayout() {
-            const listContainer = document.getElementById('message-list');
-            if (!listContainer) return;
+        const listContainer = document.getElementById('message-list');
+        if (!listContainer) return;
 
-            // 1. 获取最新数据 (统一使用底层抓取的数据，不再扫描DOM以免干扰排序)
-            const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                                    ? window.friendRenderer.extractFriendsFromContext() : [];
+        const timeMap = {};
+        const orderMap = {};
+        
+        // 1. 获取数据
+        const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
+                                ? window.friendRenderer.extractFriendsFromContext() : [];
+        
+        extractedFriends.forEach(f => {
+            orderMap[f.number] = f.messageIndex || 0;
+            if (f.lastMessageTime) {
+                timeMap[f.number] = f.lastMessageTime;
+            } else if (f.addTime) {
+                const d = new Date(f.addTime);
+                timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            } else {
+                timeMap[f.number] = "08:00";
+            }
+        });
 
-            const items = Array.from(listContainer.querySelectorAll('.message-item'));
-
-            // 2. 执行排序：直接根据底层算好的 messageIndex (行号) 排序
-            items.sort((a, b) => {
-                const idA = a.getAttribute('data-friend-id');
-                const idB = b.getAttribute('data-friend-id');
-                const dataA = extractedFriends.find(f => f.number === idA);
-                const dataB = extractedFriends.find(f => f.number === idB);
-                return (dataB?.messageIndex || 0) - (dataA?.messageIndex || 0);
-            });
+        // 2. 扫描 DOM 校准
+        const mesBlocks = document.querySelectorAll('.mes');
+        mesBlocks.forEach(block => {
+            const text = block.innerText;
+            const mesId = parseInt(block.getAttribute('mesid') || 0); 
+            const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+            const idMatch = text.match(/\|(\d+)\|/);
             
-            // 重新排列 DOM 顺序
-            items.forEach(item => listContainer.appendChild(item));
+            if (idMatch) {
+                const id = idMatch[1];
+                if (timeMatch) timeMap[id] = timeMatch[1];
+                const isPeer = text.includes('[对方消息|');
+                const newWeight = isPeer ? (100000 + mesId) : mesId;
+                if (!orderMap[id] || newWeight > orderMap[id]) {
+                    orderMap[id] = newWeight;
+                }
+            }
+        });
 
-            // 3. 渲染时间戳和红点
-            items.forEach(item => {
-                const id = item.getAttribute('data-friend-id');
-                const data = extractedFriends.find(f => f.number === id);
-                if (!data) return;
+        window.latestOrderMap = orderMap;
 
-                const time = data.lastMessageTime;
-                const latestOrder = data.messageIndex || 0;
-                const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+        // 3. 执行排序
+        const items = Array.from(listContainer.querySelectorAll('.message-item'));
+        items.sort((a, b) => {
+            const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
+            const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
+            return weightB - weightA;
+        });
+        
+        items.forEach(item => listContainer.appendChild(item));
 
-                // --- 时间显示：强制刷新 ---
-                let timeSpan = item.querySelector('.custom-timestamp');
+        // 4. 渲染时间戳和红点
+        items.forEach(item => {
+            const id = item.getAttribute('data-friend-id');
+            const data = friendsData.find(f => f.number === id); // 获取最新的抓取数据
+            if (!data) return;
+
+            const time = data.lastMessageTime;
+            const latestOrder = data.messageIndex || 0;
+            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+
+            // --- 时间显示 ---
+            let timeSpan = item.querySelector('.custom-timestamp');
+            if (time) {
                 if (!timeSpan) {
                     timeSpan = document.createElement('span');
                     timeSpan.className = 'custom-timestamp';
                     item.appendChild(timeSpan);
                 }
                 timeSpan.innerText = time;
-                timeSpan.style.display = "block"; // 确保不被隐藏
+            }
 
-                // --- 红点逻辑：全员红点判定 ---
-                item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+            // --- 红点逻辑：终极判定标准 ---
+            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
 
-                // 只要数据里标记了有 [UNREAD]，且行号比本地存的已读行号大，就亮红点
-                if (data.hasUnreadTag && latestOrder > lastReadOrder) {
-                    let dot = document.createElement('div');
-                    dot.className = 'unread-dot'; 
-                    item.appendChild(dot);
-                }
+            // 只要数据里标记了有 UNREAD 标签，且当前的索引比本地存的已读索引大，就显示红点
+            if (data.hasUnreadTag && latestOrder > lastReadOrder) {
+                let dot = document.createElement('div');
+                dot.className = 'unread-dot'; 
+                item.appendChild(dot);
+            }
 
-                // --- 绑定点击已读逻辑 ---
-                if (!item.dataset.layoutListener) {
-                    item.dataset.layoutListener = "true";
-                    item.addEventListener('click', () => {
-                        // 点击时，记录当前消息的行号为“已读”
-                        localStorage.setItem(`lastRead_${id}`, latestOrder);
-                        
-                        const d = item.querySelector('.unread-dot');
-                        if (d) d.remove();
-                        console.log(`✅ 已标记联系人 ${id} 为已读，行号: ${latestOrder}`);
-                    });
-                }
-            });
-        } // applyModernLayout 结束
+            // --- 绑定点击已读逻辑 ---
+            if (!item.dataset.layoutListener) {
+                item.dataset.layoutListener = "true";
+                item.addEventListener('click', () => {
+                    // 点击时，把当前的 messageIndex（包含50万权重）锁死进本地存储
+                    localStorage.setItem(`lastRead_${id}`, latestOrder);
+                    
+                    const d = item.querySelector('.unread-dot');
+                    if (d) d.remove();
+                    console.log(`✅ 已标记联系人 ${id} 为已读`);
+                });
+            }
+        });
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6502,43 +6535,61 @@ renderAddFriendTab() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 全量样式注入 (这里我已经帮你把 [时间戳] 和 [红点] 的强制修正样式塞进去了)
+    // 1. 全量样式注入
     const styleId = 'mobile-system-unified-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            /* 时间戳强制样式 */
-            .custom-timestamp { 
-                position: absolute !important; top: 10px !important; right: 15px !important; 
-                font-size: 11px !important; color: #b0b0b0 !important; z-index: 100 !important; 
-                display: block !important; background: none !important;
-            }
-            /* 红点强制样式 */
-            .unread-dot { 
-                position: absolute !important; top: 10px !important; left: 56px !important; 
-                width: 10px !important; height: 10px !important; background: #ff4d4f !important; 
-                border-radius: 50% !important; border: 1.5px solid white !important; z-index: 101 !important; 
-            }
+            /* 基础组件样式：补齐时间戳 */
+            .custom-timestamp { position: absolute; top: 10px; right: 15px; font-size: 11px; color: #b0b0b0; z-index: 10; }
+            .unread-dot { position: absolute; top: 10px; left: 56px; width: 10px; height: 10px; background: #ff4d4f; border-radius: 50%; border: 1.5px solid white; z-index: 11; }
             
-            /* 红包通用逻辑 */
-            .message-text[data-custom-packet="true"] { font-size: 0px !important; line-height: 0 !important; color: transparent !important; }
+            /* 红包通用逻辑：彻底封印原生文字 */
+            .message-text[data-custom-packet="true"] { 
+                font-size: 0px !important; 
+                line-height: 0 !important; 
+                color: transparent !important; 
+            }
             .message-text[data-custom-packet="true"]::after,
             .message-text[data-custom-packet="true"]::before { content: none !important; display: none !important; }
 
+            /* 通用红包卡片 */
             .beautiful-packet {
                 background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important;
-                color: white !important; border-radius: 12px !important; padding: 12px 16px !important;
-                min-width: 195px !important; max-width: 220px !important; cursor: pointer;
-                display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
-                font-size: 14px !important; position: relative; z-index: 99; text-align: left !important; line-height: 1.4 !important;
+                color: white !important;
+                border-radius: 12px !important; 
+                padding: 12px 16px !important;
+                min-width: 195px !important;
+                max-width: 220px !important; /* 限制最大宽度防止机主红包溢出 */
+                cursor: pointer;
+                display: block !important;
+                box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
+                font-size: 14px !important;
+                position: relative;
+                z-index: 999;
+                text-align: left !important;
+                line-height: 1.4 !important;
             }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
 
-            .message-detail:not(.message-sent) .beautiful-packet { margin-left: -40px !important; }
-            .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
-            .message-detail.message-sent .message-text[data-custom-packet="true"] { background: transparent !important; }
+            /* 红包位置适配 */
+            /* 对方发的红包 (左侧) */
+            .message-detail:not(.message-sent) .beautiful-packet {
+                margin-left: -40px !important;
+            }
+            /* 李至中发的红包 (右侧) */
+            .message-detail.message-sent .beautiful-packet {
+                margin-right: -5px !important;
+                margin-left: auto !important; /* 核心：向右靠齐 */
+            }
 
+            /* 抹除机主专属气泡背景，让红包裸露 */
+            .message-detail.message-sent .message-text[data-custom-packet="true"] {
+                background: transparent !important;
+            }
+
+            /* 弹窗层样式 */
             #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
             .packet-dialog { width: 300px; height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; animation: packetIn 0.3s ease-out; }
             @keyframes packetIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -6548,7 +6599,7 @@ renderAddFriendTab() {
         document.head.appendChild(style);
     }
 
-    // 2. 弹窗逻辑
+    // 2. 弹窗与渲染核心
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
@@ -6572,34 +6623,49 @@ renderAddFriendTab() {
         };
     };
 
-    // 3. 核心抓取与渲染逻辑 (此处已更新为 V2 线性排序逻辑)
+    // 3. 核心抓取与渲染逻辑
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
 
-            // 【重写抓取函数】
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
+                
+                // 核心修复：穿透折叠框！累加所有历史消息里的手机快讯
                 let fullMobileText = "";
-                chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) fullMobileText += e.mes + "\n"; });
+                chatLog.forEach(entry => {
+                    if ((entry.mes || "").includes('[手机快讯]')) {
+                        fullMobileText += entry.mes + "\n";
+                    }
+                });
 
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
-                    let item = { name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    const lines = fullMobileText.split('\n');
-                    for (let j = lines.length - 1; j >= 0; j--) {
-                        if (lines[j].includes(`|${fId}|`)) {
-                            const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
-                            if (tMatch) item.lastMessageTime = tMatch[1];
-                            const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
-                            if (cMatch) {
-                                let content = cMatch[1].split('|')[0];
-                                item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
+                    
+                    if (fullMobileText) {
+                        const lines = fullMobileText.split('\n');
+                        for (let j = lines.length - 1; j >= 0; j--) {
+                            if (lines[j].includes(`|${fId}|`)) {
+                                // 抓取时间
+                                const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
+                                if (tMatch) item.lastMessageTime = tMatch[1];
+                                
+                                // 抓取内容
+                                const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
+                                if (cMatch) {
+                                    let content = cMatch[1].split('|')[0];
+                                    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+                                }
+                                
+                                // 判定红点：必须含有 [UNREAD] 且是对方消息
+                                item.hasUnreadTag = lines[j].includes('[UNREAD]') && lines[j].includes('[对方消息|');
+                                
+                                // 排序权重：有红点的给 500,000，对方消息给 100,000，我方消息按索引
+                                item.messageIndex = j + (item.hasUnreadTag ? 500000 : (lines[j].includes('[对方消息|') ? 100000 : 0));
+                                break;
                             }
-                            item.hasUnreadTag = lines[j].includes('[UNREAD]');
-                            item.messageIndex = j; // 线性排序：以最后出现的行号为准
-                            break;
                         }
                     }
                     contacts.push(item);
@@ -6607,85 +6673,36 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 【重写布局渲染函数】
-            window.messageApp = window.messageApp || {};
-            window.messageApp.applyModernLayout = function() {
-                const listContainer = document.getElementById('message-list');
-                if (!listContainer) return;
-
-                const friendsData = window.friendRenderer.extractFriendsFromContext();
-                const items = Array.from(listContainer.querySelectorAll('.message-item'));
-                
-                // 执行物理排序
-                items.sort((a, b) => {
-                    const weightA = friendsData.find(f => f.number === a.getAttribute('data-friend-id'))?.messageIndex || 0;
-                    const weightB = friendsData.find(f => f.number === b.getAttribute('data-friend-id'))?.messageIndex || 0;
-                    return weightB - weightA;
-                });
-                items.forEach(item => listContainer.appendChild(item));
-
-                // 渲染细节
-                items.forEach(item => {
-                    const id = item.getAttribute('data-friend-id');
-                    const data = friendsData.find(f => f.number === id);
-                    if (!data) return;
-
-                    // 时间戳显示修正
-                    let tSpan = item.querySelector('.custom-timestamp') || document.createElement('span');
-                    tSpan.className = 'custom-timestamp';
-                    tSpan.innerText = data.lastMessageTime;
-                    if (!tSpan.parentNode) item.appendChild(tSpan);
-
-                    // 红点逻辑判定
-                    item.querySelectorAll('.unread-dot').forEach(d => d.remove());
-                    const lastReadIdx = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-                    if (data.hasUnreadTag && data.messageIndex > lastReadIdx) {
-                        const dot = document.createElement('div');
-                        dot.className = 'unread-dot';
-                        item.appendChild(dot);
-                    }
-
-                    // 绑定点击清除红点
-                    if (!item.dataset.listen) {
-                        item.dataset.listen = "true";
-                        item.addEventListener('click', () => {
-                            localStorage.setItem(`lastRead_${id}`, data.messageIndex);
-                            const d = item.querySelector('.unread-dot');
-                            if (d) d.remove();
-                        });
-                    }
-                });
-            };
-
-            // 4. UI 监视器 (确保实时更新)
+            // 4. UI 渲染与名字拦截
             let isHandling = false;
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 执行实时布局
-                    window.messageApp.applyModernLayout();
-
-                    // 标题拦截
+                    // 补齐标题拦截
                     const titleEl = document.getElementById('app-title');
                     if (titleEl) {
                         const match = titleEl.innerText.match(/\d+/);
-                        if (match && ID_TO_NAME[match[0]] && titleEl.innerText !== ID_TO_NAME[match[0]]) {
-                            titleEl.innerText = ID_TO_NAME[match[0]];
+                        const currentId = match ? match[0] : null;
+                        if (currentId && ID_TO_NAME[currentId] && titleEl.innerText !== ID_TO_NAME[currentId]) {
+                            titleEl.innerText = ID_TO_NAME[currentId];
                         }
                     }
 
-                    // 红包渲染
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
-                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d/))) {
+                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                             msg.classList.add('fixed');
                             msg.setAttribute('data-custom-packet', 'true');
+                            
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                             const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+
                             const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                            
+                            if (bubble) {
+                                bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+                            }
+
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
@@ -6700,7 +6717,7 @@ renderAddFriendTab() {
         }
     }, 1000);
 
-    // 5. iOS 横幅逻辑 (保持原版)
+    // 5. iOS 横幅逻辑 (保持原版完整性)
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
@@ -6710,14 +6727,20 @@ renderAddFriendTab() {
             const latest = friends[0];
             const currentKey = `${latest.number}_${latest.lastMessage}`;
             if (currentKey !== lastMsgKey) {
-                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|') && latest.hasUnreadTag) {
+                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|') && latest.messageIndex > 50000) {
                     bubbleSound.play().catch(()=>{});
                     const toast = document.createElement('div');
-                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s; opacity: 0;";
-                    toast.innerHTML = `<div style="width:40px; height:40px; background:#ddd; border-radius:8px; margin-right:12px; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div><div><div style="font-weight:bold;">${latest.name}</div><div style="font-size:13px; color:#444;">${latest.lastMessage}</div></div>`;
+                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; transform: translate(-50%, -40px);";
+                    toast.innerHTML = `
+                        <div style="width:40px; height:40px; background:#ddd; border-radius:8px; margin-right:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div>
+                        <div style="flex-grow:1;">
+                            <div style="font-weight:bold; color:black; font-size:14px;">${latest.name}</div>
+                            <div style="font-size:13px; color:#444; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div>
+                        </div>
+                    `;
                     document.body.appendChild(toast);
-                    setTimeout(()=>{ toast.style.opacity="1"; }, 100);
-                    setTimeout(()=>{ toast.style.opacity="0"; setTimeout(()=>toast.remove(), 500); }, 4000);
+                    setTimeout(()=>{ toast.style.opacity="1"; toast.style.transform="translate(-50%, 0)"; }, 100);
+                    setTimeout(()=>{ toast.style.opacity="0"; toast.style.transform="translate(-50%, -40px)"; setTimeout(()=>toast.remove(), 500); }, 4000);
                 }
                 lastMsgKey = currentKey;
                 localStorage.setItem('last_notified_key', lastMsgKey);
