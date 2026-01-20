@@ -6535,17 +6535,25 @@ renderAddFriendTab() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 全量样式注入（整合时间戳、红点、红包）
+    // 1. 样式注入（确保红点、时间戳、红包位置绝对正确）
     const styleId = 'mobile-system-unified-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 100 !important; display: block !important; }
-            .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 101 !important; }
+            .message-item { position: relative !important; }
+            .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 100 !important; }
+            .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 101 !important; display: block !important; }
             .message-text[data-custom-packet="true"] { font-size: 0px !important; line-height: 0 !important; color: transparent !important; }
-            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 99; text-align: left !important; line-height: 1.4 !important; }
+            .beautiful-packet {
+                background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important;
+                color: white !important; border-radius: 12px !important; padding: 12px 16px !important;
+                min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important;
+                box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important;
+                position: relative; z-index: 99; text-align: left !important; line-height: 1.4 !important;
+            }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
+            /* 红包左右偏移修正 */
             .message-detail:not(.message-sent) .beautiful-packet { margin-left: -40px !important; }
             .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
             #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
@@ -6556,7 +6564,7 @@ renderAddFriendTab() {
         document.head.appendChild(style);
     }
 
-    // 2. 弹窗核心逻辑
+    // 2. 红包点击弹窗逻辑
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
@@ -6580,40 +6588,32 @@ renderAddFriendTab() {
         };
     };
 
-    // 3. 核心数据抓取注入（关键修复：穿透折叠框）
+    // 3. 数据抓取与 UI 强行渲染
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
 
+            // 重写抓取：权重排序逻辑
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
                 let fullMobileText = "";
-                // 修复：不仅看当前，还遍历所有历史消息
-                chatLog.forEach(entry => {
-                    if ((entry.mes || "").includes('[手机快讯]')) fullMobileText += entry.mes + "\n";
-                });
+                chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) fullMobileText += e.mes + "\n"; });
 
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
-                    let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    if (fullMobileText) {
-                        const lines = fullMobileText.split('\n');
-                        for (let j = lines.length - 1; j >= 0; j--) {
-                            if (lines[j].includes(`|${fId}|`)) {
-                                const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
-                                if (tMatch) item.lastMessageTime = tMatch[1];
-                                const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
-                                if (cMatch) {
-                                    let content = cMatch[1].split('|')[0];
-                                    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-                                }
-                                // 判定红点
-                                item.hasUnreadTag = lines[j].includes('[UNREAD]');
-                                // 赋予索引，用于排序
-                                item.messageIndex = j;
-                                break;
-                            }
+                    let item = { name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
+                    const lines = fullMobileText.split('\n');
+                    for (let j = lines.length - 1; j >= 0; j--) {
+                        if (lines[j].includes(`|${fId}|`)) {
+                            const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
+                            item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
+                            const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
+                            if (cMatch) item.lastMessage = cMatch[1].split('|')[0].includes('http') ? "[图片/表情]" : cMatch[1].split('|')[0];
+                            item.hasUnreadTag = lines[j].includes('[UNREAD]');
+                            // 核心：如果有[UNREAD]权重加100万，确保排第一
+                            item.messageIndex = j + (item.hasUnreadTag ? 1000000 : 0);
+                            break;
                         }
                     }
                     contacts.push(item);
@@ -6621,27 +6621,38 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 4. UI 渲染与名字拦截
-            let isHandling = false;
             const uiObserver = new MutationObserver(() => {
-                if (isHandling) return;
-                isHandling = true;
                 try {
-                    // 调用排序布局
-                    if (window.messageApp && typeof window.messageApp.applyModernLayout === 'function') {
-                        window.messageApp.applyModernLayout();
-                    }
-
+                    const friendsData = window.friendRenderer.extractFriendsFromContext();
+                    
                     // 名字拦截
                     const titleEl = document.getElementById('app-title');
                     if (titleEl) {
                         const match = titleEl.innerText.match(/\d+/);
-                        if (match && ID_TO_NAME[match[0]] && titleEl.innerText !== ID_TO_NAME[match[0]]) {
-                            titleEl.innerText = ID_TO_NAME[match[0]];
-                        }
+                        if (match && ID_TO_NAME[match[0]]) titleEl.innerText = ID_TO_NAME[match[0]];
                     }
 
-                    // 红包渲染
+                    // 强行插入时间戳和红点（不考虑点击消失，只要有就亮）
+                    document.querySelectorAll('.message-item').forEach(item => {
+                        const id = item.getAttribute('data-friend-id');
+                        const data = friendsData.find(f => f.number === id);
+                        if (!data) return;
+
+                        // 时间戳
+                        let tSpan = item.querySelector('.custom-timestamp');
+                        if (!tSpan) { tSpan = document.createElement('span'); tSpan.className = 'custom-timestamp'; item.appendChild(tSpan); }
+                        tSpan.innerText = data.lastMessageTime;
+
+                        // 红点：只要数据里有 unread 标签，就显示红点
+                        let dot = item.querySelector('.unread-dot');
+                        if (data.hasUnreadTag) {
+                            if (!dot) { dot = document.createElement('div'); dot.className = 'unread-dot'; item.appendChild(dot); }
+                        } else {
+                            if (dot) dot.remove();
+                        }
+                    });
+
+                    // 红包渲染（保持完美版样式）
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d/))) {
@@ -6650,7 +6661,7 @@ renderAddFriendTab() {
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                             const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
                             const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
@@ -6659,13 +6670,12 @@ renderAddFriendTab() {
                         }
                     });
                 } catch (e) {}
-                setTimeout(() => { isHandling = false; }, 200);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
 
-    // 5. iOS 横幅逻辑
+    // 4. iOS 横幅逻辑
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
