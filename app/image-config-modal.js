@@ -914,6 +914,18 @@ if (typeof window.ImageConfigModal === 'undefined') {
 
       // 获取弹窗HTML
       getModalHTML() {
+        // --- [新增：准备备注名输入框] ---
+        const targetId = this.currentFriendId;
+        const nicknameHtml = targetId ? `
+          <div class="nickname-setting-zone" style="background: rgba(0,0,0,0.03); padding: 12px; border-radius: 10px; margin: 0 20px 15px 20px; border: 1px dashed #ccc;">
+            <label style="display:block; font-size:12px; color:#666; margin-bottom:8px;">📝 设置备注名 (仅本次会话有效)</label>
+            <input type="text" id="temp-nickname-input" 
+                placeholder="在此输入新名称..." 
+                style="width:100%; padding:8px 12px; border:1px solid #ddd; border-radius:6px; outline:none; font-size:14px;"
+                value="${window.tempNicknames?.[targetId] || ''}">
+          </div>
+        ` : '';
+
         return `
         <div class="modal-backdrop"></div>
         <div class="modal-content">
@@ -922,7 +934,7 @@ if (typeof window.ImageConfigModal === 'undefined') {
             <button class="modal-close-btn" type="button">×</button>
           </div>
 
-          <div class="modal-tabs">
+          ${nicknameHtml} <div class="modal-tabs">
             <button class="tab-btn ${this.currentTab === 'avatar' ? 'active' : ''}" data-tab="avatar">
               头像设置
             </button>
@@ -1385,6 +1397,15 @@ if (typeof window.ImageConfigModal === 'undefined') {
       async saveConfig() {
         console.log('[Friend Image Config Modal] 保存配置');
 
+        // --- [核心修改：保存备注名] ---
+        const nickInput = document.getElementById('temp-nickname-input');
+        if (nickInput && this.currentFriendId) {
+          if (!window.tempNicknames) window.tempNicknames = {};
+          window.tempNicknames[this.currentFriendId] = nickInput.value.trim();
+          console.log('[备注系统] 昵称已记录:', nickInput.value);
+        }
+        // --- [修改结束] ---
+
         if (!window.styleConfigManager || !window.styleConfigManager.isReady) {
           console.error('[Friend Image Config Modal] StyleConfigManager未就绪');
           if (window.MobilePhone && window.MobilePhone.showToast) {
@@ -1392,6 +1413,7 @@ if (typeof window.ImageConfigModal === 'undefined') {
           }
           return;
         }
+        // ... 后面原有的代码保持不动 ...
 
         try {
           // 获取当前配置的副本
