@@ -1235,6 +1235,160 @@
   display: none !important;     /* 彻底不渲染这个元素 */
 }
 
+/* 红包装饰元素 */
+.message-received[title='红包'] > .message-content::after,
+.message-sent[title='红包'] > .message-content::after {
+}
+
+/* 红包状态效果 */
+.message-received[title='红包'] .redpacket-status,
+.message-sent[title='红包'] .redpacket-status {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 8px;
+  backdrop-filter: blur(5px);
+}
+
+/* 动画效果 */
+@keyframes redPacketShimmer {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes redPacketFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* 红包打开效果 */
+.message-received[title='红包'] > .message-content.opened,
+.message-sent[title='红包'] > .message-content.opened {
+  background: linear-gradient(135deg, #fbd38d 0%, #f6ad55 50%, #ed8936 100%);
+  border-color: #ed8936;
+}
+
+.message-received[title='红包'] > .message-content.opened .redpacket-amount,
+.message-sent[title='红包'] > .message-content.opened .redpacket-amount {
+  animation: amountPulse 0.6s ease-out;
+}
+
+@keyframes amountPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 红包领取提示 - 使用after伪元素 */
+.message-received[title='红包'] > .message-content::after,
+.message-sent[title='红包'] > .message-content::after {
+}
+
+.message-received[title='红包'] > .message-content:hover::after,
+.message-sent[title='红包'] > .message-content:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-5px);
+}
+
+/* 红包打开后的提示 */
+.message-received[title='红包'] > .message-content.opened::after,
+.message-sent[title='红包'] > .message-content.opened::after {
+  content: '红包已被领取';
+  background: rgba(74, 154, 74, 0.8);
+}
+
+/* 响应式适配 */
+@media (max-width: 480px) {
+  .message-received[title='红包'] > .message-content,
+  .message-sent[title='红包'] > .message-content {
+    min-width: 160px;
+  }
+
+  .message-received[title='红包'] > .message-content::before,
+  .message-sent[title='红包'] > .message-content::before {
+  }
+
+  .message-received[title='红包'] > .message-text,
+  .message-sent[title='红包'] > .message-text {
+    font-size: 20px;
+    padding-top: 40px;
+  }
+
+  .message-received[title='红包'] > .message-text::before,
+  .message-sent[title='红包'] > .message-text::before {
+    font-size: 16px;
+    left: -15px;
+  }
+  .message-sent .message-content,
+  .message-received .message-content {
+    padding: 8px 12px;
+  }
+}
+
+/* 红包粒子效果（点击时） */
+.redpacket-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.redpacket-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #ffd700;
+  border-radius: 50%;
+  animation: particleFloat 1s ease-out forwards;
+}
+
+@keyframes particleFloat {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.3);
+  }
+}
+
+.message-received[title='红包'] *,
+.message-sent[title='红包'] * {
+  color: #fff !important;
+  order: 2;
+  position: unset !important;
+}
+
 .member-count {
   display: none !important;
   order: 2;
@@ -1500,6 +1654,8 @@
 }
 
 /* 覆盖特殊消息类型的sender定位，使用新的布局结构 */
+.message-received[title='红包'] .message-sender,
+.message-sent[title='红包'] .message-sender,
 .message-received[title='语音'] .message-sender,
 .message-received[title='表情包'] .message-sender {
   font-size: 12px;
@@ -1511,6 +1667,30 @@
   left: unset;
   margin-bottom: 4px;
   margin-left: 10px;
+}
+
+.message-received[title='红包'] .message-text,
+.message-sent[title='红包'] .message-text {
+  order: 1;
+  font-size: 16px;
+  margin-bottom: 0;
+  padding-left: 40px;
+}
+
+.message-received[title='红包'] .message-text:after,
+.message-sent[title='红包'] .message-text:after {
+  content: '' !important;      /* 彻底清空文字 */
+  display: none !important;     /* 彻底隐藏这个区域 */
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: normal;
+  margin-bottom: 0;
+}
+
+.message-received[title='红包'] .message-text::before,
+.message-sent[title='红包'] .message-text::before {
+  content: '' !important; /* 删掉这里的 ￥ */
+  display: none !important;
 }
 
 /* 语音输入面板样式 */
@@ -1557,6 +1737,22 @@
 
 #voice-send-confirm-btn:active {
   transform: translateY(0);
+}
+
+/* 红包输入面板样式 */
+#redpack-input-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+  backdrop-filter: blur(4px);
 }
 
 #redpack-input-panel .special-panel-content {
@@ -1936,5 +2132,12 @@
 .message-sent[title='语音'] > .message-content * {
   color: #333 !important;
 }
-
+.message-received[title='红包'] .message-text:after,
+.message-sent[title='红包'] .message-text:after,
+.message-received[title='红包'] .message-text::before,
+.message-sent[title='红包'] .message-text::before,
+.message-received[title='红包'] .message-text,
+.message-sent[title='红包'] .message-text {
+  color: #333 !important;
+}
 .delete-group-content{padding-top: 10px;}
