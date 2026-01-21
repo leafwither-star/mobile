@@ -6535,8 +6535,7 @@ renderAddFriendTab() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 样式注入 (已注入手机端自适应逻辑)
-    const styleId = 'mobile-system-unified-style-v7';
+    const styleId = 'mobile-system-unified-style-v8';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
@@ -6550,41 +6549,52 @@ renderAddFriendTab() {
             .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
             .message-detail.message-sent .message-text[data-custom-packet="true"] { background: transparent !important; }
             
-            /* --- 手机自适应弹窗核心 --- */
-            #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
-            .packet-dialog { 
-                width: min(320px, 85vw); /* 电脑最大320px，手机占屏85% */
-                height: auto; 
-                aspect-ratio: 3 / 4.2; /* 锁定红包的黄金比例 */
-                max-height: 80vh; /* 确保手机横屏时也不会超出高度 */
-                background: #cf4e46; 
-                border-radius: 18px; 
-                display: flex; 
-                flex-direction: column; 
-                align-items: center; 
-                color: #fbd69b; 
-                position: relative; 
-                animation: packetIn 0.3s ease-out; 
-                overflow: hidden;
+            /* --- 修复手机位置和宽度的弹窗样式 --- */
+            #perfect-overlay { 
+                position: fixed !important; 
+                top: 0 !important; 
+                left: 0 !important; 
+                width: 100vw !important; 
+                height: 100vh !important; 
+                background: rgba(0,0,0,0.8) !important; 
+                backdrop-filter: blur(8px); 
+                z-index: 9999999 !important; 
+                display: flex !important; 
+                align-items: center !important; /* 垂直居中 */
+                justify-content: center !important; /* 水平居中 */
             }
-            @keyframes packetIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-            .open-btn-anim { width: min(90px, 25vw); height: min(90px, 25vw); background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; cursor: pointer; margin-top: 20%; transition: transform 0.6s; }
+            .packet-dialog { 
+                width: min(280px, 75vw) !important; /* 宽度更窄 */
+                min-height: 380px !important;
+                max-height: 85vh !important; 
+                background: #cf4e46 !important; 
+                border-radius: 20px !important; 
+                display: flex !important; 
+                flex-direction: column !important; 
+                align-items: center !important; 
+                color: #fbd69b !important; 
+                position: relative !important; 
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+                animation: packetIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            }
+            @keyframes packetIn { from { transform: translateY(20px) scale(0.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+            .open-btn-anim { width: 85px; height: 85px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: transform 0.6s; }
             .open-btn-anim.spin { transform: rotateY(720deg); }
-            .close-x { position:absolute; top:15px; right:15px; font-size:28px; cursor:pointer; z-index: 10; padding: 5px; line-height: 1; }
+            .close-x { position:absolute; top:15px; right:15px; font-size:24px; color:rgba(251,214,155,0.6); cursor:pointer; z-index: 10; padding: 10px; }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. 弹窗函数 (优化了内容间距，防止小手机挤在一起)
+    // 2. 弹窗函数 (微调了内部间距)
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'perfect-overlay';
         overlay.innerHTML = `
             <div class="packet-dialog">
-                <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">×</div>
-                <div style="margin-top:18%; opacity:0.8; font-size:14px;">来自好友的红包</div>
-                <div style="margin-top:10%; font-size:20px; font-weight:bold; padding:0 20px; text-align:center; line-height:1.3;">${wish}</div>
+                <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">✕</div>
+                <div style="margin-top:50px; opacity:0.7; font-size:13px;">来自好友的红包</div>
+                <div style="margin-top:25px; font-size:19px; font-weight:bold; padding:0 25px; text-align:center; line-height:1.4;">${wish}</div>
                 <div id="p-open-target" class="open-btn-anim">開</div>
             </div>`;
         document.body.appendChild(overlay);
@@ -6593,10 +6603,10 @@ renderAddFriendTab() {
             setTimeout(() => {
                 const dialog = this.closest('.packet-dialog');
                 dialog.innerHTML = `
-                    <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">×</div>
-                    <div style="margin-top:30%; font-size:min(50px, 12vw); font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
-                    <div style="margin-top:10%; opacity:0.8; font-size:14px;">已存入零钱</div>
-                    <div style="margin-top:auto; margin-bottom:10%; border:1px solid rgba(251,214,155,0.5); padding:4px 15px; border-radius:4px; font-size:12px;">查看领取详情 ></div>`;
+                    <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">✕</div>
+                    <div style="margin-top:90px; font-size:45px; font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
+                    <div style="margin-top:15px; opacity:0.8; font-size:14px;">已存入零钱</div>
+                    <div style="margin-top:auto; margin-bottom:30px; border:1px solid rgba(251,214,155,0.4); padding:5px 20px; border-radius:5px; font-size:12px;">查看领取详情 ></div>`;
             }, 600);
         };
     };
