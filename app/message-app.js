@@ -6552,12 +6552,25 @@ renderAddFriendTab() {
         style.innerHTML = `
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
-            .message-text[data-custom-packet="true"], .message-text[data-custom-call="true"] { font-size: 0px !important; line-height: 0 !important; color: transparent !important; background: transparent !important; }
+            
+            /* 关键修复：确保红包渲染时，原来的文字彻底消失 */
+            .message-text[data-custom-packet="true"], .message-text[data-custom-call="true"] { 
+                font-size: 0px !important; line-height: 0 !important; color: transparent !important; background: transparent !important; border:none !important;
+            }
             .message-text[data-custom-packet="true"]::before, .message-text[data-custom-packet="true"]::after { content: none !important; display: none !important; }
-            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; line-height: 1.4 !important; }
+            
+            /* 红包卡片样式 */
+            .beautiful-packet { 
+                background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; 
+                color: white !important; border-radius: 12px !important; padding: 12px 16px !important; 
+                min-width: 195px !important; max-width: 220px !important; cursor: pointer; 
+                display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; 
+                font-size: 14px !important; position: relative; z-index: 999; line-height: 1.4 !important; 
+            }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
             .message-detail:not(.message-sent) .beautiful-packet { margin-left: -40px !important; }
             .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
+            
             #perfect-overlay, #call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
             #perfect-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
             #call-overlay { background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); flex-direction: column; justify-content: space-between; padding: 80px 0; color: white; display: none; }
@@ -6644,7 +6657,6 @@ renderAddFriendTab() {
                 }).sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 关键：死循环防护锁
             let isUpdating = false;
             const uiObserver = new MutationObserver(() => {
                 if (isUpdating) return; 
@@ -6653,7 +6665,6 @@ renderAddFriendTab() {
                 try {
                     const currentFriends = window.friendRenderer.extractFriendsFromContext();
                     
-                    // A. 标题渲染
                     const titleEl = document.getElementById('app-title');
                     if (titleEl) {
                         const match = titleEl.innerText.match(/\d+/);
@@ -6664,51 +6675,59 @@ renderAddFriendTab() {
                         }
                     }
 
-                    // B. 列表与消息渲染
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const data = currentFriends.find(f => f.number === fId);
                         if (!data) return;
-                        
                         const nameEl = item.querySelector('.friend-name');
                         const nameHTML = `<span>${data.nickname}</span> <span style="font-size:12px">${data.icon}</span>`;
                         if (nameEl && nameEl.innerHTML !== nameHTML) nameEl.innerHTML = nameHTML;
-
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         if (tSpan.innerText !== data.lastMessageTime) tSpan.innerText = data.lastMessageTime;
-                        
                         let dot = item.querySelector('.unread-dot');
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
+                    // --- 关键渲染区：红包、通话、昵称 ---
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (!raw.includes('|')) return;
-                        msg.classList.add('fixed');
 
+                        // 1. 设置昵称逻辑
                         if (raw.includes('设置昵称|')) {
-                            const p = raw.split('|'); dynamicNicks[p[2]] = p[3].replace(']', '');
+                            msg.classList.add('fixed');
+                            const p = raw.split('|'); 
+                            dynamicNicks[p[2]] = p[3].replace(']', '');
                             msg.style.display = 'none';
                         }
+                        // 2. 红包逻辑 (增强匹配：只要有金额且有红包二字就触发)
                         else if (raw.includes('红包') || (raw.includes('[对方消息|') && raw.match(/\d+\.\d+/))) {
+                            msg.classList.add('fixed');
                             msg.setAttribute('data-custom-packet', 'true');
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                            const wish = raw.split('|')[2]?.replace(']', '') || "恭喜发财";
-                            const card = document.createElement('div'); card.className = 'beautiful-packet';
+                            const wish = (raw.split('|')[2] || "恭喜发财").replace(']', '');
+                            
+                            const card = document.createElement('div'); 
+                            card.className = 'beautiful-packet';
                             card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
                             card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                            
+                            // 暴力清空文本，防止文字残留
+                            msg.innerHTML = '';
                             msg.appendChild(card);
+                            
                             const bubble = msg.closest('.message-content');
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
                         }
+                        // 3. 通话逻辑
                         else if (raw.includes('通话|')) {
+                            msg.classList.add('fixed');
                             msg.setAttribute('data-custom-call', 'true');
                             const p = raw.split('|');
                             window.launchMobileCall({ name: DEFAULT_CONFIG[p[1]]?.name || "未知", content: p[4]?.replace(']', '') });
                         }
                     });
                 } finally {
-                    // 处理完后解锁
                     setTimeout(() => { isUpdating = false; }, 50);
                 }
             });
@@ -6716,7 +6735,7 @@ renderAddFriendTab() {
         }
     }, 1000);
 
-    // 5. iOS 横幅逻辑
+    // 5. iOS 横幅通知逻辑
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
