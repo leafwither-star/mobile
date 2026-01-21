@@ -6682,7 +6682,8 @@ renderAddFriendTab() {
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
-                        // 1. 这里的 data 变量获取保持不变
+                        
+                        // 获取数据，统一使用 data 变量名，防止报错
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
 
