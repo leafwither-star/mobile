@@ -115,37 +115,26 @@ if (typeof window.ImageConfigModal === 'undefined') {
       }
     }
 
-    // 获取弹窗HTML模板 (已修改：加入昵称输入框)
+    // 获取弹窗HTML模板
     getModalHTML() {
-      // 检查当前是否有好友ID，如果有，就显示昵称输入框
-      const nicknameHtml = this.currentFriendId ? `
-          <div class="nickname-setting-zone" style="background: rgba(0,0,0,0.03); padding: 12px; border-radius: 10px; margin-bottom: 15px; border: 1px dashed #ccc;">
-            <label style="display:block; font-size:12px; color:#666; margin-bottom:8px;">📝 本次临时昵称 (刷新页面后重置)</label>
-            <input type="text" id="temp-nickname-input" 
-                placeholder="例如：老公、亲爱的..." 
-                style="width:100%; padding:8px 12px; border:1px solid #ddd; border-radius:6px; outline:none; font-size:14px;"
-                value="${window.tempNicknames?.[this.currentFriendId] || ''}">
-          </div>
-      ` : '';
-
       return `
         <div class="modal-backdrop"></div>
         <div class="modal-content">
           <div class="modal-header">
-            <h3 class="modal-title">${this.currentFriendName || '图片设置'}</h3>
+            <h3 class="modal-title">图片设置</h3>
             <button class="modal-close-btn" type="button">✕</button>
           </div>
           
+          <div class="modal-tabs">
+            <button class="tab-btn ${this.currentTab === 'avatar' ? 'active' : ''}" data-tab="avatar">
+              用户头像
+            </button>
+            <button class="tab-btn ${this.currentTab === 'background' ? 'active' : ''}" data-tab="background">
+              消息主页背景
+            </button>
+          </div>
+          
           <div class="modal-body">
-            ${nicknameHtml} <div class="modal-tabs">
-              <button class="tab-btn ${this.currentTab === 'avatar' ? 'active' : ''}" data-tab="avatar">
-                用户头像
-              </button>
-              <button class="tab-btn ${this.currentTab === 'background' ? 'active' : ''}" data-tab="background">
-                消息主页背景
-              </button>
-            </div>
-            
             <div class="tab-content" data-tab="avatar" style="display: ${
               this.currentTab === 'avatar' ? 'block' : 'none'
             }">
@@ -356,7 +345,7 @@ if (typeof window.ImageConfigModal === 'undefined') {
       console.log(`[Image Config Modal] 更新${this.currentTab}预览:`, {
         image: config.image.substring(0, 50) + '...',
         position: backgroundPosition,
-        transform: previewElement.style.transform
+        transform,
       });
     }
 
@@ -675,18 +664,8 @@ if (typeof window.ImageConfigModal === 'undefined') {
     }
 
     // 保存配置
-    // 保存配置 (已植入昵称记忆逻辑)
     async saveConfig() {
       console.log('[Image Config Modal] 保存配置');
-
-      // --- 【新增：昵称保存逻辑开始】 ---
-      const nickInput = document.getElementById('temp-nickname-input');
-      if (nickInput && this.currentFriendId) {
-        if (!window.tempNicknames) window.tempNicknames = {};
-        window.tempNicknames[this.currentFriendId] = nickInput.value.trim();
-        console.log('[备注] 昵称已记录:', nickInput.value);
-      }
-      // --- 【新增：昵称保存逻辑结束】 ---
 
       if (!window.styleConfigManager || !window.styleConfigManager.isReady) {
         console.error('[Image Config Modal] StyleConfigManager未就绪');
@@ -1290,7 +1269,7 @@ if (typeof window.ImageConfigModal === 'undefined') {
         console.log(`[Friend Image Config Modal] 更新${this.currentTab}预览:`, {
           image: config.image.substring(0, 50) + '...',
           position: backgroundPosition,
-          transform: previewElement.style.transform
+          transform,
         });
       }
 
