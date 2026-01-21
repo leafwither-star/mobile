@@ -6685,14 +6685,38 @@ renderAddFriendTab() {
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
 
-                        // 应用修正后的样式：加粗和光晕，但不使用红色
+                        const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
+                        if (nameEl) {
+                            // 1. 获取临时昵称
+                            const tempNick = window.tempNicknames?.[fId];
+                            
+                            if (tempNick) {
+                                // 如果有昵称，显示：昵称 (原名)
+                                nameEl.innerHTML = `
+                                    <span style="font-size: 14px; font-weight: 900; color: #333;">${tempNick}</span>
+                                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; margin-left: 5px; color: #444;">(${info ? info.name : data.name})</span>
+                                `;
+                            } else if (info) {
+                                // 没有昵称但有预设标签，显示：原名 标签
+                                nameEl.innerText = `${info.name} ${info.tag || ''}`;
+                            } else {
+                                // 普通好友，显示原名
+                                nameEl.innerText = data.name;
+                            }
+
+                            // 如果是特殊好友，加上光晕类名
+                            if (info && info.isSpecial) {
+                                nameEl.classList.add('special-friend-name');
+                            }
+                        }
+
+                        // 处理特殊头像光晕
                         if (info && info.isSpecial) {
-                            const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-                            if (nameEl) nameEl.classList.add('special-friend-name');
                             const imgEl = item.querySelector('img');
                             if (imgEl) imgEl.classList.add('special-friend-avatar');
                         }
 
+                        // 以下是原有的时间、红点逻辑，保持不动
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
                         let dot = item.querySelector('.unread-dot');
