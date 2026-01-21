@@ -6556,14 +6556,13 @@ renderAddFriendTab() {
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
             
-            /* 【核心美化修改】特别好友：去掉红名，改为加粗和头像光晕 */
             .special-friend-name { 
-                color: #333 !important; /* 恢复深黑色 */
-                font-weight: 900 !important; /* 极粗，突出重要性 */
-                text-shadow: 0.5px 0.5px 0px rgba(0,0,0,0.1); /* 微弱的投影，增加立体感 */
+                color: #333 !important; 
+                font-weight: 900 !important; 
+                text-shadow: 0.5px 0.5px 0px rgba(0,0,0,0.1); 
             }
             .special-friend-avatar { 
-                box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; /* 温暖的橙金光晕 */
+                box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; 
                 border: 1.5px solid #fbab51 !important;
                 border-radius: 50%; 
             }
@@ -6573,7 +6572,6 @@ renderAddFriendTab() {
             
             #perfect-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.8) !important; backdrop-filter: blur(8px); z-index: 9999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
             .packet-dialog { width: min(280px, 75vw) !important; min-height: 380px !important; max-height: 85vh !important; background: #cf4e46 !important; border-radius: 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; color: #fbd69b !important; position: relative !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; animation: packetIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-            @keyframes packetIn { from { transform: translateY(20px) scale(0.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
             .open-btn-anim { width: 85px; height: 85px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: transform 0.6s; }
             .open-btn-anim.spin { transform: rotateY(720deg); }
             .close-x { position:absolute; top:15px; right:15px; font-size:24px; color:rgba(251,214,155,0.6); cursor:pointer; z-index: 10; padding: 10px; }
@@ -6616,9 +6614,9 @@ renderAddFriendTab() {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
             
+            const originalExtractor = window.friendRenderer.extractFriendsFromContext;
             window.friendRenderer.extractFriendsFromContext = function() {
-                const context = window.SillyTavern?.getContext?.() || {};
-                const chatLog = context.chat || [];
+                const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
                 let lastValidBlockIdx = -1;
                 for (let i = chatLog.length - 1; i >= 0; i--) {
                     if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
@@ -6629,16 +6627,10 @@ renderAddFriendTab() {
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
                     const info = PERMANENT_CONTACTS[fId];
-                    let displayName = `${info.name} ${info.tag}`;
-                    
                     let item = { 
-                        character: info.name, 
-                        name: displayName, 
-                        number: fId, 
-                        lastMessage: "暂消息", 
-                        lastMessageTime: "08:00", 
-                        messageIndex: -1, 
-                        hasUnreadTag: false 
+                        character: info.name, name: info.name, number: fId, 
+                        lastMessage: "暂无消息", lastMessageTime: "08:00", 
+                        messageIndex: -1, hasUnreadTag: false 
                     };
                     
                     const lines = allMobileText.split('\n');
@@ -6653,7 +6645,7 @@ renderAddFriendTab() {
                     }
                     if (lastValidBlockIdx !== -1) {
                         const lastBlockMes = chatLog[lastValidBlockIdx].mes;
-                        if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]') && lastBlockMes.includes('[对方消息|')) {
+                        if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]')) {
                             item.hasUnreadTag = true; item.messageIndex += 500000;
                         }
                     }
@@ -6670,40 +6662,64 @@ renderAddFriendTab() {
                 if (isHandling) return;
                 isHandling = true;
                 try {
+                    // 1. 标题栏逻辑
                     const titleEl = document.getElementById('app-title');
                     if (titleEl) {
                         const match = titleEl.innerText.match(/\d+/);
-                        if (match && PERMANENT_CONTACTS[match[0]]) {
-                            const info = PERMANENT_CONTACTS[match[0]];
-                            titleEl.innerText = `${info.name} ${info.tag}`;
+                        const fId = match ? match[0] : null;
+                        if (fId && PERMANENT_CONTACTS[fId]) {
+                            const info = PERMANENT_CONTACTS[fId];
+                            const tempNick = window.tempNicknames?.[fId];
+                            titleEl.innerText = tempNick ? `${tempNick} (${info.name})` : `${info.name} ${info.tag || ''}`;
                         }
                     }
                     
+                    // 2. 列表项逻辑
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
 
-                        // 应用修正后的样式：加粗和光晕，但不使用红色
+                        // --- 【核心名字显示逻辑】 ---
+                        const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
+                        if (nameEl) {
+                            const tempNick = window.tempNicknames?.[fId];
+                            if (tempNick) {
+                                const pureName = info ? info.name : data.name;
+                                const tag = info ? (info.tag || "") : "";
+                                nameEl.innerHTML = `
+                                    <span style="font-size: 15px; font-weight: 900; color: #333; line-height: 1.2;">${tempNick}</span>
+                                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; margin-left: 5px; color: #444;">(${pureName})</span>
+                                    <span style="font-size: 14px; margin-left: 2px; vertical-align: middle;">${tag}</span>
+                                `;
+                            } else if (info) {
+                                nameEl.innerText = `${info.name} ${info.tag || ''}`;
+                            } else {
+                                nameEl.innerText = data.name;
+                            }
+                            
+                            if (info && info.isSpecial) nameEl.classList.add('special-friend-name');
+                        }
+
+                        // 特像/光晕
                         if (info && info.isSpecial) {
-                            const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-                            if (nameEl) nameEl.classList.add('special-friend-name');
                             const imgEl = item.querySelector('img');
                             if (imgEl) imgEl.classList.add('special-friend-avatar');
                         }
 
+                        // 时间/红点
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
                         let dot = item.querySelector('.unread-dot');
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
+                    // 3. 红包解析逻辑
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                             msg.classList.add('fixed');
-                            msg.setAttribute('data-custom-packet', 'true');
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                             const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
                             const bubble = msg.closest('.message-content');
@@ -6716,7 +6732,7 @@ renderAddFriendTab() {
                             msg.appendChild(card);
                         }
                     });
-                } catch (e) {}
+                } catch (e) { console.error("刷新出错:", e); }
                 setTimeout(() => { isHandling = false; }, 200);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
