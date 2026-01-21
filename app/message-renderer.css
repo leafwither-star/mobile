@@ -1314,21 +1314,11 @@
   display: none !important;
 }
 
-/* 红包祝福语 */
+/* 红包祝福语 - 彻底隐藏原作者的默认文字 */
 .message-received[title='红包'] > .message-text::after,
 .message-sent[title='红包'] > .message-text::after {
-  content: '恭喜发财，大吉大利';
-  display: block;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
-  font-weight: 500;
-  margin-top: 8px;
-  text-shadow: none;
-  position: absolute;
-  bottom: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
+  content: '' !important;      /* 清空默认文字 */
+  display: none !important;     /* 彻底不渲染这个元素 */
 }
 
 /* 红包装饰元素 */
