@@ -1308,17 +1308,10 @@
 }
 
 /* 金额显示，在文本前添加¥符号 */
-.message-received[title='红包'] > .message-text::before,
-.message-sent[title='红包'] > .message-text::before {
-  content: '¥';
-  position: absolute;
-  left: -18px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+.message-received[title='红包'] .message-text::before,
+.message-sent[title='红包'] .message-text::before {
+  content: '' !important; /* 删掉这里的 ￥ */
+  display: none !important;
 }
 
 /* 红包祝福语 */
@@ -1782,20 +1775,18 @@
 
 .message-received[title='红包'] .message-text:after,
 .message-sent[title='红包'] .message-text:after {
-  content: '已转入好友余额';
+  content: '' !important;      /* 彻底清空文字 */
+  display: none !important;     /* 彻底隐藏这个区域 */
   font-size: 14px;
   color: rgba(255, 255, 255, 0.9);
-  display: block;
   font-weight: normal;
   margin-bottom: 0;
 }
 
 .message-received[title='红包'] .message-text::before,
 .message-sent[title='红包'] .message-text::before {
-  content: '￥';
-  font-size: 16px;
-  color: #fff;
-  font-weight: normal;
+  content: '' !important; /* 删掉这里的 ￥ */
+  display: none !important;
 }
 
 /* 语音输入面板样式 */
