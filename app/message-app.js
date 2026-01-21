@@ -6534,8 +6534,6 @@ renderAddFriendTab() {
 (function injectBatchRefreshSystem() {
     /**
      * 【第一部分：永久好友配置区】
-     * 只要在这里添加 ID 和信息，手机里就会永久显示这些联系人
-     * name: 真实姓名, tag: 后面跟的图标, isSpecial: 是否开启红色名字美化
      */
     const PERMANENT_CONTACTS = {
         "103": { name: "陈一众", tag: "❤️", isSpecial: true },
@@ -6549,26 +6547,30 @@ renderAddFriendTab() {
 
     /**
      * 【第二部分：外观样式修饰 (CSS)】
-     * 这里控制手机里所有的视觉效果：颜色、间距、红包动画等
      */
     const styleId = 'mobile-system-unified-style-v8';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            /* 基础组件：时间戳、未读红点 */
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
             
-            /* 【核心美化】特别好友(恋人/闺蜜)的专属样式 */
-            .special-friend-name { color: #cf4e46 !important; font-weight: bold !important; }
-            .special-friend-avatar { box-shadow: 0 0 0 2px #ff7849 !important; border-radius: 50%; }
+            /* 【核心美化修改】特别好友：去掉红名，改为加粗和头像光晕 */
+            .special-friend-name { 
+                color: #333 !important; /* 恢复深黑色 */
+                font-weight: 900 !important; /* 极粗，突出重要性 */
+                text-shadow: 0.5px 0.5px 0px rgba(0,0,0,0.1); /* 微弱的投影，增加立体感 */
+            }
+            .special-friend-avatar { 
+                box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; /* 温暖的橙金光晕 */
+                border: 1.5px solid #fbab51 !important;
+                border-radius: 50%; 
+            }
             
-            /* 红包气泡样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; text-align: left !important; line-height: 1.4 !important; margin-left: 0px !important; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
             
-            /* 红包弹出层样式：背景虚化、开红包按钮动画 */
             #perfect-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.8) !important; backdrop-filter: blur(8px); z-index: 9999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
             .packet-dialog { width: min(280px, 75vw) !important; min-height: 380px !important; max-height: 85vh !important; background: #cf4e46 !important; border-radius: 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; color: #fbd69b !important; position: relative !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; animation: packetIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
             @keyframes packetIn { from { transform: translateY(20px) scale(0.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
@@ -6581,7 +6583,6 @@ renderAddFriendTab() {
 
     /**
      * 【第三部分：红包交互函数】
-     * 处理点击红包后弹出的那个红色大信封逻辑
      */
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
@@ -6610,18 +6611,15 @@ renderAddFriendTab() {
 
     /**
      * 【第四部分：核心数据抓取与注入】
-     * 这里的逻辑负责从酒馆的对话记录里“偷”出消息，并强行塞进我们定义的永久联系人里
      */
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
             
-            // 覆盖原插件的联系人提取逻辑
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
                 let lastValidBlockIdx = -1;
-                // 寻找最新的手机快讯标记
                 for (let i = chatLog.length - 1; i >= 0; i--) {
                     if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
                 }
@@ -6629,22 +6627,20 @@ renderAddFriendTab() {
                 chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
                 
                 let contacts = [];
-                // 开始循环我们的永久列表
                 CLOUD_IDS.forEach(fId => {
                     const info = PERMANENT_CONTACTS[fId];
-                    let displayName = `${info.name} ${info.tag}`; // 名字 + 标记 (✨/❤️)
+                    let displayName = `${info.name} ${info.tag}`;
                     
                     let item = { 
                         character: info.name, 
                         name: displayName, 
                         number: fId, 
-                        lastMessage: "暂无消息", 
+                        lastMessage: "暂消息", 
                         lastMessageTime: "08:00", 
                         messageIndex: -1, 
                         hasUnreadTag: false 
                     };
                     
-                    // 匹配该 ID 最新的对话内容和时间
                     const lines = allMobileText.split('\n');
                     for (let j = lines.length - 1; j >= 0; j--) {
                         if (lines[j].includes(`|${fId}|`)) {
@@ -6655,7 +6651,6 @@ renderAddFriendTab() {
                             item.messageIndex = j; break;
                         }
                     }
-                    // 处理未读红点显示
                     if (lastValidBlockIdx !== -1) {
                         const lastBlockMes = chatLog[lastValidBlockIdx].mes;
                         if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]') && lastBlockMes.includes('[对方消息|')) {
@@ -6668,15 +6663,13 @@ renderAddFriendTab() {
             };
 
             /**
-             * 【第五部分：界面刷新监听 (MutationObserver)】
-             * 只要页面发生变化，就立即检查并应用我们的美化效果
+             * 【第五部分：界面刷新监听】
              */
             let isHandling = false;
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // A. 刷新聊天窗口正上方的名字
                     const titleEl = document.getElementById('app-title');
                     if (titleEl) {
                         const match = titleEl.innerText.match(/\d+/);
@@ -6686,15 +6679,13 @@ renderAddFriendTab() {
                         }
                     }
                     
-                    // B. 刷新左侧好友列表的“特别美化”
-                    const currentFriends = window.friendRenderer.extractFriendsFromContext();
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
-                        const data = currentFriends.find(f => f.number === fId);
+                        const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
 
-                        // 应用“特别关注”样式（红色名字、头像光晕）
+                        // 应用修正后的样式：加粗和光晕，但不使用红色
                         if (info && info.isSpecial) {
                             const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
                             if (nameEl) nameEl.classList.add('special-friend-name');
@@ -6702,14 +6693,12 @@ renderAddFriendTab() {
                             if (imgEl) imgEl.classList.add('special-friend-avatar');
                         }
 
-                        // 注入自定义时间戳和红点
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
                         let dot = item.querySelector('.unread-dot');
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
-                    // C. 渲染漂亮的红包组件
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
