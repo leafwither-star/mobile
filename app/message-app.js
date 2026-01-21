@@ -6682,14 +6682,15 @@ renderAddFriendTab() {
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
+                        // 1. 这里的 data 变量获取保持不变
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
 
+                        // --- 【核心修改：处理名字显示】 ---
                         const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
                         if (nameEl) {
-                            // 1. 获取临时昵称
+                            // 检查是否有临时昵称
                             const tempNick = window.tempNicknames?.[fId];
-                            
                             if (tempNick) {
                                 // 如果有昵称，显示：昵称 (原名)
                                 nameEl.innerHTML = `
@@ -6697,32 +6698,32 @@ renderAddFriendTab() {
                                     <span style="font-size: 11px; opacity: 0.7; font-weight: normal; margin-left: 5px; color: #444;">(${info ? info.name : data.name})</span>
                                 `;
                             } else if (info) {
-                                // 没有昵称但有预设标签，显示：原名 标签
+                                // 否则如果是特别好友，显示原名+标签
                                 nameEl.innerText = `${info.name} ${info.tag || ''}`;
                             } else {
-                                // 普通好友，显示原名
+                                // 普通好友显示原名
                                 nameEl.innerText = data.name;
                             }
 
-                            // 如果是特殊好友，加上光晕类名
-                            if (info && info.isSpecial) {
-                                nameEl.classList.add('special-friend-name');
-                            }
+                            // 特别好友的名字光晕样式
+                            if (info && info.isSpecial) nameEl.classList.add('special-friend-name');
                         }
 
-                        // 处理特殊头像光晕
+                        // 特别好友的头像光晕样式
                         if (info && info.isSpecial) {
                             const imgEl = item.querySelector('img');
                             if (imgEl) imgEl.classList.add('special-friend-avatar');
                         }
+                        // --- 【修改结束】 ---
 
-                        // 以下是原有的时间、红点逻辑，保持不动
+                        // 以下是原封不动的原有功能：时间戳和红点
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
                         let dot = item.querySelector('.unread-dot');
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
+                    // 以下是原封不动的原有功能：红包解析
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
@@ -6740,7 +6741,9 @@ renderAddFriendTab() {
                             msg.appendChild(card);
                         }
                     });
-                } catch (e) {}
+                } catch (e) {
+                    console.error("刷新监听出错:", e); // 加个报错打印方便调试
+                }
                 setTimeout(() => { isHandling = false; }, 200);
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
