@@ -6535,8 +6535,8 @@ renderAddFriendTab() {
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const ID_TO_NAME = {"103":"陈一众", "102":"曹信", "104":"张主任", "105":"张小满", "100":"服务通知"};
 
-    // 1. 样式注入 (保持你最爱的红包样式)
-    const styleId = 'mobile-system-unified-style';
+    // 1. 样式注入 (已注入手机端自适应逻辑)
+    const styleId = 'mobile-system-unified-style-v7';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
@@ -6544,81 +6544,93 @@ renderAddFriendTab() {
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
             .message-text[data-custom-packet="true"] { font-size: 0px !important; line-height: 0 !important; color: transparent !important; }
-            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; text-align: left !important; line-height: 1.4 !important; }
+            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; text-align: left !important; line-height: 1.4 !important; margin-left: 0px !important; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
             .message-detail:not(.message-sent) .beautiful-packet { margin-left: -40px !important; }
             .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
             .message-detail.message-sent .message-text[data-custom-packet="true"] { background: transparent !important; }
+            
+            /* --- 手机自适应弹窗核心 --- */
             #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
-            .packet-dialog { width: 300px; height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; animation: packetIn 0.3s ease-out; }
+            .packet-dialog { 
+                width: min(320px, 85vw); /* 电脑最大320px，手机占屏85% */
+                height: auto; 
+                aspect-ratio: 3 / 4.2; /* 锁定红包的黄金比例 */
+                max-height: 80vh; /* 确保手机横屏时也不会超出高度 */
+                background: #cf4e46; 
+                border-radius: 18px; 
+                display: flex; 
+                flex-direction: column; 
+                align-items: center; 
+                color: #fbd69b; 
+                position: relative; 
+                animation: packetIn 0.3s ease-out; 
+                overflow: hidden;
+            }
             @keyframes packetIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-            .open-btn-anim { width: 90px; height: 90px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; cursor: pointer; margin-top: 60px; transition: transform 0.6s; }
+            .open-btn-anim { width: min(90px, 25vw); height: min(90px, 25vw); background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; cursor: pointer; margin-top: 20%; transition: transform 0.6s; }
             .open-btn-anim.spin { transform: rotateY(720deg); }
+            .close-x { position:absolute; top:15px; right:15px; font-size:28px; cursor:pointer; z-index: 10; padding: 5px; line-height: 1; }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. 弹窗函数 (不动)
+    // 2. 弹窗函数 (优化了内容间距，防止小手机挤在一起)
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'perfect-overlay';
-        overlay.innerHTML = `<div class="packet-dialog"><div style="position:absolute; top:20px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div><div style="margin-top:60px; opacity:0.8;">来自好友的红包</div><div style="margin-top:30px; font-size:22px; font-weight:bold; padding:0 20px; text-align:center;">${wish}</div><div id="p-open-target" class="open-btn-anim">開</div></div>`;
+        overlay.innerHTML = `
+            <div class="packet-dialog">
+                <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+                <div style="margin-top:18%; opacity:0.8; font-size:14px;">来自好友的红包</div>
+                <div style="margin-top:10%; font-size:20px; font-weight:bold; padding:0 20px; text-align:center; line-height:1.3;">${wish}</div>
+                <div id="p-open-target" class="open-btn-anim">開</div>
+            </div>`;
         document.body.appendChild(overlay);
         document.getElementById('p-open-target').onclick = function() {
             this.classList.add('spin');
             setTimeout(() => {
                 const dialog = this.closest('.packet-dialog');
-                dialog.innerHTML = `<div style="position:absolute; top:20px; right:20px; font-size:30px; cursor:pointer;" onclick="document.getElementById('perfect-overlay').remove()">×</div><div style="margin-top:100px; font-size:50px; font-weight:bold;">${amount}<span style="font-size:20px"> 元</span></div><div style="margin-top:20px; opacity:0.8;">已存入零钱</div><div style="margin-top:auto; margin-bottom:40px; border:1px solid #fbd69b; padding:4px 15px; border-radius:4px; font-size:13px;">查看领取详情 ></div>`;
+                dialog.innerHTML = `
+                    <div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">×</div>
+                    <div style="margin-top:30%; font-size:min(50px, 12vw); font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
+                    <div style="margin-top:10%; opacity:0.8; font-size:14px;">已存入零钱</div>
+                    <div style="margin-top:auto; margin-bottom:10%; border:1px solid rgba(251,214,155,0.5); padding:4px 15px; border-radius:4px; font-size:12px;">查看领取详情 ></div>`;
             }, 600);
         };
     };
 
-    // 3. 核心抓取：按“最新消息块”刷新红点
+    // 3. 核心抓取逻辑 (保持不变)
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
-
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
-                
-                // 找到最后一条包含手机快讯的“正文消息块”
                 let lastValidBlockIdx = -1;
                 for (let i = chatLog.length - 1; i >= 0; i--) {
-                    if ((chatLog[i].mes || "").includes('[手机快讯]')) {
-                        lastValidBlockIdx = i;
-                        break;
-                    }
+                    if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
                 }
-
-                // 提取全部快讯文字，用于获取所有联系人的最后状态
                 let allMobileText = "";
                 chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
-
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
                     let item = { character: ID_TO_NAME[fId], name: ID_TO_NAME[fId], number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    
                     const lines = allMobileText.split('\n');
-                    // 1. 获取该联系人的最后一条信息（用于显示内容和时间）
                     for (let j = lines.length - 1; j >= 0; j--) {
                         if (lines[j].includes(`|${fId}|`)) {
                             const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                             item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
                             const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包)\|([^\]]+)\]/);
                             if (cMatch) item.lastMessage = cMatch[1].split('|')[0].includes('http') ? "[图片/表情]" : cMatch[1].split('|')[0];
-                            item.messageIndex = j; 
-                            break;
+                            item.messageIndex = j; break;
                         }
                     }
-
-                    // 2. 【核心】判断红点：只检查“最后一条正文块”里的快讯
                     if (lastValidBlockIdx !== -1) {
                         const lastBlockMes = chatLog[lastValidBlockIdx].mes;
                         if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]') && lastBlockMes.includes('[对方消息|')) {
-                            item.hasUnreadTag = true;
-                            item.messageIndex += 500000; // 有红点的依然排最前
+                            item.hasUnreadTag = true; item.messageIndex += 500000;
                         }
                     }
                     contacts.push(item);
@@ -6626,7 +6638,6 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 4. UI 渲染与列表刷新 (维持原样)
             let isHandling = false;
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
@@ -6637,23 +6648,16 @@ renderAddFriendTab() {
                         const match = titleEl.innerText.match(/\d+/);
                         if (match && ID_TO_NAME[match[0]]) titleEl.innerText = ID_TO_NAME[match[0]];
                     }
-
                     const currentFriends = window.friendRenderer.extractFriendsFromContext();
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const data = currentFriends.find(f => f.number === fId);
                         if (!data) return;
-
-                        let tSpan = item.querySelector('.custom-timestamp');
-                        if (!tSpan) { tSpan = document.createElement('span'); tSpan.className = 'custom-timestamp'; item.appendChild(tSpan); }
+                        let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
-
                         let dot = item.querySelector('.unread-dot');
-                        if (data.hasUnreadTag) {
-                            if (!dot) { dot = document.createElement('div'); dot.className = 'unread-dot'; item.appendChild(dot); }
-                        } else if (dot) { dot.remove(); }
+                        if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
-
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
@@ -6667,6 +6671,7 @@ renderAddFriendTab() {
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
                             card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                            msg.innerHTML = ''; // 清空原本内容
                             msg.appendChild(card);
                         }
                     });
