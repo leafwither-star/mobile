@@ -6532,7 +6532,7 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 (function injectFinalOmniSystem() {
-    // 1. 配置中心：联系人、昵称与标识
+    // 1. 配置中心
     const CLOUD_IDS = ["103", "102", "104", "105", "100"];
     const DEFAULT_CONFIG = {
         "103": { name: "陈一众", nickname: "陈一众", icon: "💖", permanent: true },
@@ -6542,63 +6542,42 @@ renderAddFriendTab() {
         "100": { name: "服务通知", nickname: "服务通知", icon: "📢", permanent: true }
     };
     
-    // 昵称随文更新逻辑 (不锁死存储)
     let dynamicNicks = {}; 
 
-    // 2. 响应式样式注入 (解决手机溢出与原生文字残留)
-    const styleId = 'mobile-system-unified-final';
+    // 2. 样式注入
+    const styleId = 'mobile-system-unified-final-v3';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            /* 基础组件 */
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
-            
-            /* 暴力封印原生文字 (解决你看到的红包文字残留问题) */
-            .message-text[data-custom-packet="true"], 
-            .message-text[data-custom-call="true"] { 
-                font-size: 0px !important; line-height: 0 !important; color: transparent !important; background: transparent !important;
-            }
-            .message-text[data-custom-packet="true"]::before, 
-            .message-text[data-custom-packet="true"]::after { content: none !important; display: none !important; }
-
-            /* 红包响应式卡片 */
-            .beautiful-packet {
-                background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important;
-                color: white !important; border-radius: 12px !important; padding: 12px 16px !important;
-                min-width: 195px !important; max-width: 220px !important; cursor: pointer;
-                display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important;
-                font-size: 14px !important; position: relative; z-index: 999; line-height: 1.4 !important;
-            }
+            .message-text[data-custom-packet="true"], .message-text[data-custom-call="true"] { font-size: 0px !important; line-height: 0 !important; color: transparent !important; background: transparent !important; }
+            .message-text[data-custom-packet="true"]::before, .message-text[data-custom-packet="true"]::after { content: none !important; display: none !important; }
+            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; line-height: 1.4 !important; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
             .message-detail:not(.message-sent) .beautiful-packet { margin-left: -40px !important; }
             .message-detail.message-sent .beautiful-packet { margin-right: -5px !important; margin-left: auto !important; }
-
-            /* 响应式弹窗 (适配手机) */
-            #perfect-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
-            .packet-dialog { width: 85vw; max-width: 300px; height: 120vw; max-height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; animation: packetIn 0.3s ease-out; }
+            #perfect-overlay, #call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483647; display: flex; align-items: center; justify-content: center; }
+            #perfect-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
+            #call-overlay { background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); flex-direction: column; justify-content: space-between; padding: 80px 0; color: white; display: none; }
+            .packet-dialog { width: 85vw; max-width: 300px; height: 120vw; max-height: 420px; background: #cf4e46; border-radius: 18px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; }
             .close-btn { position: absolute; top: 15px; right: 20px; font-size: 32px; cursor: pointer; padding: 10px; line-height: 1; }
             .open-btn-anim { width: 80px; height: 80px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; cursor: pointer; margin-top: 50px; }
             .open-btn-anim.spin { transform: rotateY(720deg); transition: 0.6s; }
-
-            /* 通话界面 */
-            #call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); z-index: 2147483647; display: none; flex-direction: column; align-items: center; justify-content: space-between; padding: 80px 0; color: white; }
             .call-content { width: 80%; height: 150px; overflow-y: auto; text-align: center; color: #fbd69b; font-size: 18px; }
-            
-            /* 名字样式 */
             .nick-main { font-weight: bold; }
             .nick-sub { font-size: 0.8em; opacity: 0.6; margin-left: 4px; }
         `;
         document.head.appendChild(style);
     }
 
-    // 3. 通话功能
+    // 3. 通话与红包功能
     window.launchMobileCall = (data) => {
         let el = document.getElementById('call-overlay');
         if(!el) {
             el = document.createElement('div'); el.id = 'call-overlay';
-            el.innerHTML = `<div style="text-align:center"><div class="call-name" style="font-size:24px"></div><div class="call-status">通话中...</div></div><div class="call-content"></div><div style="width:65px; height:65px; background:#ff3b30; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px;" onclick="this.parentElement.style.display='none'">✕</div>`;
+            el.innerHTML = `<div style="text-align:center"><div class="call-name" style="font-size:24px"></div><div class="call-status">通话中...</div></div><div class="call-content"></div><div style="width:65px; height:65px; background:#ff3b30; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer;" onclick="this.parentElement.style.display='none'">✕</div>`;
             document.body.appendChild(el);
         }
         el.querySelector('.call-name').innerText = data.name;
@@ -6606,7 +6585,6 @@ renderAddFriendTab() {
         el.style.display = 'flex';
     };
 
-    // 4. 红包弹窗
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div'); overlay.id = 'perfect-overlay';
@@ -6628,7 +6606,7 @@ renderAddFriendTab() {
         };
     };
 
-    // 5. 核心逻辑：结合红点刷新与动态昵称
+    // 4. 核心逻辑 (防死循环处理)
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
@@ -6636,21 +6614,17 @@ renderAddFriendTab() {
             window.friendRenderer.extractFriendsFromContext = function() {
                 const context = window.SillyTavern?.getContext?.() || {};
                 const chatLog = context.chat || [];
-                
-                // 找到最后一条正文块用于红点
                 let lastValidBlockIdx = -1;
                 for (let i = chatLog.length - 1; i >= 0; i--) {
                     if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
                 }
-
-                let allMobileText = "";
-                chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
+                let allText = "";
+                chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allText += e.mes + "\n"; });
 
                 return CLOUD_IDS.map(fId => {
                     let config = {...DEFAULT_CONFIG[fId], nickname: dynamicNicks[fId] || DEFAULT_CONFIG[fId].nickname};
                     let item = { character: config.name, name: config.name, nickname: config.nickname, icon: config.icon, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    
-                    const lines = allMobileText.split('\n');
+                    const lines = allText.split('\n');
                     for (let j = lines.length - 1; j >= 0; j--) {
                         if (lines[j].includes(`|${fId}|`)) {
                             const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
@@ -6660,7 +6634,6 @@ renderAddFriendTab() {
                             item.messageIndex = j; break;
                         }
                     }
-
                     if (lastValidBlockIdx !== -1) {
                         const lastMes = chatLog[lastValidBlockIdx].mes;
                         if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]') && lastMes.includes('[对方消息|')) {
@@ -6671,71 +6644,79 @@ renderAddFriendTab() {
                 }).sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
+            // 关键：死循环防护锁
+            let isUpdating = false;
             const uiObserver = new MutationObserver(() => {
-                const currentFriends = window.friendRenderer.extractFriendsFromContext();
-                
-                // A. 标题与列表渲染
-                const titleEl = document.getElementById('app-title');
-                if (titleEl) {
-                    const match = titleEl.innerText.match(/\d+/);
-                    if (match && DEFAULT_CONFIG[match[0]]) {
-                        const conf = currentFriends.find(f => f.number === match[0]);
-                        titleEl.innerHTML = `<span class="nick-main">${conf.nickname}</span><span class="nick-sub">(${conf.name})</span>`;
-                    }
-                }
+                if (isUpdating) return; 
+                isUpdating = true;
 
-                document.querySelectorAll('.message-item').forEach(item => {
-                    const fId = item.getAttribute('data-friend-id');
-                    const data = currentFriends.find(f => f.number === fId);
-                    if (!data) return;
+                try {
+                    const currentFriends = window.friendRenderer.extractFriendsFromContext();
                     
-                    // 名字标记
-                    const nameEl = item.querySelector('.friend-name');
-                    if (nameEl) nameEl.innerHTML = `<span>${data.nickname}</span> <span style="font-size:12px">${data.icon}</span>`;
-
-                    // 时间与红点
-                    let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
-                    tSpan.innerText = data.lastMessageTime;
-                    let dot = item.querySelector('.unread-dot');
-                    if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
-                });
-
-                // B. 快讯渲染 (红包、通话、指令)
-                document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                    const raw = msg.innerText;
-                    if (!raw.includes('|')) return;
-                    msg.classList.add('fixed');
-
-                    // 1. 设置昵称指令
-                    if (raw.includes('设置昵称|')) {
-                        const p = raw.split('|'); dynamicNicks[p[2]] = p[3].replace(']', '');
-                        msg.style.display = 'none';
+                    // A. 标题渲染
+                    const titleEl = document.getElementById('app-title');
+                    if (titleEl) {
+                        const match = titleEl.innerText.match(/\d+/);
+                        if (match && DEFAULT_CONFIG[match[0]]) {
+                            const conf = currentFriends.find(f => f.number === match[0]);
+                            const newHTML = `<span class="nick-main">${conf.nickname}</span><span class="nick-sub">(${conf.name})</span>`;
+                            if (titleEl.innerHTML !== newHTML) titleEl.innerHTML = newHTML;
+                        }
                     }
-                    // 2. 红包
-                    else if (raw.includes('红包') || (raw.includes('[对方消息|') && raw.match(/\d+\.\d+/))) {
-                        msg.setAttribute('data-custom-packet', 'true');
-                        const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                        const wish = raw.split('|')[2]?.replace(']', '') || "恭喜发财";
-                        const card = document.createElement('div'); card.className = 'beautiful-packet';
-                        card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                        card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                        msg.appendChild(card);
-                        const bubble = msg.closest('.message-content');
-                        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                    }
-                    // 3. 通话
-                    else if (raw.includes('通话|')) {
-                        msg.setAttribute('data-custom-call', 'true');
-                        const p = raw.split('|');
-                        window.launchMobileCall({ name: DEFAULT_CONFIG[p[1]].name, content: p[4]?.replace(']', '') });
-                    }
-                });
+
+                    // B. 列表与消息渲染
+                    document.querySelectorAll('.message-item').forEach(item => {
+                        const fId = item.getAttribute('data-friend-id');
+                        const data = currentFriends.find(f => f.number === fId);
+                        if (!data) return;
+                        
+                        const nameEl = item.querySelector('.friend-name');
+                        const nameHTML = `<span>${data.nickname}</span> <span style="font-size:12px">${data.icon}</span>`;
+                        if (nameEl && nameEl.innerHTML !== nameHTML) nameEl.innerHTML = nameHTML;
+
+                        let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
+                        if (tSpan.innerText !== data.lastMessageTime) tSpan.innerText = data.lastMessageTime;
+                        
+                        let dot = item.querySelector('.unread-dot');
+                        if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
+                    });
+
+                    document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+                        const raw = msg.innerText;
+                        if (!raw.includes('|')) return;
+                        msg.classList.add('fixed');
+
+                        if (raw.includes('设置昵称|')) {
+                            const p = raw.split('|'); dynamicNicks[p[2]] = p[3].replace(']', '');
+                            msg.style.display = 'none';
+                        }
+                        else if (raw.includes('红包') || (raw.includes('[对方消息|') && raw.match(/\d+\.\d+/))) {
+                            msg.setAttribute('data-custom-packet', 'true');
+                            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+                            const wish = raw.split('|')[2]?.replace(']', '') || "恭喜发财";
+                            const card = document.createElement('div'); card.className = 'beautiful-packet';
+                            card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
+                            card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                            msg.appendChild(card);
+                            const bubble = msg.closest('.message-content');
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                        }
+                        else if (raw.includes('通话|')) {
+                            msg.setAttribute('data-custom-call', 'true');
+                            const p = raw.split('|');
+                            window.launchMobileCall({ name: DEFAULT_CONFIG[p[1]]?.name || "未知", content: p[4]?.replace(']', '') });
+                        }
+                    });
+                } finally {
+                    // 处理完后解锁
+                    setTimeout(() => { isUpdating = false; }, 50);
+                }
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
 
-    // 5. iOS 横幅逻辑 (完全不动你的原版)
+    // 5. iOS 横幅逻辑
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
@@ -6749,13 +6730,7 @@ renderAddFriendTab() {
                     bubbleSound.play().catch(()=>{});
                     const toast = document.createElement('div');
                     toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; transform: translate(-50%, -40px);";
-                    toast.innerHTML = `
-                        <div style="width:40px; height:40px; background:#ddd; border-radius:8px; margin-right:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div>
-                        <div style="flex-grow:1;">
-                            <div style="font-weight:bold; color:black; font-size:14px;">${latest.name}</div>
-                            <div style="font-size:13px; color:#444; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div>
-                        </div>
-                    `;
+                    toast.innerHTML = `<div style="width:40px; height:40px; background:#ddd; border-radius:8px; margin-right:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div><div style="flex-grow:1;"><div style="font-weight:bold; color:black; font-size:14px;">${latest.name}</div><div style="font-size:13px; color:#444; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">${latest.lastMessage.replace(/\[.*?\]/g,'')}</div></div>`;
                     document.body.appendChild(toast);
                     setTimeout(()=>{ toast.style.opacity="1"; toast.style.transform="translate(-50%, 0)"; }, 100);
                     setTimeout(()=>{ toast.style.opacity="0"; toast.style.transform="translate(-50%, -40px)"; setTimeout(()=>toast.remove(), 500); }, 4000);
