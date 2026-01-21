@@ -1290,7 +1290,7 @@ if (typeof window.ImageConfigModal === 'undefined') {
         console.log(`[Friend Image Config Modal] 更新${this.currentTab}预览:`, {
           image: config.image.substring(0, 50) + '...',
           position: backgroundPosition,
-          transform,
+          transform: previewElement.style.transform
         });
       }
 
