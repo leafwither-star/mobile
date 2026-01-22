@@ -6715,26 +6715,176 @@ renderAddFriendTab() {
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
-                    // 3. 红包解析逻辑
-                    document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                        const raw = msg.innerText;
-                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
-                            msg.classList.add('fixed');
-                            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                            const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                            const card = document.createElement('div');
-                            card.className = 'beautiful-packet';
-                            card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                            msg.innerHTML = '';
-                            msg.appendChild(card);
-                        }
-                    });
-                } catch (e) { console.error("刷新出错:", e); }
-                setTimeout(() => { isHandling = false; }, 200);
-            });
+                    // ==========================================
+// 1. 定义全屏通话系统 (挂载到 window 供全局调用)
+// ==========================================
+window.launchPerfectSoulUI = function(targetName, targetDuration, targetDialogues) {
+    const phoneScreen = document.getElementById('message-detail-content');
+    if (!phoneScreen) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = "soul-call-overlay";
+    overlay.style.cssText = `
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: #000; z-index: 10000; display: flex; flex-direction: column;
+        align-items: center; justify-content: space-between; color: white;
+        font-family: -apple-system, sans-serif; overflow: hidden;
+    `;
+
+    overlay.innerHTML = `
+        <div style="margin-top: 60px; text-align: center; width: 100%;">
+            <div style="position: relative; width: 100px; height: 100px; margin: 0 auto;">
+                <div id="avatar-glow" style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(20px); opacity: 0.3; animation: soul-breathe 2.5s infinite ease-in-out;"></div>
+                <div style="position: relative; width:100%; height:100%; border-radius:50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 40px; border: 1.5px solid rgba(255,255,255,0.2); overflow:hidden;">👤</div>
+            </div>
+            <div style="margin-top: 18px; font-size: 22px; font-weight: 500;">${targetName}</div>
+            <div style="margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.5);">通话中 <span id="soul-timer">00:00</span></div>
+            <div style="background: rgba(255,255,255,0.1); width: 120px; height: 28px; border-radius: 14px; margin: 15px auto; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                <canvas id="soul-wave" width="80" height="15"></canvas>
+            </div>
+        </div>
+        <div id="soul-container" style="width: 100%; height: 300px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 15px;"></div>
+        <div style="margin-bottom: 50px; text-align: center;">
+            <div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 8px 25px rgba(255,59,48,0.3); transition: transform 0.1s;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="white" style="transform: rotate(135deg);"><path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z"/></svg>
+            </div>
+            <p style="color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 12px;">结束通话</p>
+        </div>
+        <style>
+            @keyframes soul-breathe { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.4); opacity: 0.5; } }
+            .soul-bubble { 
+                background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); 
+                padding: 10px 18px; border-radius: 20px; font-size: 14px; max-width: 85%;
+                border: 0.5px solid rgba(255,255,255,0.1); animation: soul-in 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards; text-align: center;
+            }
+            @keyframes soul-in { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+            .soul-fade-out { opacity: 0 !important; transform: scale(0.9) translateY(-15px) !important; transition: all 0.8s ease; }
+        </style>
+    `;
+
+    phoneScreen.appendChild(overlay);
+
+    // Canvas 波纹动画
+    const cvs = document.getElementById('soul-wave');
+    const ctx = cvs.getContext('2d');
+    let off = 0;
+    function draw() {
+        if(!document.getElementById('soul-wave')) return;
+        ctx.clearRect(0,0,80,15); ctx.beginPath(); ctx.strokeStyle='#fbab51'; ctx.lineWidth=2; ctx.lineCap='round';
+        for(let i=0;i<12;i++){ const h=Math.abs(Math.sin(i*0.4+off))*10+2; ctx.moveTo(5+i*6,7.5-h/2); ctx.lineTo(5+i*6,7.5+h/2); }
+        ctx.stroke(); off+=0.15; requestAnimationFrame(draw);
+    } draw();
+
+    // 计时器逻辑
+    let s=0; const tInterval = setInterval(() => { 
+        s++; const m = String(Math.floor(s/60)).padStart(2,'0'); const sc = String(s%60).padStart(2,'0');
+        const timerEl = document.getElementById('soul-timer');
+        if(timerEl) timerEl.innerText = `${m}:${sc}`;
+    }, 1000);
+
+    // 对话逐句弹出逻辑
+    const cont = document.getElementById('soul-container');
+    let idx = 0;
+    function next() {
+        if(!cont || idx >= targetDialogues.length) return;
+        const b = document.createElement('div');
+        b.className = 'soul-bubble';
+        b.innerText = targetDialogues[idx++];
+        cont.insertBefore(b, cont.firstChild);
+        const bs = cont.getElementsByClassName('soul-bubble');
+        if(bs.length > 3) {
+            bs[bs.length-1].classList.add('soul-fade-out');
+            setTimeout(() => bs[bs.length-1]?.remove(), 800);
+        }
+        setTimeout(next, 3500);
+    }
+    setTimeout(next, 800);
+
+    // 关闭按钮
+    const closeBtn = document.getElementById('soul-close-btn');
+    closeBtn.onclick = () => { clearInterval(tInterval); overlay.remove(); };
+    closeBtn.onmousedown = () => closeBtn.style.transform = 'scale(0.9)';
+    closeBtn.onmouseup = () => closeBtn.style.transform = 'scale(1)';
+};
+
+// ==========================================
+// 2. 消息流解析监听逻辑 (红包 + 通话)
+// ==========================================
+
+// 3. 红包解析逻辑
+document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+    const raw = msg.innerText;
+    // 排除包含通话的消息，避免冲突
+    if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('通话')) {
+        msg.classList.add('fixed');
+        const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+        const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+        const bubble = msg.closest('.message-content') || msg.parentElement;
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+        const card = document.createElement('div');
+        card.className = 'beautiful-packet';
+        card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
+        card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+        msg.innerHTML = '';
+        msg.appendChild(card);
+    }
+});
+
+// 4. 通话记录解析逻辑
+document.querySelectorAll('.message-text:not(.call-fixed)').forEach(msg => {
+    const raw = msg.innerText;
+    if (raw.includes('[通话|')) {
+        msg.classList.add('call-fixed');
+        
+        // 解析数据: [通话|姓名|ID|状态|时长|对话1|对话2...]
+        const cleanStr = raw.replace(/[\[\]]/g, '');
+        const parts = cleanStr.split('|');
+        const name = parts[1] || "联系人";
+        const status = parts[3]; // 接通 / 未接听 / 已拒绝
+        const duration = parts[4] || "00:00";
+        const dialogues = parts.slice(5); 
+
+        // 清除手机原始气泡样式
+        const bubble = msg.closest('.message-content') || msg.parentElement;
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+        
+        const card = document.createElement('div');
+        card.className = 'beautiful-packet'; 
+        card.style.cssText = `
+            background: #fff !important; color: #333 !important; border-radius: 12px !important; 
+            padding: 12px 15px !important; min-width: 195px !important; cursor: pointer; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important;
+            display: flex; align-items: center; gap: 10px; margin-left: 0px !important;
+        `;
+
+        if (status === '接通') {
+            card.innerHTML = `
+                <div style="font-size: 18px;">📞</div>
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div>
+                    <div style="font-size: 11px; color: #999;">点击回看对话详情</div>
+                </div>
+                <div style="color: #ccc; font-size: 12px;">▶</div>
+            `;
+            card.onclick = (e) => { 
+                e.stopPropagation(); 
+                window.launchPerfectSoulUI(name, duration, dialogues); 
+            };
+        } else {
+            const isMissed = status === '未接听';
+            card.style.opacity = "0.8"; card.style.cursor = "default";
+            card.innerHTML = `
+                <div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div>
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div>
+                    <div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div>
+                </div>
+            `;
+        }
+        msg.innerHTML = '';
+        msg.appendChild(card);
+    }
+});
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
