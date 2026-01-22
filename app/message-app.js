@@ -6647,7 +6647,7 @@ renderAddFriendTab() {
                         if (lines[j].includes(`|${fId}|`)) {
                             const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                             item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
-                            const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|通话)\|([^\]]+)\]/);
+                            const cMatch = lines[j].match(/\[(?:文字|图片|表情包|红包|通话)\|([^\]]+)\]/);
                             if (cMatch) item.lastMessage = cMatch[1].split('|')[0].includes('http') ? "[图片/表情]" : cMatch[1].split('|')[0];
                             item.messageIndex = j; break;
                         }
