@@ -57,7 +57,7 @@ if (typeof window.MessageRenderer === 'undefined') {
      */
     parseMessagesFromRawText(rawText) {
       const messages = [];
-      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息|通话)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
 
       let match;
       let position = 0;
@@ -1410,6 +1410,42 @@ if (typeof window.MessageRenderer === 'undefined') {
                 </div>
             `;
       }
+
+      // 📞 通话记录原生渲染补丁 (保持独立，不影响红包)
+if (messageType === '通话' && content) {
+    const callParts = content.split('|');
+    const duration = callParts[0] || "00:00";
+    const dialogText = callParts[1] || "";
+    const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
+
+    const callCardHtml = `
+        <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px;" 
+             onclick="window.launchCallV20 && window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src)">
+            <div style="font-size:22px;">📞</div>
+            <div style="flex:1">
+                <div style="font-weight:bold; font-size:13px; color:#333;">语音通话 (${duration})</div>
+                <div style="font-size:11px; color:#999;">点击回放通话详情</div>
+            </div>
+        </div>
+    `;
+
+    return `
+        <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
+            ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
+            <div class="message-body" style="display:flex; ${isMine ? 'flex-direction:row-reverse;' : ''}">
+                <div class="message-avatar" id="message-avatar-${friendId}">
+                    ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                </div>
+                <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
+                    <div class="message-meta">
+                        <span class="message-type">通话</span>
+                    </div>
+                    <div class="message-text" style="background:transparent!important;">${callCardHtml}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
 
       // 为接收的消息创建特殊布局，将sender移到头像上方
       if (!isMine && !isMyGroupMessage) {
