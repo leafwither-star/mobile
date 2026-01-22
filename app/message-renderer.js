@@ -1187,7 +1187,7 @@ if (this.friendNameToIdMap.size === 0) {
         }
       }
 
-// 📞 通话记录渲染逻辑 (精准适配版)
+// 📞 通话记录渲染 (针对你的脚本环境优化加固版)
       if (messageType === '通话' && content) {
         const parts = content.split('|');
         const status = parts[0] || "已接通";
@@ -1195,28 +1195,29 @@ if (this.friendNameToIdMap.size === 0) {
         const dialogText = parts[2] || "";
         const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
 
-        // 生成通话卡片 HTML
         const callCardHtml = `
-            <div class="custom-call-card" style="background:#fff!important; border:1px solid #eee!important; border-radius:12px!important; padding:12px!important; display:flex!important; align-items:center!important; gap:10px!important; box-shadow:0 2px 8px rgba(0,0,0,0.05)!important; cursor:pointer!important; min-width:180px!important; margin: 8px 0!important;" 
-                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话插件未就绪'); }">
-                <div style="font-size:22px;">📞</div>
+            <div class="custom-call-card" style="background:#fff !important; border:1px solid #eee !important; border-radius:12px !important; padding:12px !important; display:flex !important; align-items:center !important; gap:10px !important; box-shadow:0 2px 8px rgba(0,0,0,0.05) !important; cursor:pointer !important; min-width:180px !important; margin: 5px 0 !important; pointer-events: auto !important;" 
+                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话播放插件未就绪'); }">
+                <div style="font-size:22px; flex-shrink:0;">📞</div>
                 <div style="flex:1">
-                    <div style="font-weight:bold; font-size:13px; color:#333; line-height:1.2;">语音通话 (${status} ${duration})</div>
-                    <div style="font-size:11px; color:#999; margin-top:4px;">点击回放通话详情</div>
+                    <div style="font-weight:bold; font-size:13px; color:#333 !important; line-height:1.2;">语音通话 (${status} ${duration})</div>
+                    <div style="font-size:11px; color:#999 !important; margin-top:4px;">点击回放通话详情</div>
                 </div>
             </div>
         `;
 
-        // 返回包含头像和发送者名字的完整气泡结构
         return `
-            <div class="message-detail ${messageClass}" data-friend-id="${friendId}" style="margin-bottom:15px!important; clear:both;">
+            <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}" style="margin-bottom: 12px !important; clear: both !important;">
                 ${!isMine && !isMyGroupMessage ? `<span class="message-sender" style="display:block; font-size:12px; color:#888; margin-bottom:4px;">${senderName}</span>` : ''}
-                <div class="message-body" style="display:flex; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
-                    <div class="message-avatar" id="message-avatar-${friendId}">
+                <div class="message-body" style="display:flex !important; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
+                    <div class="message-avatar" id="message-avatar-${friendId}" style="flex-shrink:0;">
                         ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
                     </div>
-                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important; margin: 0 8px;">
-                        <div class="message-text" style="background:transparent!important; padding:0!important;">${callCardHtml}</div>
+                    <div class="message-content" style="background:transparent !important; box-shadow:none !important; border:none !important; padding:0 !important; max-width:85%;">
+                        <div class="message-meta" style="display:block !important; margin-bottom:4px; text-align: ${isMine || isMyGroupMessage ? 'right' : 'left'};">
+                            <span class="message-type" style="display:inline-block !important; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:10px; color:#666;">语音通话</span>
+                        </div>
+                        <div class="message-text" style="background:transparent !important; padding:0 !important;">${callCardHtml}</div>
                     </div>
                 </div>
             </div>
