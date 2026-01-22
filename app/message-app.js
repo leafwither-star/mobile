@@ -6531,7 +6531,7 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-(function injectUltimateUnifiedSystemV12() {
+(function injectFinalFixV14() {
     // 1. 永久好友配置
     const PERMANENT_CONTACTS = {
         "103": { name: "陈一众", tag: "❤️", isSpecial: true },
@@ -6542,78 +6542,84 @@ renderAddFriendTab() {
     };
     const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
-    // 2. 样式修饰 (强制锁定红包 12px 圆角和 0 边距)
-    const styleId = 'mobile-system-v12-style';
+    // 2. 核心样式 (锁定 12px 圆角与 0px 边距)
+    const styleId = 'mobile-v14-style';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11; }
-            .special-friend-avatar { box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; border: 1.5px solid #fbab51 !important; border-radius: 50%; }
-            
-            /* 红包完美样式回归 */
-            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; width: fit-content !important; min-width: 195px !important; max-width: 230px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; margin-left: 0px !important; font-size: 14px !important; line-height: 1.4 !important; position: relative; }
-            .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; pointer-events: none; }
-            
-            /* 通话卡片样式 */
-            .call-card-v12 { background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; width: fit-content !important; min-width: 195px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important; cursor: pointer; }
-            
+            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; width: fit-content !important; min-width: 195px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; margin-left: 0px !important; font-size: 14px !important; line-height: 1.4 !important; position: relative; }
+            .call-card-v14 { background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; width: fit-content !important; min-width: 195px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important; cursor: pointer; }
             #perfect-overlay { position: absolute !important; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:9999999; display:flex; align-items:center; justify-content:center; }
             .packet-dialog { width: 280px; min-height: 380px; background: #cf4e46; border-radius: 20px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; }
-            .open-btn-anim { width: 85px; height: 85px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; transition: transform 0.6s; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+            .open-btn-anim { width: 85px; height: 85px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; transition: transform 0.6s; }
             .open-btn-anim.spin { transform: rotateY(720deg); }
         `;
         document.head.appendChild(style);
     }
 
-    // 3. 弹窗函数 (保持稳定)
+    // 3. 全局函数提升 (防止 undefined)
     window.launchPerfectPacket = (wish, amount) => {
-        const container = document.getElementById('message-detail-content') || document.body;
-        if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'perfect-overlay';
-        overlay.innerHTML = `<div class="packet-dialog"><div style="position:absolute;top:15px;right:15px;cursor:pointer;padding:10px;" onclick="document.getElementById('perfect-overlay').remove()">✕</div><div style="margin-top:50px;opacity:0.7;font-size:13px;">来自好友的红包</div><div style="margin-top:25px;font-size:19px;font-weight:bold;padding:0 25px;text-align:center;">${wish}</div><div id="p-open-target" class="open-btn-anim">開</div></div>`;
-        container.appendChild(overlay);
+        overlay.innerHTML = `<div class="packet-dialog"><div style="position:absolute;top:15px;right:15px;cursor:pointer;padding:10px" onclick="document.getElementById('perfect-overlay').remove()">✕</div><div style="margin-top:50px;opacity:0.7">来自好友的红包</div><div style="margin-top:25px;font-size:19px;font-weight:bold;padding:0 25px;text-align:center;">${wish}</div><div id="p-open-target" class="open-btn-anim">開</div></div>`;
+        document.body.appendChild(overlay);
         document.getElementById('p-open-target').onclick = function() {
             this.classList.add('spin');
             setTimeout(() => {
-                this.closest('.packet-dialog').innerHTML = `<div style="position:absolute;top:15px;right:15px;cursor:pointer;padding:10px;" onclick="document.getElementById('perfect-overlay').remove()">✕</div><div style="margin-top:90px;font-size:45px;font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div><div style="margin-top:15px;opacity:0.8;">已存入零钱</div><div style="margin-top:auto;margin-bottom:30px;border:1px solid rgba(251,214,155,0.4);padding:5px 20px;border-radius:5px;font-size:12px;">查看领取详情 ></div>`;
+                this.closest('.packet-dialog').innerHTML = `<div style="position:absolute;top:15px;right:15px;cursor:pointer;padding:10px" onclick="document.getElementById('perfect-overlay').remove()">✕</div><div style="margin-top:90px;font-size:45px;font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div><div style="margin-top:15px;opacity:0.8;">已存入零钱</div>`;
             }, 600);
         };
     };
 
-    // 4. 数据抓取逻辑 (针对多行、时间轴、排序全方位修复)
+    window.launchPerfectSoulUI = (name, duration, dialogues) => {
+        const overlay = document.createElement('div');
+        overlay.id = "soul-call-overlay";
+        overlay.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:10000;display:flex;flex-direction:column;align-items:center;color:white;`;
+        overlay.innerHTML = `<div style="margin-top:60px;text-align:center;"><h2>${name}</h2><p>通话中 <span id="soul-timer">00:00</span></p></div><div id="soul-container" style="padding:20px;width:100%;display:flex;flex-direction:column-reverse;gap:10px;overflow-y:auto;max-height:300px;"></div><div onclick="this.parentElement.remove()" style="margin-top:auto;margin-bottom:50px;width:65px;height:65px;background:#ff3b30;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;">📞</div>`;
+        document.body.appendChild(overlay);
+        let s=0; const tIdx = setInterval(()=>{ 
+            const el = document.getElementById('soul-timer');
+            if(!el) { clearInterval(tIdx); return; }
+            s++; el.innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; 
+        }, 1000);
+        let idx=0; const next = () => {
+            const cont = document.getElementById('soul-container');
+            if(cont && idx<dialogues.length){
+                const b = document.createElement('div');
+                b.style.cssText = "background:rgba(255,255,255,0.1);padding:10px;border-radius:15px;align-self:center;font-size:14px;max-width:80%;";
+                b.innerText = dialogues[idx++];
+                cont.appendChild(b);
+                setTimeout(next, 3000);
+            }
+        };
+        next();
+    };
+
+    // 4. 数据提取逻辑 (针对多行数据隔离)
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
             window.friendRenderer.extractFriendsFromContext = function() {
                 const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
                 let allLines = [];
-                chatLog.forEach(msg => {
-                    if ((msg.mes || "").includes('[手机快讯]')) {
-                        allLines.push(...msg.mes.split('\n')); // 必须按行打碎
-                    }
-                });
+                chatLog.forEach(msg => { if ((msg.mes || "").includes('[手机快讯]')) allLines.push(...msg.mes.split('\n')); });
 
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
                     const info = PERMANENT_CONTACTS[fId];
                     let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    
                     for (let i = allLines.length - 1; i >= 0; i--) {
                         const line = allLines[i];
                         if (line.includes(`|${fId}|`) || line.includes(`|${fId}]`)) {
                             const tMatch = line.match(/\[时间\|(\d{1,2}:\d{2})\]/);
                             if (tMatch) item.lastMessageTime = tMatch[1];
-
                             if (line.includes('[通话|')) {
-                                const c = line.split('[通话|')[1].split(']')[0].split('|');
-                                item.lastMessage = `[通话] ${c[2] || '通话记录'}`;
+                                item.lastMessage = `[通话] ${line.split('|')[3] || '接通'}`;
                             } else if (line.includes('[红包|')) {
-                                item.lastMessage = "[微信红包] 恭喜发财";
-                            } else if (line.includes('|文字|')) {
-                                item.lastMessage = line.split('|文字|')[1].split(']')[0];
+                                item.lastMessage = "[微信红包]";
                             } else {
                                 const parts = line.split('|'); item.lastMessage = parts[parts.length - 1].replace(/\]/g, '');
                             }
@@ -6627,42 +6633,37 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 5. 渲染监听 (红包样式修正关键点)
+            // 5. 渲染监听 (针对 .mes_text 优化)
             let lock = false;
             const observer = new MutationObserver(() => {
                 if (lock) return; lock = true;
                 try {
-                    document.querySelectorAll('.message-text:not(.v12-done)').forEach(msg => {
+                    // 精准扫描 .mes_text
+                    document.querySelectorAll('.mes_text:not(.v14-done)').forEach(msg => {
                         const raw = msg.innerText;
-                        const bubble = msg.closest('.message-content') || msg.parentElement;
-                        
                         if (raw.includes('[通话|') || raw.includes('[红包|')) {
-                            msg.classList.add('v12-done');
+                            msg.classList.add('v14-done');
+                            const bubble = msg.closest('.mes_block') || msg.parentElement;
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin-left:0 !important;";
                             
                             if (raw.includes('[红包|')) {
                                 const p = raw.split('[红包|')[1].split(']')[0].split('|');
-                                const card = document.createElement('div');
-                                card.className = 'beautiful-packet';
-                                card.innerHTML = `<div>🧧 ${p[2]||'恭喜发财'}</div><div class="packet-footer">微信红包 (￥${p[1]})</div>`;
-                                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(p[2], p[1]); };
-                                msg.innerHTML = ''; msg.appendChild(card);
+                                msg.innerHTML = `<div class="beautiful-packet" onclick="window.launchPerfectPacket('${p[2]||'恭喜发财'}','${p[1]||'8.88'}')">🧧 ${p[2]||'恭喜发财'}<div style="font-size:10px;opacity:0.8;margin-top:5px;border-top:1px solid rgba(255,255,255,0.2);padding-top:3px;">微信红包</div></div>`;
                             } else if (raw.includes('[通话|')) {
                                 const p = raw.split('[通话|')[1].split(']')[0].split('|');
-                                const card = document.createElement('div');
-                                card.className = 'call-card-v12';
-                                if (p[2] === '接通') {
-                                    card.innerHTML = `<div>📞</div><div style="flex:1"><div style="font-weight:bold;font-size:14px;">通话时长 ${p[3]}</div><div style="font-size:11px;color:#999;">点击查看详情</div></div>`;
-                                    card.onclick = (e) => { e.stopPropagation(); if(window.launchPerfectSoulUI) window.launchPerfectSoulUI(p[0], p[3], p.slice(4)); };
-                                } else {
-                                    card.innerHTML = `<div style="color:#ff3b30">🚫</div><div style="flex:1"><div style="font-weight:bold;font-size:14px;">未接来电</div><div style="font-size:11px;color:#999;">${p[2]}</div></div>`;
-                                }
-                                msg.innerHTML = ''; msg.appendChild(card);
+                                const isJoined = p[2] === '接通';
+                                msg.innerHTML = `<div class="call-card-v14" onclick="${isJoined ? `window.launchPerfectSoulUI('${p[0]}','${p[3]}',${JSON.stringify(p.slice(4))})` : ''}">
+                                    <div style="font-size:18px; color:${isJoined ? '#333' : '#ff3b30'}">${isJoined ? '📞' : '🚫'}</div>
+                                    <div style="flex:1">
+                                        <div style="font-weight:bold;font-size:14px;">${isJoined ? '通话时长 '+p[3] : '未接来电'}</div>
+                                        <div style="font-size:11px;color:#999;">${isJoined ? '点击回看详情' : p[2]}</div>
+                                    </div>
+                                </div>`;
                             }
                         }
                     });
 
-                    // 列表刷新逻辑保持...
+                    // 列表刷新
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
