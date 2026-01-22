@@ -6730,31 +6730,59 @@ renderAddFriendTab() {
                         }
                     });
 
-                    // 4. 通话记录解析
+                    // --- 4. 通话记录解析逻辑 (全兼容增强版) ---
                     document.querySelectorAll('.message-text:not(.call-fixed)').forEach(msg => {
                         const raw = msg.innerText;
+                        // 只要包含 [通话| 且没被处理过就激活
                         if (raw.includes('[通话|')) {
                             msg.classList.add('call-fixed');
-                            const cleanStr = raw.replace(/[\[\]]/g, '');
-                            const parts = cleanStr.split('|');
-                            const name = parts[2]; 
-                            const status = parts[4]; 
-                            const duration = parts[5] || "00:00";
-                            const dialogues = parts.slice(6); 
+                            
+                            // 更加鲁棒的解析：提取方括号内部的内容
+                            // 适配格式：[通话|姓名|ID|状态|时长|对话1|对话2...]
+                            const callMatch = raw.match(/\[通话\|(.*?)\]/);
+                            if (!callMatch) return;
+                            
+                            const content = callMatch[1]; // 获取 姓名|ID|状态... 这一部分
+                            const parts = content.split('|');
+                            
+                            const name = parts[0] || "联系人";
+                            const status = parts[2] || "接通"; 
+                            const duration = parts[3] || "00:00";
+                            const dialogues = parts.slice(4); 
+
                             const bubble = msg.closest('.message-content') || msg.parentElement;
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                            
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet'; 
                             card.style.cssText = `background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; min-width: 195px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important;`;
+
                             if (status === '接通') {
-                                card.innerHTML = `<div style="font-size: 18px;">📞</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div><div style="font-size: 11px; color: #999;">点击回回看对话详情</div></div><div style="color: #ccc; font-size: 12px;">▶</div>`;
-                                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectSoulUI(name, duration, dialogues); };
+                                card.innerHTML = `
+                                    <div style="font-size: 18px;">📞</div>
+                                    <div style="flex-grow: 1;">
+                                        <div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div>
+                                        <div style="font-size: 11px; color: #999;">点击回看对话详情</div>
+                                    </div>
+                                    <div style="color: #ccc; font-size: 12px;">▶</div>
+                                `;
+                                card.onclick = (e) => { 
+                                    e.stopPropagation(); 
+                                    window.launchPerfectSoulUI(name, duration, dialogues); 
+                                };
                             } else {
-                                const isMissed = status === '未接听';
+                                const isMissed = (status === '未接听' || status === '未接来电');
                                 card.style.opacity = "0.8"; card.style.cursor = "default";
-                                card.innerHTML = `<div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div><div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div></div>`;
+                                card.innerHTML = `
+                                    <div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div>
+                                    <div style="flex-grow: 1;">
+                                        <div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div>
+                                        <div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div>
+                                    </div>
+                                `;
                             }
-                            msg.innerHTML = ''; msg.appendChild(card);
+                            msg.innerHTML = '';
+                            msg.appendChild(card);
                         }
                     });
 
