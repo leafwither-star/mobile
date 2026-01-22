@@ -1181,6 +1181,41 @@ if (typeof window.MessageRenderer === 'undefined') {
         }
       }
 
+// 📞 通话记录渲染分支 (适配你的变量环境)
+      if (messageType === '通话' && content) {
+        const parts = content.split('|');
+        const status = parts[0] || "已接通";
+        const duration = parts[1] || "00:00";
+        const dialogText = parts[2] || "";
+        const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
+
+        // 使用你脚本原生的 getMessageAvatar 和变量名
+        const callCardHtml = `
+            <div class="custom-call-card" style="background:#fff!important; border:1px solid #eee!important; border-radius:12px!important; padding:12px!important; display:flex!important; align-items:center!important; gap:10px!important; box-shadow:0 2px 8px rgba(0,0,0,0.05)!important; cursor:pointer!important; min-width:180px!important; margin: 10px 0!important;" 
+                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话回放插件未就绪'); }">
+                <div style="font-size:22px;">📞</div>
+                <div style="flex:1">
+                    <div style="font-weight:bold; font-size:13px; color:#333; line-height:1.2;">语音通话 (${status} ${duration})</div>
+                    <div style="font-size:11px; color:#999; margin-top:4px;">点击回放通话详情</div>
+                </div>
+            </div>
+        `;
+
+        return `
+            <div class="message-detail ${messageClass}" data-friend-id="${friendId}">
+                ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
+                <div class="message-body" style="display:flex; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
+                        <div class="message-text" style="background:transparent!important;">${callCardHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+      }
+      
       // 🌟 特殊处理：图片消息（新增）
       if (
         messageType === '图片' ||
