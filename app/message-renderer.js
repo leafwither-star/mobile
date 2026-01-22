@@ -1181,7 +1181,7 @@ if (typeof window.MessageRenderer === 'undefined') {
         }
       }
 
-// 📞 通话记录渲染分支 (适配你的变量环境)
+// 📞 通话记录渲染逻辑 (精准适配版)
       if (messageType === '通话' && content) {
         const parts = content.split('|');
         const status = parts[0] || "已接通";
@@ -1189,10 +1189,10 @@ if (typeof window.MessageRenderer === 'undefined') {
         const dialogText = parts[2] || "";
         const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
 
-        // 使用你脚本原生的 getMessageAvatar 和变量名
+        // 生成通话卡片 HTML
         const callCardHtml = `
-            <div class="custom-call-card" style="background:#fff!important; border:1px solid #eee!important; border-radius:12px!important; padding:12px!important; display:flex!important; align-items:center!important; gap:10px!important; box-shadow:0 2px 8px rgba(0,0,0,0.05)!important; cursor:pointer!important; min-width:180px!important; margin: 10px 0!important;" 
-                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话回放插件未就绪'); }">
+            <div class="custom-call-card" style="background:#fff!important; border:1px solid #eee!important; border-radius:12px!important; padding:12px!important; display:flex!important; align-items:center!important; gap:10px!important; box-shadow:0 2px 8px rgba(0,0,0,0.05)!important; cursor:pointer!important; min-width:180px!important; margin: 8px 0!important;" 
+                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话插件未就绪'); }">
                 <div style="font-size:22px;">📞</div>
                 <div style="flex:1">
                     <div style="font-weight:bold; font-size:13px; color:#333; line-height:1.2;">语音通话 (${status} ${duration})</div>
@@ -1201,15 +1201,16 @@ if (typeof window.MessageRenderer === 'undefined') {
             </div>
         `;
 
+        // 返回包含头像和发送者名字的完整气泡结构
         return `
-            <div class="message-detail ${messageClass}" data-friend-id="${friendId}">
-                ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
+            <div class="message-detail ${messageClass}" data-friend-id="${friendId}" style="margin-bottom:15px!important; clear:both;">
+                ${!isMine && !isMyGroupMessage ? `<span class="message-sender" style="display:block; font-size:12px; color:#888; margin-bottom:4px;">${senderName}</span>` : ''}
                 <div class="message-body" style="display:flex; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
                     <div class="message-avatar" id="message-avatar-${friendId}">
                         ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
                     </div>
-                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
-                        <div class="message-text" style="background:transparent!important;">${callCardHtml}</div>
+                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important; margin: 0 8px;">
+                        <div class="message-text" style="background:transparent!important; padding:0!important;">${callCardHtml}</div>
                     </div>
                 </div>
             </div>
