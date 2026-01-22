@@ -397,8 +397,45 @@ if (typeof window.MessageRenderer === 'undefined') {
       }
 
       try {
+        // =========== 🚀 第一步：强制保底抓取逻辑 (贴在这里) ===========
+        let chatData = [];
+        const raw = window.chat;
+        chatData = Array.isArray(raw) ? raw : (raw?.chat || []);
+
+        // 如果变量拿不到，直接扫网页 DOM (这就是你之前控制台成功的关键)
+        if (chatData.length === 0) {
+            console.warn('[Message Renderer] 变量抓取失败，启动 DOM 暴力扫描模式...');
+            chatData = Array.from(document.querySelectorAll('.mes_text')).map(el => ({
+                mes: el.innerText,
+                is_user: el.closest('.mes')?.classList.contains('last_mes_user'),
+                name: el.closest('.mes')?.querySelector('.ch_name')?.innerText || ''
+            }));
+        }
+
+        // 如果通过 DOM 扫到了数据，我们直接构建对象返回，跳过后面那个超长的逻辑
+        if (chatData.length > 0) {
+            console.log(`[Message Renderer] 成功通过保底逻辑抓取到 ${chatData.length} 条消息`);
+            const allMessages = chatData.map((msg, index) => ({
+                id: index,
+                content: msg.mes || '',
+                isMine: msg.is_user || false,
+                senderName: msg.is_user ? (window.name1 || '我') : (msg.name || '对方'),
+                type: (msg.mes || '').includes('[通话|') ? '通话' : '文字',
+                fullMatch: msg.mes || '' // 为了兼容后续可能的过滤
+            }));
+
+            this.allMessages = allMessages;
+            return { 
+                allMessages, 
+                myMessages: allMessages.filter(m => m.isMine), 
+                otherMessages: allMessages.filter(m => !m.isMine),
+                groupMessages: [] 
+            };
+        }
+        // =========== 🚀 保底逻辑结束 ===========
+        
         if (window.DEBUG_MESSAGE_RENDERER) {
-          console.log('[Message Renderer] 🔥 开始使用统一提取法，保持原始穿插顺序');
+          console.log('[Message Renderer] 🔥 开始使用统一提取法...');
         }
 
         // 🔥 新增：在提取消息前建立好友映射
@@ -3944,3 +3981,47 @@ if (this.friendNameToIdMap.size === 0) {
 
   console.log('[Message Renderer] 消息渲染器模块加载完成');
 } // 结束 if (typeof window.MessageRenderer === 'undefined') 检查
+
+// 🔥 核心逻辑：启动通话回放界面
+window.launchCallV20 = function(senderName, dialogues, avatarUrl) {
+    const phoneContainer = document.getElementById('message-detail-content');
+    if (!phoneContainer) return alert("请先打开聊天详情页");
+
+    const callOverlay = document.createElement('div');
+    callOverlay.id = "embedded-soul-ui";
+    callOverlay.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:space-between;color:white;font-family:-apple-system,sans-serif;overflow:hidden;`;
+
+    // 使用你之前成功的 UI 模板
+    callOverlay.innerHTML = `
+        <div style="margin-top: 40px; text-align: center; width: 100%;">
+            <div style="position: relative; width: 90px; height: 90px; margin: 0 auto;">
+                <div id="avatar-glow" style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(20px); opacity: 0.3; animation: breathe 2.5s infinite ease-in-out;"></div>
+                <img src="${avatarUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=103'}" style="position: relative; width:100%; height:100%; border-radius:50%; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2);">
+            </div>
+            <div style="margin-top: 15px; font-size: 20px; font-weight: 500;">${senderName}</div>
+            <div style="margin-top: 5px; font-size: 12px; color: rgba(255,255,255,0.5);">通话中 <span id="soul-timer-v16">00:00</span></div>
+            <div style="background: rgba(255,255,255,0.1); width: 110px; height: 26px; border-radius: 13px; margin: 15px auto; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);"><canvas id="soul-wave-v16" width="80" height="12"></canvas></div>
+        </div>
+        <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 10px; padding-bottom:20px;"></div>
+        <div style="margin-bottom: 40px; text-align: center;"><div id="soul-close-btn" style="width: 60px; height: 60px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(255,59,48,0.3);"><div style="width: 28px; height: 10px; background: white; border-radius: 4px; transform: rotate(135deg);"></div></div></div>
+        <style>
+            @keyframes breathe { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.3); opacity: 0.4; } }
+            .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); padding: 10px 18px; border-radius: 20px; font-size: 14px; max-width: 85%; border: 0.5px solid rgba(255,255,255,0.1); animation: in-v16 0.6s ease forwards; text-align: center; }
+            @keyframes in-v16 { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        </style>
+    `;
+
+    phoneContainer.appendChild(callOverlay);
+
+    // 动画与计时逻辑
+    let s=0; const tInt = setInterval(() => { s++; document.getElementById('soul-timer-v16').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
+    let idx=0; function next() {
+        const cont = document.getElementById('soul-msg-cont');
+        if(!cont || idx >= dialogues.length) return;
+        const b = document.createElement('div'); b.className='soul-bubble-v16'; b.innerText=dialogues[idx++];
+        cont.insertBefore(b, cont.firstChild);
+        setTimeout(next, 3000);
+    } setTimeout(next, 800);
+
+    document.getElementById('soul-close-btn').onclick = () => { clearInterval(tInt); callOverlay.remove(); };
+};
