@@ -57,7 +57,7 @@ if (typeof window.MessageRenderer === 'undefined') {
      */
     parseMessagesFromRawText(rawText) {
       const messages = [];
-      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息|通话)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息|通话)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^\]]*))?\]/g;
 
       let match;
       let position = 0;
@@ -1411,19 +1411,24 @@ if (typeof window.MessageRenderer === 'undefined') {
             `;
       }
 
-      // 📞 通话记录原生渲染补丁 (保持独立，不影响红包)
-if (messageType === '通话' && content) {
-    const callParts = content.split('|');
-    const duration = callParts[0] || "00:00";
-    const dialogText = callParts[1] || "";
-    const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
+      // 📞 通话记录原生渲染补丁 (针对你的新格式优化)
+if (messageType === '通话' && field1) {
+    // 自动适配你的格式：[通话|名字|ID|状态|时长|内容]
+    // 此时 field1=名字, field2=ID, field3=状态(接通), field4=时长, field5(新)=内容
+    const sender = field1;
+    const friendId = field2;
+    const status = field3;
+    const duration = field4;
+    const dialogRaw = match[6] || ""; // 这里的 match[6] 对应最后一段对话
+
+    const dialogArray = dialogRaw.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
 
     const callCardHtml = `
         <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px;" 
-             onclick="window.launchCallV20 && window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src)">
+             onclick="window.launchCallV20 && window.launchCallV20('${sender}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src)">
             <div style="font-size:22px;">📞</div>
             <div style="flex:1">
-                <div style="font-weight:bold; font-size:13px; color:#333;">语音通话 (${duration})</div>
+                <div style="font-weight:bold; font-size:13px; color:#333;">语音通话 (${status} ${duration})</div>
                 <div style="font-size:11px; color:#999;">点击回放通话详情</div>
             </div>
         </div>
@@ -1431,10 +1436,10 @@ if (messageType === '通话' && content) {
 
     return `
         <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
-            ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
+            ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${sender}</span>` : ''}
             <div class="message-body" style="display:flex; ${isMine ? 'flex-direction:row-reverse;' : ''}">
                 <div class="message-avatar" id="message-avatar-${friendId}">
-                    ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    ${this.getMessageAvatar(isMine || isMyGroupMessage, sender)}
                 </div>
                 <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
                     <div class="message-meta">
