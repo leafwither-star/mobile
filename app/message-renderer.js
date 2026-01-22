@@ -56,56 +56,67 @@ if (typeof window.MessageRenderer === 'undefined') {
      * 🔥 从原始文本中解析消息（保持完美顺序）
      */
     parseMessagesFromRawText(rawText) {
-    const messages = [];
-    // 1. 最强兼容正则：支持原有的 4 字段和你的 5-6 字段通话格式
-    const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息|通话)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^\]]*))?\]/g;
+      const messages = [];
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
 
-    let match;
-    let position = 0;
+      let match;
+      let position = 0;
 
-    while ((match = messageRegex.exec(rawText)) !== null) {
-        const [fullMatch, messageType, f1, f2, f3, f4, f5] = match;
+      while ((match = messageRegex.exec(rawText)) !== null) {
+        const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
-        let sender, number, msgType, content, isMe = false;
+        // 核心映射逻辑
+        let sender, number, msgType, content;
 
-        // 2. 核心分发逻辑
-        if (messageType === '通话') {
-            sender = f1;        // 陈一众
-            number = f2;        // 103
-            msgType = 'call';    // 强制标记为通话类型
-            // 重新组合 content：把状态、时间和对话内容拼起来，方便渲染层解析
-            content = `${f3}|${f4}|${f5 || ""}`; 
-            isMe = false;
-        } else if (messageType === '群聊消息') {
-            sender = f2; number = f1; msgType = f3; content = f4; isMe = false;
+        if (messageType === '群聊消息') {
+          sender = field2; 
+          number = field1; 
+          msgType = field3; 
+          content = field4;
         } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-            sender = '李至中'; number = f2; msgType = f3; content = f4; isMe = true;
+          sender = '李至中'; 
+          number = field2; 
+          msgType = field3; 
+          content = field4;
+          // 🚀 这里的关键：给这条消息打上“我方”标签
+          var isMe = true; 
         } else {
-            // 普通对方消息
-            sender = f1; number = f2; msgType = f3; content = f4; isMe = false;
+          sender = field1;
+          // ... 
+          var isMe = false;
         }
 
-        // 3. 压入队列
         messages.push({
-            fullMatch: fullMatch,
-            messageType: messageType,
-            sender: sender,
-            number: number,
-            msgType: msgType,
-            content: content,
-            textPosition: match.index,
-            contextOrder: position++,
-            isMe: isMe
+          fullMatch: fullMatch,
+          messageType: messageType,
+          sender: sender,
+          number: number,
+          msgType: msgType,
+          content: content,
+          textPosition: match.index,
+          contextOrder: position++,
+          isMe: isMe // 🔥 这一行是新加的，把标记传给渲染层
         });
+      }
+
+      // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
+      // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
+      messages.sort((a, b) => a.textPosition - b.textPosition);
+      console.log('[Message Renderer] 按原始文本位置排序，确保时间顺序正确');
+
+      console.log('[Message Renderer] 从原始文本解析到', messages.length, '条消息');
+      console.log(
+        '[Message Renderer] 排序后的消息顺序:',
+        messages.map((msg, i) => ({
+          index: i,
+          textPosition: msg.textPosition,
+          content: msg.content?.substring(0, 20) + '...',
+          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+        })),
+      );
+
+      return messages;
     }
-
-    // 排序并打印到控制台，方便我们观察
-    messages.sort((a, b) => a.textPosition - b.textPosition);
-    console.log('[Message Renderer] 成功解析到消息数量:', messages.length);
-    console.table(messages.map(m => ({ 类型: m.messageType, 内容: m.content?.substring(0,15) })));
-
-    return messages;
-}
 
     /**
      * 🔥 估计消息在上下文中的位置
@@ -391,96 +402,14 @@ if (typeof window.MessageRenderer === 'undefined') {
      * 提取指定好友的所有消息
      * @param {string|string[]} friendId - 好友ID，可以是单个ID或ID数组
      */
-   async extractMessagesForFriend(friendId, friendName) {
-        console.log(`[Message Renderer] 正在提取好友消息: ${friendId} (${friendName})`);
+    async extractMessagesForFriend(friendId) {
+      if (!this.contextMonitor) {
+        throw new Error('上下文监控器未加载');
+      }
 
-        let chatData = [];
-        const raw = window.chat;
-        chatData = (raw && Array.isArray(raw)) ? raw : (raw?.chat || []);
-
-        // 1. 数据保底：如果变量拿不到，直接扫描网页 DOM (含头像和名称清洗)
-        if (chatData.length === 0) {
-            console.warn('[Message Renderer] 启动 DOM 深度扫描模式...');
-            chatData = Array.from(document.querySelectorAll('.mes')).map(el => {
-                const textEl = el.querySelector('.mes_text');
-                const imgEl = el.querySelector('.avatar img');
-                // 解决你之前诊断出的“名称+时间戳”问题：只取换行符前的内容
-                let rawName = el.querySelector('.ch_name')?.innerText || '';
-                let cleanName = rawName.split('\n')[0].trim();
-                
-                return {
-                    mes: textEl ? textEl.innerText : '',
-                    is_user: el.classList.contains('last_mes_user'),
-                    name: cleanName,
-                    avatar: imgEl ? imgEl.src : ''
-                };
-            });
-        }
-
-        // 2. 遍历解析消息，区分“指令”和“普通对话”
-        const allParsedMessages = [];
-        chatData.forEach((msg, index) => {
-            const rawText = msg.mes || '';
-            const isInstruction = rawText.includes('[时间|') || rawText.includes('[通话|');
-
-            if (isInstruction) {
-                // 指令模式：处理通话或时间标签
-                const matches = rawText.match(/\[(?:时间|通话)\|[^\]]+\][^\[]*/g);
-                if (matches) {
-                    matches.forEach((m, subIdx) => {
-                        const content = m.trim();
-                        const isCall = content.includes('[通话|');
-                        allParsedMessages.push({
-                            id: `inst-${index}-${subIdx}`,
-                            content: content,
-                            isMine: content.includes('我方消息') || msg.is_user,
-                            senderName: isCall ? (content.split('|')[1] || msg.name) : msg.name,
-                            avatar: msg.avatar,
-                            type: isCall ? '通话' : '文字',
-                            isInstruction: true
-                        });
-                    });
-                }
-            } else {
-                // 普通对话模式：不再丢弃，全部保留
-                allParsedMessages.push({
-                    id: `msg-${index}`,
-                    content: rawText,
-                    isMine: msg.is_user,
-                    senderName: msg.name || (msg.is_user ? '我' : '对方'),
-                    avatar: msg.avatar,
-                    type: '文字',
-                    isInstruction: false
-                });
-            }
-        });
-
-        // 3. 智能过滤：根据当前点开的好友 ID 或 名字进行筛选
-        const targetId = String(friendId);
-        const filtered = allParsedMessages.filter(m => {
-            const c = m.content;
-            // 匹配逻辑：
-            // A. 指令里包含该好友 ID (如 |103|)
-            // B. 消息发送者名字正好是该好友名
-            // C. 针对陈一众(103)的特殊兼容
-            // D. 如果是我发的消息，且上下文属于该好友
-            return c.includes(`|${targetId}|`) || 
-                   m.senderName === friendName || 
-                   (targetId === "103" && m.senderName.includes("陈一众")) ||
-                   (m.isMine && allParsedMessages.some((prev, pIdx) => pIdx < allParsedMessages.indexOf(m) && prev.content.includes(`|${targetId}|`)));
-        });
-
-        this.allMessages = filtered;
-        return {
-            allMessages: filtered,
-            myMessages: filtered.filter(m => m.isMine),
-            otherMessages: filtered.filter(m => !m.isMine),
-            groupMessages: []
-        };
-    }
-        
+      try {
         if (window.DEBUG_MESSAGE_RENDERER) {
-          console.log('[Message Renderer] 🔥 开始使用统一提取法...');
+          console.log('[Message Renderer] 🔥 开始使用统一提取法，保持原始穿插顺序');
         }
 
         // 🔥 新增：在提取消息前建立好友映射
@@ -803,12 +732,6 @@ if (typeof window.MessageRenderer === 'undefined') {
         // 重置分页状态
         this.resetPagination();
 
-// 🔥 强制建立映射，防止因为报错导致的初始化中断
-if (this.friendNameToIdMap.size === 0) {
-    console.log('[Message Renderer] 映射为空，正在手动唤醒初始化...');
-    this.buildFriendNameToIdMapping(); 
-}
-        
         // 提取消息数据
         const messageData = await this.extractMessagesForFriend(friendId);
 
@@ -1269,43 +1192,6 @@ if (this.friendNameToIdMap.size === 0) {
         }
       }
 
-// 📞 通话记录渲染 (针对你的脚本环境优化加固版)
-      if (messageType === '通话' && content) {
-        const parts = content.split('|');
-        const status = parts[0] || "已接通";
-        const duration = parts[1] || "00:00";
-        const dialogText = parts[2] || "";
-        const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
-
-        const callCardHtml = `
-            <div class="custom-call-card" style="background:#fff !important; border:1px solid #eee !important; border-radius:12px !important; padding:12px !important; display:flex !important; align-items:center !important; gap:10px !important; box-shadow:0 2px 8px rgba(0,0,0,0.05) !important; cursor:pointer !important; min-width:180px !important; margin: 5px 0 !important; pointer-events: auto !important;" 
-                 onclick="if(window.launchCallV20){ window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src) }else{ alert('通话播放插件未就绪'); }">
-                <div style="font-size:22px; flex-shrink:0;">📞</div>
-                <div style="flex:1">
-                    <div style="font-weight:bold; font-size:13px; color:#333 !important; line-height:1.2;">语音通话 (${status} ${duration})</div>
-                    <div style="font-size:11px; color:#999 !important; margin-top:4px;">点击回放通话详情</div>
-                </div>
-            </div>
-        `;
-
-        return `
-            <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}" style="margin-bottom: 12px !important; clear: both !important;">
-                ${!isMine && !isMyGroupMessage ? `<span class="message-sender" style="display:block; font-size:12px; color:#888; margin-bottom:4px;">${senderName}</span>` : ''}
-                <div class="message-body" style="display:flex !important; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
-                    <div class="message-avatar" id="message-avatar-${friendId}" style="flex-shrink:0;">
-                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
-                    </div>
-                    <div class="message-content" style="background:transparent !important; box-shadow:none !important; border:none !important; padding:0 !important; max-width:85%;">
-                        <div class="message-meta" style="display:block !important; margin-bottom:4px; text-align: ${isMine || isMyGroupMessage ? 'right' : 'left'};">
-                            <span class="message-type" style="display:inline-block !important; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:10px; color:#666;">语音通话</span>
-                        </div>
-                        <div class="message-text" style="background:transparent !important; padding:0 !important;">${callCardHtml}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-      }
-      
       // 🌟 特殊处理：图片消息（新增）
       if (
         messageType === '图片' ||
@@ -1546,44 +1432,6 @@ if (this.friendNameToIdMap.size === 0) {
         `;
       }
 
-// 📞 通话记录渲染 (针对你的脚本环境优化版)
-      if (messageType === '通话' && content) {
-        const parts = content.split('|');
-        const status = parts[0] || "已接通";
-        const duration = parts[1] || "00:00";
-        const dialogText = parts[2] || "";
-        const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
-
-        const callCardHtml = `
-            <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px; margin: 5px 0;" 
-                 onclick="window.launchCallV20 && window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src)">
-                <div style="font-size:22px;">📞</div>
-                <div style="flex:1">
-                    <div style="font-weight:bold; font-size:13px; color:#333; line-height:1.2;">语音通话 (${status} ${duration})</div>
-                    <div style="font-size:11px; color:#999; margin-top:4px;">点击回放通话详情</div>
-                </div>
-            </div>
-        `;
-
-        // 统一包装在你的标准消息气泡结构中，确保左右对齐和头像正常
-        return `
-            <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
-                ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
-                <div class="message-body" style="display:flex; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
-                    <div class="message-avatar" id="message-avatar-${friendId}">
-                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
-                    </div>
-                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
-                        <div class="message-meta" style="display:block!important; margin-bottom:4px;">
-                            <span class="message-type" style="display:inline-block!important; background:#eee; padding:2px 6px; border-radius:4px; font-size:10px; color:#666;">语音通话</span>
-                        </div>
-                        <div class="message-text" style="background:transparent!important; padding:0!important;">${callCardHtml}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-      }
-      
       // 发送的消息保持原有布局
       return `
             <div class="message-detail ${messageClass}" title="${messageType}" data-friend-id="${friendId}">
@@ -4026,47 +3874,3 @@ if (this.friendNameToIdMap.size === 0) {
 
   console.log('[Message Renderer] 消息渲染器模块加载完成');
 } // 结束 if (typeof window.MessageRenderer === 'undefined') 检查
-
-// 🔥 核心逻辑：启动通话回放界面
-window.launchCallV20 = function(senderName, dialogues, avatarUrl) {
-    const phoneContainer = document.getElementById('message-detail-content');
-    if (!phoneContainer) return alert("请先打开聊天详情页");
-
-    const callOverlay = document.createElement('div');
-    callOverlay.id = "embedded-soul-ui";
-    callOverlay.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:space-between;color:white;font-family:-apple-system,sans-serif;overflow:hidden;`;
-
-    // 使用你之前成功的 UI 模板
-    callOverlay.innerHTML = `
-        <div style="margin-top: 40px; text-align: center; width: 100%;">
-            <div style="position: relative; width: 90px; height: 90px; margin: 0 auto;">
-                <div id="avatar-glow" style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(20px); opacity: 0.3; animation: breathe 2.5s infinite ease-in-out;"></div>
-                <img src="${avatarUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=103'}" style="position: relative; width:100%; height:100%; border-radius:50%; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2);">
-            </div>
-            <div style="margin-top: 15px; font-size: 20px; font-weight: 500;">${senderName}</div>
-            <div style="margin-top: 5px; font-size: 12px; color: rgba(255,255,255,0.5);">通话中 <span id="soul-timer-v16">00:00</span></div>
-            <div style="background: rgba(255,255,255,0.1); width: 110px; height: 26px; border-radius: 13px; margin: 15px auto; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);"><canvas id="soul-wave-v16" width="80" height="12"></canvas></div>
-        </div>
-        <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 10px; padding-bottom:20px;"></div>
-        <div style="margin-bottom: 40px; text-align: center;"><div id="soul-close-btn" style="width: 60px; height: 60px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(255,59,48,0.3);"><div style="width: 28px; height: 10px; background: white; border-radius: 4px; transform: rotate(135deg);"></div></div></div>
-        <style>
-            @keyframes breathe { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.3); opacity: 0.4; } }
-            .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); padding: 10px 18px; border-radius: 20px; font-size: 14px; max-width: 85%; border: 0.5px solid rgba(255,255,255,0.1); animation: in-v16 0.6s ease forwards; text-align: center; }
-            @keyframes in-v16 { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        </style>
-    `;
-
-    phoneContainer.appendChild(callOverlay);
-
-    // 动画与计时逻辑
-    let s=0; const tInt = setInterval(() => { s++; document.getElementById('soul-timer-v16').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
-    let idx=0; function next() {
-        const cont = document.getElementById('soul-msg-cont');
-        if(!cont || idx >= dialogues.length) return;
-        const b = document.createElement('div'); b.className='soul-bubble-v16'; b.innerText=dialogues[idx++];
-        cont.insertBefore(b, cont.firstChild);
-        setTimeout(next, 3000);
-    } setTimeout(next, 800);
-
-    document.getElementById('soul-close-btn').onclick = () => { clearInterval(tInt); callOverlay.remove(); };
-};
