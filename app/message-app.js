@@ -1845,103 +1845,115 @@ if (typeof window.MessageApp === 'undefined') {
     }
 
 applyModernLayout() {
-        const listContainer = document.getElementById('message-list');
-        if (!listContainer) return;
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
 
-        const timeMap = {};
-        const orderMap = {};
+    const timeMap = {};
+    const orderMap = {};
+    
+    // --- 核心修复 1：定义数据来源 ---
+    // 尝试获取永久联系人（从你注入的系统里取，如果没有就给个空对象）
+    const permanentContacts = (typeof PERMANENT_CONTACTS !== 'undefined') ? PERMANENT_CONTACTS : {};
+    
+    // 尝试获取抓取到的好友数据
+    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
+                            ? window.friendRenderer.extractFriendsFromContext() : [];
+    
+    // 将抓取到的数据存入一个 Map 方便查找，同时处理报错隐患
+    const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
+    
+    // 1. 获取数据并建立初始权重
+    extractedFriends.forEach(f => {
+        orderMap[f.number] = f.messageIndex || 0;
+        if (f.lastMessageTime) {
+            timeMap[f.number] = f.lastMessageTime;
+        } else if (f.addTime) {
+            const d = new Date(f.addTime);
+            timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } else {
+            timeMap[f.number] = "08:00";
+        }
+    });
+
+    // 2. 扫描 DOM 校准权重（这部分保留，用于实时更新排序）
+    const mesBlocks = document.querySelectorAll('.mes');
+    mesBlocks.forEach(block => {
+        const text = block.innerText;
+        const mesId = parseInt(block.getAttribute('mesid') || 0); 
+        const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+        const idMatch = text.match(/\|(\d+)\|/);
         
-        // 1. 获取数据
-        const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                                ? window.friendRenderer.extractFriendsFromContext() : [];
+        if (idMatch) {
+            const id = idMatch[1];
+            if (timeMatch) timeMap[id] = timeMatch[1];
+            const isPeer = text.includes('[对方消息|');
+            const newWeight = isPeer ? (100000 + mesId) : mesId;
+            if (!orderMap[id] || newWeight > orderMap[id]) {
+                orderMap[id] = newWeight;
+            }
+        }
+    });
+
+    window.latestOrderMap = orderMap;
+
+    // 3. 执行排序
+    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.sort((a, b) => {
+        const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
+        const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
+        return weightB - weightA;
+    });
+    
+    items.forEach(item => listContainer.appendChild(item));
+
+    // 4. 渲染时间戳和红点
+    items.forEach(item => {
+        const id = item.getAttribute('data-friend-id');
         
-        extractedFriends.forEach(f => {
-            orderMap[f.number] = f.messageIndex || 0;
-            if (f.lastMessageTime) {
-                timeMap[f.number] = f.lastMessageTime;
-            } else if (f.addTime) {
-                const d = new Date(f.addTime);
-                timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-            } else {
-                timeMap[f.number] = "08:00";
-            }
-        });
-
-        // 2. 扫描 DOM 校准
-        const mesBlocks = document.querySelectorAll('.mes');
-        mesBlocks.forEach(block => {
-            const text = block.innerText;
-            const mesId = parseInt(block.getAttribute('mesid') || 0); 
-            const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-            const idMatch = text.match(/\|(\d+)\|/);
-            
-            if (idMatch) {
-                const id = idMatch[1];
-                if (timeMatch) timeMap[id] = timeMatch[1];
-                const isPeer = text.includes('[对方消息|');
-                const newWeight = isPeer ? (100000 + mesId) : mesId;
-                if (!orderMap[id] || newWeight > orderMap[id]) {
-                    orderMap[id] = newWeight;
-                }
-            }
-        });
-
-        window.latestOrderMap = orderMap;
-
-        // 3. 执行排序
-        const items = Array.from(listContainer.querySelectorAll('.message-item'));
-        items.sort((a, b) => {
-            const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
-            const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
-            return weightB - weightA;
-        });
+        // --- 核心修复 2：安全地获取数据 ---
+        // 依次从 抓取数据、永久联系人 中寻找配置
+        const dataFromContext = friendsDataMap.get(id);
+        const dataFromPermanent = permanentContacts[id];
         
-        items.forEach(item => listContainer.appendChild(item));
+        // 如果两个地方都找不到，给一个默认对象防止报错
+        const data = dataFromContext || dataFromPermanent || { number: id, name: "未知好友" };
 
-        // 4. 渲染时间戳和红点
-        items.forEach(item => {
-            const id = item.getAttribute('data-friend-id');
-            const data = friendsData.find(f => f.number === id); // 获取最新的抓取数据
-            if (!data) return;
+        const time = data.lastMessageTime || timeMap[id] || "08:00";
+        const latestOrder = data.messageIndex || orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-            const time = data.lastMessageTime;
-            const latestOrder = data.messageIndex || 0;
-            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-
-            // --- 时间显示 ---
-            let timeSpan = item.querySelector('.custom-timestamp');
-            if (time) {
-                if (!timeSpan) {
-                    timeSpan = document.createElement('span');
-                    timeSpan.className = 'custom-timestamp';
-                    item.appendChild(timeSpan);
-                }
-                timeSpan.innerText = time;
+        // --- 时间显示 ---
+        let timeSpan = item.querySelector('.custom-timestamp');
+        if (time) {
+            if (!timeSpan) {
+                timeSpan = document.createElement('span');
+                timeSpan.className = 'custom-timestamp';
+                item.appendChild(timeSpan);
             }
+            timeSpan.innerText = time;
+        }
 
-            // --- 红点逻辑：终极判定标准 ---
-            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+        // --- 红点逻辑 ---
+        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+        
+        // 只要有新消息权重（latestOrder > lastReadOrder）就显示红点
+        if (latestOrder > lastReadOrder) {
+            let dot = document.createElement('div');
+            dot.className = 'unread-dot'; 
+            item.appendChild(dot);
+        }
 
-            // 只要数据里标记了有 UNREAD 标签，且当前的索引比本地存的已读索引大，就显示红点
-            if (data.hasUnreadTag && latestOrder > lastReadOrder) {
-                let dot = document.createElement('div');
-                dot.className = 'unread-dot'; 
-                item.appendChild(dot);
-            }
-
-            // --- 绑定点击已读逻辑 ---
-            if (!item.dataset.layoutListener) {
-                item.dataset.layoutListener = "true";
-                item.addEventListener('click', () => {
-                    // 点击时，把当前的 messageIndex（包含50万权重）锁死进本地存储
-                    localStorage.setItem(`lastRead_${id}`, latestOrder);
-                    
-                    const d = item.querySelector('.unread-dot');
-                    if (d) d.remove();
-                    console.log(`✅ 已标记联系人 ${id} 为已读`);
-                });
-            }
-        });
+        // --- 绑定点击已读逻辑 ---
+        if (!item.dataset.layoutListener) {
+            item.dataset.layoutListener = "true";
+            item.addEventListener('click', () => {
+                localStorage.setItem(`lastRead_${id}`, latestOrder);
+                const d = item.querySelector('.unread-dot');
+                if (d) d.remove();
+                console.log(`[Message App] 已将好友 ${id} 标记为已读，权重: ${latestOrder}`);
+            });
+        }
+    });
 }
     
     // 渲染添加好友界面
