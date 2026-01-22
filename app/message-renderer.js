@@ -397,14 +397,13 @@ if (typeof window.MessageRenderer === 'undefined') {
       }
 
       try {
-        // =========== 🚀 第一步：强制保底抓取逻辑 (贴在这里) ===========
+        // =========== 🚀 最终完善版：精准抓取并保留文字 ===========
         let chatData = [];
         const raw = window.chat;
         chatData = Array.isArray(raw) ? raw : (raw?.chat || []);
 
-        // 如果变量拿不到，直接扫网页 DOM (这就是你之前控制台成功的关键)
         if (chatData.length === 0) {
-            console.warn('[Message Renderer] 变量抓取失败，启动 DOM 暴力扫描模式...');
+            console.warn('[Message Renderer] 启动 DOM 暴力扫描模式...');
             chatData = Array.from(document.querySelectorAll('.mes_text')).map(el => ({
                 mes: el.innerText,
                 is_user: el.closest('.mes')?.classList.contains('last_mes_user'),
@@ -412,27 +411,66 @@ if (typeof window.MessageRenderer === 'undefined') {
             }));
         }
 
-        // 如果通过 DOM 扫到了数据，我们直接构建对象返回，跳过后面那个超长的逻辑
-        if (chatData.length > 0) {
-            console.log(`[Message Renderer] 成功通过保底逻辑抓取到 ${chatData.length} 条消息`);
-            const allMessages = chatData.map((msg, index) => ({
-                id: index,
-                content: msg.mes || '',
-                isMine: msg.is_user || false,
-                senderName: msg.is_user ? (window.name1 || '我') : (msg.name || '对方'),
-                type: (msg.mes || '').includes('[通话|') ? '通话' : '文字',
-                fullMatch: msg.mes || '' // 为了兼容后续可能的过滤
-            }));
+        let filteredChat = [];
+        chatData.forEach(msg => {
+            const rawText = msg.mes || '';
+            // 优化正则：匹配 [时间|...] 及其后面直到下一个 [ 或者结尾的所有文字
+            const pattern = /\[(?:时间|通话)\|[^\]]+\][^\[]*/g;
+            const matches = rawText.match(pattern);
 
-            this.allMessages = allMessages;
+            if (matches) {
+                matches.forEach(match => {
+                    filteredChat.push({
+                        mes: match.trim(),
+                        is_user: msg.is_user,
+                        name: msg.name
+                    });
+                });
+            }
+        });
+        
+        chatData = filteredChat; 
+
+        if (chatData.length > 0) {
+            const allMessages = chatData.map((msg, index) => {
+                const content = msg.mes || '';
+                // 尝试识别发送者：先找名字，再找ID
+                let senderDisplayName = "未知";
+                const nameMatch = content.match(/\|([^\|]+)\|(\d{3,})\|/); // 匹配 |服务通知|100|
+                if (nameMatch) {
+                    senderDisplayName = nameMatch[1];
+                } else if (content.includes('陈一众')) {
+                    senderDisplayName = "陈一众";
+                }
+
+                return {
+                    id: index,
+                    content: content,
+                    isMine: content.includes('我方消息') || msg.is_user,
+                    senderName: senderDisplayName, 
+                    type: content.includes('[通话|') ? '通话' : '文字',
+                    fullMatch: content
+                };
+            });
+
+            // 过滤：如果是在看某个好友，只显示相关的。
+            // 此时 friendId 可能是 "103"
+            const targetFriendId = String(friendId);
+            const filteredForFriend = allMessages.filter(m => 
+                m.content.includes(`|${targetFriendId}|`) || 
+                (m.senderName === "陈一众" && targetFriendId === "103") ||
+                m.isMine
+            );
+
+            this.allMessages = filteredForFriend;
             return { 
-                allMessages, 
-                myMessages: allMessages.filter(m => m.isMine), 
-                otherMessages: allMessages.filter(m => !m.isMine),
+                allMessages: filteredForFriend, 
+                myMessages: filteredForFriend.filter(m => m.isMine), 
+                otherMessages: filteredForFriend.filter(m => !m.isMine),
                 groupMessages: [] 
             };
         }
-        // =========== 🚀 保底逻辑结束 ===========
+        // =========== 🚀 逻辑结束 ===========
         
         if (window.DEBUG_MESSAGE_RENDERER) {
           console.log('[Message Renderer] 🔥 开始使用统一提取法...');
