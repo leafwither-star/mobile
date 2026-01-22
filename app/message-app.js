@@ -6727,23 +6727,33 @@ renderAddFriendTab() {
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
-                    // 3. 红包解析逻辑
-                    document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-                        const raw = msg.innerText;
-                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
-                            msg.classList.add('fixed');
-                            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                            const bubble = msg.closest('.message-content');
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                            const card = document.createElement('div');
-                            card.className = 'beautiful-packet';
-                            card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                            msg.innerHTML = '';
-                            msg.appendChild(card);
-                        }
-                    });
+                   // 3. 红包解析逻辑 (增加对通话消息的排除)
+document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+    const raw = msg.innerText;
+    
+    // 🔥 新增判断：如果消息里包含“通话”或“📞”，说明是语音消息，不走红包渲染逻辑
+    if (raw.includes('通话') || raw.includes('📞') || raw.includes('时长')) {
+        return; 
+    }
+
+    // 原有的红包识别逻辑
+    if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
+        msg.classList.add('fixed');
+        const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+        const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+        const bubble = msg.closest('.message-content');
+        
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+        
+        const card = document.createElement('div');
+        card.className = 'beautiful-packet';
+        card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
+        card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+        
+        msg.innerHTML = '';
+        msg.appendChild(card);
+    }
+});
                 } catch (e) { console.error("刷新出错:", e); }
                 setTimeout(() => { isHandling = false; }, 200);
             });
