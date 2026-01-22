@@ -397,80 +397,87 @@ if (typeof window.MessageRenderer === 'undefined') {
       }
 
       try {
-        // =========== 🚀 最终完善版：精准抓取并保留文字 ===========
+        // =========== 🚀 增强版：全状态通话识别与头像修复 ===========
         let chatData = [];
         const raw = window.chat;
         chatData = Array.isArray(raw) ? raw : (raw?.chat || []);
 
+        // 1. 扫描 DOM 抓取实时数据和头像
         if (chatData.length === 0) {
-            console.warn('[Message Renderer] 启动 DOM 暴力扫描模式...');
-            chatData = Array.from(document.querySelectorAll('.mes_text')).map(el => ({
-                mes: el.innerText,
-                is_user: el.closest('.mes')?.classList.contains('last_mes_user'),
-                name: el.closest('.mes')?.querySelector('.ch_name')?.innerText || ''
-            }));
-        }
-
-        let filteredChat = [];
-        chatData.forEach(msg => {
-            const rawText = msg.mes || '';
-            // 优化正则：匹配 [时间|...] 及其后面直到下一个 [ 或者结尾的所有文字
-            const pattern = /\[(?:时间|通话)\|[^\]]+\][^\[]*/g;
-            const matches = rawText.match(pattern);
-
-            if (matches) {
-                matches.forEach(match => {
-                    filteredChat.push({
-                        mes: match.trim(),
-                        is_user: msg.is_user,
-                        name: msg.name
-                    });
-                });
-            }
-        });
-        
-        chatData = filteredChat; 
-
-        if (chatData.length > 0) {
-            const allMessages = chatData.map((msg, index) => {
-                const content = msg.mes || '';
-                // 尝试识别发送者：先找名字，再找ID
-                let senderDisplayName = "未知";
-                const nameMatch = content.match(/\|([^\|]+)\|(\d{3,})\|/); // 匹配 |服务通知|100|
-                if (nameMatch) {
-                    senderDisplayName = nameMatch[1];
-                } else if (content.includes('陈一众')) {
-                    senderDisplayName = "陈一众";
-                }
-
+            console.warn('[Message Renderer] 启动 DOM 精准扫描...');
+            chatData = Array.from(document.querySelectorAll('.mes')).map(el => {
+                const textEl = el.querySelector('.mes_text');
+                const imgEl = el.querySelector('.avatar img');
+                const nameEl = el.querySelector('.ch_name');
                 return {
-                    id: index,
-                    content: content,
-                    isMine: content.includes('我方消息') || msg.is_user,
-                    senderName: senderDisplayName, 
-                    type: content.includes('[通话|') ? '通话' : '文字',
-                    fullMatch: content
+                    mes: textEl ? textEl.innerText : '',
+                    is_user: el.classList.contains('last_mes_user'),
+                    name: nameEl ? nameEl.innerText.trim() : '',
+                    avatar: imgEl ? imgEl.src : '' 
                 };
             });
-
-            // 过滤：如果是在看某个好友，只显示相关的。
-            // 此时 friendId 可能是 "103"
-            const targetFriendId = String(friendId);
-            const filteredForFriend = allMessages.filter(m => 
-                m.content.includes(`|${targetFriendId}|`) || 
-                (m.senderName === "陈一众" && targetFriendId === "103") ||
-                m.isMine
-            );
-
-            this.allMessages = filteredForFriend;
-            return { 
-                allMessages: filteredForFriend, 
-                myMessages: filteredForFriend.filter(m => m.isMine), 
-                otherMessages: filteredForFriend.filter(m => !m.isMine),
-                groupMessages: [] 
-            };
         }
-        // =========== 🚀 逻辑结束 ===========
+
+        const allMessages = [];
+        chatData.forEach((msg, index) => {
+            const rawText = msg.mes || '';
+            
+            // 2. 识别是否包含 [通话| 标签
+            if (rawText.includes('[通话|')) {
+                // 正则匹配完整的通话指令块
+                const callMatches = rawText.match(/\[通话\|[^\]]+\]/g);
+                if (callMatches) {
+                    callMatches.forEach((matchStr, subIdx) => {
+                        const parts = matchStr.replace('[', '').replace(']', '').split('|');
+                        // parts 结构: ["通话", "姓名", "ID", "状态", "时长/内容...", ...]
+                        const status = parts[3]; // 接通 / 未接听 / 已拒绝
+                        
+                        allMessages.push({
+                            id: `call-${index}-${subIdx}`,
+                            content: matchStr,
+                            isMine: msg.is_user,
+                            senderName: parts[1],
+                            senderId: parts[2],
+                            avatar: msg.avatar,
+                            type: '通话',
+                            callStatus: status, // 存入状态供后续渲染图像使用
+                            dialogues: status === '接通' ? parts.slice(5) : [] // 提取 5 索引之后的对话流
+                        });
+                    });
+                }
+            } else {
+                // 3. 保留普通聊天（解决抓取过死的问题）
+                // 排除 [手机快讯] 等系统标记，保留真实文字
+                const cleanText = rawText.replace(/\[手机快讯\]/g, '').trim();
+                if (cleanText) {
+                    allMessages.push({
+                        id: `msg-${index}`,
+                        content: cleanText,
+                        isMine: msg.is_user,
+                        senderName: msg.name || (msg.is_user ? '我' : '对方'),
+                        avatar: msg.avatar,
+                        type: '文字'
+                    });
+                }
+            }
+        });
+
+        // 4. 根据当前详情页好友 ID 过滤
+        const targetFriendId = String(friendId);
+        const filteredForFriend = allMessages.filter(m => {
+            // 如果消息 ID 匹配，或者发送人名字匹配，或者是我发的
+            return (m.senderId === targetFriendId) || 
+                   (m.senderName && m.senderName.includes("陈一众") && targetFriendId === "103") ||
+                   m.isMine;
+        });
+
+        this.allMessages = filteredForFriend;
+        return { 
+            allMessages: filteredForFriend, 
+            myMessages: filteredForFriend.filter(m => m.isMine), 
+            otherMessages: filteredForFriend.filter(m => !m.isMine),
+            groupMessages: [] 
+        };
         
         if (window.DEBUG_MESSAGE_RENDERER) {
           console.log('[Message Renderer] 🔥 开始使用统一提取法...');
