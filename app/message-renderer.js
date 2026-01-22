@@ -721,6 +721,12 @@ if (typeof window.MessageRenderer === 'undefined') {
         // 重置分页状态
         this.resetPagination();
 
+// 🔥 强制建立映射，防止因为报错导致的初始化中断
+if (this.friendNameToIdMap.size === 0) {
+    console.log('[Message Renderer] 映射为空，正在手动唤醒初始化...');
+    this.buildFriendNameToIdMapping(); 
+}
+        
         // 提取消息数据
         const messageData = await this.extractMessagesForFriend(friendId);
 
