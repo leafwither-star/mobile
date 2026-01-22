@@ -6558,7 +6558,7 @@ renderAddFriendTab() {
             .special-friend-name { color: #333 !important; font-weight: 900 !important; text-shadow: 0.5px 0.5px 0px rgba(0,0,0,0.1); }
             .special-friend-avatar { box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; border: 1.5px solid #fbab51 !important; border-radius: 50% !important; }
             
-            /* 红包 */
+            /* 红包样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; margin-left: 0px !important; line-height: 1.4 !important; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
             
@@ -6572,11 +6572,14 @@ renderAddFriendTab() {
             .soul-bubble { background: rgba(255,255,255,0.15); padding: 12px 20px; border-radius: 20px; font-size: 14px; max-width: 80%; margin-bottom: 15px; animation: soulIn 0.5s ease forwards; text-align: center; }
             @keyframes soulIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             
-            /* 弹窗遮罩 */
+            /* 弹窗遮罩与红包动画 */
             #perfect-overlay { position: fixed !important; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000000 !important; display: flex; align-items: center; justify-content: center; }
             .packet-dialog { width: 280px; min-height: 380px; background: #cf4e46; border-radius: 20px; display: flex; flex-direction: column; align-items: center; color: #fbd69b; position: relative; }
             .open-btn-anim { width: 80px; height: 80px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; }
             .open-btn-anim.spin { transform: rotateY(720deg); transition: 0.6s; }
+
+            /* 通知横幅 */
+            .ios-banner { position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; }
         `;
         document.head.appendChild(style);
     }
@@ -6586,6 +6589,7 @@ renderAddFriendTab() {
      */
     window.launchCallV20 = (name, dialogues, avatar) => {
         const container = document.getElementById('message-detail-content');
+        if (!container) return;
         const ui = document.createElement('div');
         ui.id = 'soul-call-overlay';
         ui.innerHTML = `
@@ -6603,17 +6607,25 @@ renderAddFriendTab() {
             if (idx >= dialogues.length || !ui.parentNode) return;
             const b = document.createElement('div'); b.className = 'soul-bubble'; b.innerText = dialogues[idx++];
             const box = ui.querySelector('#soul-dialog-box');
-            box.appendChild(b);
-            if (box.children.length > 3) box.firstChild.remove();
+            if(box) {
+                box.appendChild(b);
+                if (box.children.length > 3) box.firstChild.remove();
+            }
             setTimeout(showNext, 3000);
         };
         showNext();
     };
 
     window.launchPerfectPacket = (wish, amount) => {
+        if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'perfect-overlay';
-        overlay.innerHTML = `<div class="packet-dialog"><div style="position:absolute;top:15px;right:15px;cursor:pointer;" onclick="this.closest('#perfect-overlay').remove()">✕</div><div style="margin-top:60px;opacity:0.8;">来自好友的红包</div><div style="margin-top:30px;font-size:20px;padding:0 20px;text-align:center;">${wish}</div><div class="open-btn-anim" onclick="this.classList.add('spin');setTimeout(()=>{this.parentElement.innerHTML='<div style=margin-top:100px;font-size:45px;>'+'${amount}'+'<span style=font-size:18px> 元</span></div><div style=margin-top:20px;opacity:0.8;>已存入零钱</div>'},600)">開</div></div>`;
+        overlay.innerHTML = `<div class="packet-dialog">
+            <div style="position:absolute;top:15px;right:15px;cursor:pointer;" onclick="this.closest('#perfect-overlay').remove()">✕</div>
+            <div style="margin-top:60px;opacity:0.8;">来自好友的红包</div>
+            <div style="margin-top:30px;font-size:20px;padding:0 20px;text-align:center;">${wish}</div>
+            <div class="open-btn-anim" onclick="this.classList.add('spin');setTimeout(()=>{this.parentElement.innerHTML='<div style=margin-top:100px;font-size:45px;>'+'${amount}'+'<span style=font-size:18px> 元</span></div><div style=margin-top:20px;opacity:0.8;>已存入零钱</div>'},600)">開</div>
+        </div>`;
         document.body.appendChild(overlay);
     };
 
@@ -6624,7 +6636,7 @@ renderAddFriendTab() {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
             
-            // 劫持数据抓取
+            // 劫持数据抓取逻辑
             window.friendRenderer.extractFriendsFromContext = function() {
                 const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
                 let allMobileText = "";
@@ -6638,7 +6650,7 @@ renderAddFriendTab() {
                         if (lines[j].includes(`|${fId}|`)) {
                             item.lastMessageTime = (lines[j].match(/\|(\d{1,2}:\d{2})\]/) || ["", "08:00"])[1];
                             const content = lines[j].split('|').slice(4).join('|').replace(']', '');
-                            item.lastMessage = content.includes('http') ? "[图片/表情]" : (lines[j].includes('通话') ? "[通话记录]" : content);
+                            item.lastMessage = content.includes('http') ? "[图片/表情]" : (lines[j].includes('通话') ? "[通话记录]" : (lines[j].includes('红包') ? "[红包]" : content));
                             item.messageIndex = j; break;
                         }
                     }
@@ -6646,25 +6658,27 @@ renderAddFriendTab() {
                 }).sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            // 劫持界面渲染
+            // 劫持界面渲染 (锁机制版)
             const observer = new MutationObserver(() => {
-                // 1. 列表刷新 (头像、名字、红点)
-                document.querySelectorAll('.message-item').forEach(item => {
+                // 1. 列表刷新 (头像、名字、高亮)
+                document.querySelectorAll('.message-item:not(.processed)').forEach(item => {
                     const fId = item.getAttribute('data-friend-id');
                     const info = PERMANENT_CONTACTS[fId];
-                    if (!info) return;
-                    const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-                    if (nameEl) nameEl.innerText = `${info.name} ${info.tag}`;
-                    if (info.isSpecial) {
-                        nameEl?.classList.add('special-friend-name');
-                        item.querySelector('img')?.classList.add('special-friend-avatar');
+                    if (info) {
+                        const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
+                        if (nameEl) nameEl.innerText = `${info.name} ${info.tag}`;
+                        if (info.isSpecial) {
+                            nameEl?.classList.add('special-friend-name');
+                            item.querySelector('img')?.classList.add('special-friend-avatar');
+                        }
                     }
+                    item.classList.add('processed');
                 });
 
-                // 2. 详情页注入 (红包与通话)
+                // 2. 详情页注入
                 const container = document.getElementById('message-detail-content');
                 if (container) {
-                    // 红包逻辑：根据你的日志格式重新计算 split 索引
+                    // 处理红包
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
                         if (raw.includes('|红包|')) {
@@ -6672,34 +6686,31 @@ renderAddFriendTab() {
                             const parts = raw.split('|');
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                             const wish = parts[5]?.replace(']', '') || "恭喜发财";
-                            const card = document.createElement('div');
-                            card.className = 'beautiful-packet';
-                            card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
-                            card.onclick = () => window.launchPerfectPacket(wish, amt);
+                            
                             msg.closest('.message-content').style.cssText = "background:transparent!important;box-shadow:none!important;padding:0!important;";
-                            msg.innerHTML = ''; msg.appendChild(card);
-                        }
-                    });
-
-                    // 通话逻辑：查找 [通话| 标记
-                    const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
-                    const activeId = document.getElementById('app-title')?.innerText.match(/\d+/)?.[0];
-                    if (activeId && !container.querySelector('.call-row-v20')) {
-                        const callMsg = chatLog.slice().reverse().find(m => m.mes.includes(`|${activeId}|`) && m.mes.includes('[通话|'));
-                        if (callMsg) {
-                            const parts = callMsg.mes.split('|');
+                            msg.innerHTML = `<div class="beautiful-packet" onclick="window.launchPerfectPacket('${wish}', '${amt}')">
+                                <div>🧧 ${wish}</div>
+                                <div class="packet-footer">微信红包 (￥${amt})</div>
+                            </div>`;
+                        } else if (raw.includes('|通话|')) {
+                            msg.classList.add('fixed');
+                            const parts = raw.split('|');
                             const duration = parts[5] || "00:00";
                             const dialogs = (parts[6]||"").replace(']', '').split(/[。！?？]/).filter(s=>s.length>2);
+                            const activeId = document.getElementById('app-title')?.innerText.match(/\d+/)?.[0];
                             const avatar = document.querySelector(`.message-item[data-friend-id="${activeId}"] img`)?.src || "";
-                            const row = document.createElement('div');
-                            row.className = 'call-row-v20';
-                            row.innerHTML = `<img src="${avatar}" style="width:40px;height:40px;border-radius:4px;margin-right:10px;"><div class="call-card-v20"><div>📞</div><div><div style="font-weight:bold;font-size:13px;">通话回放 (${duration})</div><div style="font-size:11px;opacity:0.6;">点击查看对话详情</div></div></div>`;
-                            row.onclick = () => window.launchCallV20(PERMANENT_CONTACTS[activeId].name, dialogs, avatar);
-                            container.appendChild(row);
+                            
+                            const callCard = document.createElement('div');
+                            callCard.className = 'call-row-v20';
+                            callCard.innerHTML = `<img src="${avatar}" style="width:40px;height:40px;border-radius:4px;margin-right:10px;"><div class="call-card-v20"><div>📞</div><div><div style="font-weight:bold;font-size:13px;">通话回放 (${duration})</div><div style="font-size:11px;opacity:0.6;">点击查看对话详情</div></div></div>`;
+                            callCard.onclick = () => window.launchCallV20(PERMANENT_CONTACTS[activeId]?.name || "通话", dialogs, avatar);
+                            msg.innerHTML = '';
+                            msg.appendChild(callCard);
                         }
-                    }
+                    });
                 }
             });
+
             observer.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
