@@ -6548,7 +6548,7 @@ renderAddFriendTab() {
      * 【第一部分：永久好友配置区】
      */
     const PERMANENT_CONTACTS = {
-        "103": { name: "陈一众", tag: "❤️", isSpecial: true, avatar: "你的Github图床链接1" },
+        "103": { name: "陈一众", tag: "❤️", isSpecial: true, avatar: "https://github.com/leafwither-star/touxiang2/blob/main/b2de9c82d158ccbfa6be0223686f5030b03541eb.jpeg?raw=true" },
         "102": { name: "曹信", tag: "❤️", isSpecial: true, avatar: "你的Github图床链接2" },
         "104": { name: "张主任", tag: "✨", isSpecial: false },
         "105": { name: "张小满", tag: "✨", isSpecial: false },
