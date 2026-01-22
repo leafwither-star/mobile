@@ -1400,43 +1400,6 @@ if (typeof window.MessageRenderer === 'undefined') {
             `;
       }
 
-      // 📞 通话记录渲染 (匹配上面的 content 结构)
-if (messageType === '通话' && content) {
-    const parts = content.split('|');
-    const status = parts[0] || "已接通";
-    const duration = parts[1] || "00:00";
-    const dialogText = parts[2] || "";
-    const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
-
-    const callCardHtml = `
-        <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px;" 
-             onclick="window.launchCallV20 && window.launchCallV20('${sender}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${number} img')?.src)">
-            <div style="font-size:22px;">📞</div>
-            <div style="flex:1">
-                <div style="font-weight:bold; font-size:13px; color:#333;">语音通话 (${status} ${duration})</div>
-                <div style="font-size:11px; color:#999;">点击回放通话详情</div>
-            </div>
-        </div>
-    `;
-
-    return `
-        <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
-            ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${sender}</span>` : ''}
-            <div class="message-body" style="display:flex; ${isMine ? 'flex-direction:row-reverse;' : ''}">
-                <div class="message-avatar" id="message-avatar-${friendId}">
-                    ${this.getMessageAvatar(isMine || isMyGroupMessage, sender)}
-                </div>
-                <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
-                    <div class="message-meta">
-                        <span class="message-type">通话</span>
-                    </div>
-                    <div class="message-text" style="background:transparent!important;">${callCardHtml}</div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
       // 为接收的消息创建特殊布局，将sender移到头像上方
       if (!isMine && !isMyGroupMessage) {
         return `
@@ -1458,6 +1421,44 @@ if (messageType === '通话' && content) {
         `;
       }
 
+// 📞 通话记录渲染 (针对你的脚本环境优化版)
+      if (messageType === '通话' && content) {
+        const parts = content.split('|');
+        const status = parts[0] || "已接通";
+        const duration = parts[1] || "00:00";
+        const dialogText = parts[2] || "";
+        const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
+
+        const callCardHtml = `
+            <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px; margin: 5px 0;" 
+                 onclick="window.launchCallV20 && window.launchCallV20('${senderName}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${friendId} img')?.src)">
+                <div style="font-size:22px;">📞</div>
+                <div style="flex:1">
+                    <div style="font-weight:bold; font-size:13px; color:#333; line-height:1.2;">语音通话 (${status} ${duration})</div>
+                    <div style="font-size:11px; color:#999; margin-top:4px;">点击回放通话详情</div>
+                </div>
+            </div>
+        `;
+
+        // 统一包装在你的标准消息气泡结构中，确保左右对齐和头像正常
+        return `
+            <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
+                ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${senderName}</span>` : ''}
+                <div class="message-body" style="display:flex; ${isMine || isMyGroupMessage ? 'flex-direction:row-reverse;' : ''}">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+                    <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
+                        <div class="message-meta" style="display:block!important; margin-bottom:4px;">
+                            <span class="message-type" style="display:inline-block!important; background:#eee; padding:2px 6px; border-radius:4px; font-size:10px; color:#666;">语音通话</span>
+                        </div>
+                        <div class="message-text" style="background:transparent!important; padding:0!important;">${callCardHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+      }
+      
       // 发送的消息保持原有布局
       return `
             <div class="message-detail ${messageClass}" title="${messageType}" data-friend-id="${friendId}">
