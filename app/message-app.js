@@ -6532,9 +6532,6 @@ renderAddFriendTab() {
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
 (function injectBatchRefreshSystem() {
-    /**
-     * 【第一部分：永久好友配置区】
-     */
     const PERMANENT_CONTACTS = {
         "103": { name: "陈一众", tag: "❤️", isSpecial: true },
         "102": { name: "曹信", tag: "❤️", isSpecial: true },
@@ -6542,13 +6539,9 @@ renderAddFriendTab() {
         "105": { name: "张小满", tag: "✨", isSpecial: false },
         "100": { name: "服务通知", tag: "📢", isSpecial: false }
     };
-
     const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
-    /**
-     * 【第二部分：外观样式修饰 (CSS)】
-     */
-    const styleId = 'mobile-system-unified-style-v8';
+    const styleId = 'mobile-system-unified-style-v9';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
@@ -6568,9 +6561,6 @@ renderAddFriendTab() {
         document.head.appendChild(style);
     }
 
-    /**
-     * 【第三部分：通用全局函数 (红包+通话)】
-     */
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
         const overlay = document.createElement('div');
@@ -6623,19 +6613,11 @@ renderAddFriendTab() {
         const closeBtn = document.getElementById('soul-close-btn'); closeBtn.onclick = () => { clearInterval(tInterval); overlay.remove(); };
     };
 
-    /**
-     * 【第四部分：核心抓取逻辑】
-     */
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
-            const originalExtractor = window.friendRenderer.extractFriendsFromContext;
             window.friendRenderer.extractFriendsFromContext = function() {
                 const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
-                let lastValidBlockIdx = -1;
-                for (let i = chatLog.length - 1; i >= 0; i--) {
-                    if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
-                }
                 let allMobileText = "";
                 chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
                 let contacts = [];
@@ -6647,15 +6629,19 @@ renderAddFriendTab() {
                         if (lines[j].includes(`|${fId}|`)) {
                             const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                             item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
+                            // 这里放宽抓取逻辑：优先抓括号里的内容
                             const cMatch = lines[j].match(/\[(?:文字|图片|表情包|红包|通话)\|([^\]]+)\]/);
-                            if (cMatch) item.lastMessage = cMatch[1].split('|')[0].includes('http') ? "[图片/表情]" : cMatch[1].split('|')[0];
+                            if (cMatch) {
+                                let msgPreview = cMatch[1].split('|')[0];
+                                item.lastMessage = msgPreview.includes('http') ? "[图片/表情]" : msgPreview;
+                            }
                             item.messageIndex = j; break;
                         }
                     }
-                    if (lastValidBlockIdx !== -1) {
-                        const lastBlockMes = chatLog[lastValidBlockIdx].mes;
-                        if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]')) {
-                            item.hasUnreadTag = true; item.messageIndex += 500000;
+                    if (chatLog.length > 0) {
+                        const lastMes = chatLog[chatLog.length-1].mes || "";
+                        if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]')) {
+                            item.hasUnreadTag = true; item.messageIndex += 1000000;
                         }
                     }
                     contacts.push(item);
@@ -6663,27 +6649,12 @@ renderAddFriendTab() {
                 return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
             };
 
-            /**
-             * 【第五部分：界面刷新监听】
-             */
             let isHandling = false;
             const uiObserver = new MutationObserver(() => {
                 if (isHandling) return;
                 isHandling = true;
                 try {
-                    // 1. 标题栏逻辑
-                    const titleEl = document.getElementById('app-title');
-                    if (titleEl) {
-                        const match = titleEl.innerText.match(/\d+/);
-                        const fId = match ? match[0] : null;
-                        if (fId && PERMANENT_CONTACTS[fId]) {
-                            const info = PERMANENT_CONTACTS[fId];
-                            const tempNick = window.tempNicknames?.[fId];
-                            titleEl.innerText = tempNick ? `${tempNick} (${info.name})` : `${info.name} ${info.tag || ''}`;
-                        }
-                    }
-                    
-                    // 2. 列表项逻辑
+                    // 1. 列表渲染
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
@@ -6692,20 +6663,7 @@ renderAddFriendTab() {
                         const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
                         if (nameEl) {
                             const tempNick = window.tempNicknames?.[fId];
-                            if (tempNick) {
-                                const pureName = info ? info.name : data.name;
-                                const tag = info ? (info.tag || "") : "";
-                                nameEl.innerHTML = `<span style="font-size: 15px; font-weight: 900; color: #333; line-height: 1.2;">${tempNick}</span><span style="font-size: 11px; opacity: 0.7; font-weight: normal; margin-left: 5px; color: #444;">(${pureName})</span><span style="font-size: 14px; margin-left: 2px; vertical-align: middle;">${tag}</span>`;
-                            } else if (info) {
-                                nameEl.innerText = `${info.name} ${info.tag || ''}`;
-                            } else {
-                                nameEl.innerText = data.name;
-                            }
-                            if (info && info.isSpecial) nameEl.classList.add('special-friend-name');
-                        }
-                        if (info && info.isSpecial) {
-                            const imgEl = item.querySelector('img');
-                            if (imgEl) imgEl.classList.add('special-friend-avatar');
+                            nameEl.innerText = tempNick ? `${tempNick} (${info.name})` : `${info.name} ${info.tag || ''}`;
                         }
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
@@ -6713,13 +6671,14 @@ renderAddFriendTab() {
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
-                    // 3. 红包解析
+                    // 2. 红包解析 (增强鲁棒性)
                     document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                         const raw = msg.innerText;
-                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('[通话|')) {
+                        if (raw.includes('[红包|')) {
                             msg.classList.add('fixed');
+                            const parts = raw.split('|');
                             const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+                            const wish = parts[parts.length-1]?.replace(']', '').trim() || "恭喜发财";
                             const bubble = msg.closest('.message-content') || msg.parentElement;
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
                             const card = document.createElement('div');
@@ -6730,83 +6689,53 @@ renderAddFriendTab() {
                         }
                     });
 
-                    // --- 4. 通话记录解析逻辑 (全兼容增强版) ---
+                    // 3. 通话记录解析 (彻底重构解析逻辑)
                     document.querySelectorAll('.message-text:not(.call-fixed)').forEach(msg => {
                         const raw = msg.innerText;
-                        // 只要包含 [通话| 且没被处理过就激活
                         if (raw.includes('[通话|')) {
                             msg.classList.add('call-fixed');
-                            
-                            // 更加鲁棒的解析：提取方括号内部的内容
-                            // 适配格式：[通话|姓名|ID|状态|时长|对话1|对话2...]
-                            const callMatch = raw.match(/\[通话\|(.*?)\]/);
-                            if (!callMatch) return;
-                            
-                            const content = callMatch[1]; // 获取 姓名|ID|状态... 这一部分
+                            const content = raw.split('[通话|')[1].split(']')[0];
                             const parts = content.split('|');
-                            
-                            const name = parts[0] || "联系人";
-                            const status = parts[2] || "接通"; 
+                            // 格式: 姓名|ID|状态|时长|对话...
+                            const name = parts[0];
+                            const status = parts[2];
                             const duration = parts[3] || "00:00";
-                            const dialogues = parts.slice(4); 
+                            const dialogues = parts.slice(4);
 
                             const bubble = msg.closest('.message-content') || msg.parentElement;
                             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                            
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet'; 
                             card.style.cssText = `background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; min-width: 195px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important;`;
-
                             if (status === '接通') {
-                                card.innerHTML = `
-                                    <div style="font-size: 18px;">📞</div>
-                                    <div style="flex-grow: 1;">
-                                        <div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div>
-                                        <div style="font-size: 11px; color: #999;">点击回看对话详情</div>
-                                    </div>
-                                    <div style="color: #ccc; font-size: 12px;">▶</div>
-                                `;
-                                card.onclick = (e) => { 
-                                    e.stopPropagation(); 
-                                    window.launchPerfectSoulUI(name, duration, dialogues); 
-                                };
+                                card.innerHTML = `<div style="font-size: 18px;">📞</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div><div style="font-size: 11px; color: #999;">点击回看对话详情</div></div><div style="color: #ccc; font-size: 12px;">▶</div>`;
+                                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectSoulUI(name, duration, dialogues); };
                             } else {
-                                const isMissed = (status === '未接听' || status === '未接来电');
+                                const isMiss = (status === '未接听' || status === '未接来电');
                                 card.style.opacity = "0.8"; card.style.cursor = "default";
-                                card.innerHTML = `
-                                    <div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div>
-                                    <div style="flex-grow: 1;">
-                                        <div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div>
-                                        <div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div>
-                                    </div>
-                                `;
+                                card.innerHTML = `<div style="font-size: 18px; color: ${isMiss ? '#ff3b30' : '#999'};">${isMiss ? '🚫' : '✖️'}</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px; color: ${isMiss ? '#ff3b30' : '#333'};">${isMiss ? '未接来电' : '通话已拒绝'}</div><div style="font-size: 11px; color: #999;">${isMiss ? '对方无应答' : '已结束'}</div></div>`;
                             }
-                            msg.innerHTML = '';
-                            msg.appendChild(card);
+                            msg.innerHTML = ''; msg.appendChild(card);
                         }
                     });
-
-                } catch (e) { 
-                    console.error("刷新出错:", e); 
-                } finally {
-                    setTimeout(() => { isHandling = false; }, 200);
-                }
+                } catch (e) { console.error("Refresh Error:", e); } 
+                finally { setTimeout(() => { isHandling = false; }, 100); }
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
     }, 1000);
 
-    // 6. iOS 横幅逻辑
+    // 4. iOS 通知逻辑
     (function initNotifications() {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-        let lastMsgKey = localStorage.getItem('last_notified_key') || "";
+        let lastMsgKey = "";
         setInterval(() => {
             const friends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') ? window.friendRenderer.extractFriendsFromContext() : [];
             if (friends.length === 0) return;
             const latest = friends[0];
             const currentKey = `${latest.number}_${latest.lastMessage}`;
             if (currentKey !== lastMsgKey) {
-                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|') && latest.messageIndex > 50000) {
+                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|') && latest.hasUnreadTag) {
                     bubbleSound.play().catch(()=>{});
                     const toast = document.createElement('div');
                     toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; transform: translate(-50%, -40px);";
@@ -6816,7 +6745,6 @@ renderAddFriendTab() {
                     setTimeout(()=>{ toast.style.opacity="0"; toast.style.transform="translate(-50%, -40px)"; setTimeout(()=>toast.remove(), 500); }, 4000);
                 }
                 lastMsgKey = currentKey;
-                localStorage.setItem('last_notified_key', lastMsgKey);
             }
         }, 2000);
     })();
