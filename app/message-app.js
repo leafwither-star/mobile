@@ -6547,8 +6547,9 @@ renderAddFriendTab() {
 
     /**
      * 【第二部分：外观样式修饰 (CSS)】
+     * 已保留 12px 圆角、0px 左边距、以及手机模拟器适配
      */
-    const styleId = 'mobile-system-unified-style-v8';
+    const styleId = 'mobile-system-unified-style-v9-final';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
@@ -6559,8 +6560,10 @@ renderAddFriendTab() {
             .special-friend-avatar { box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; border: 1.5px solid #fbab51 !important; border-radius: 50%; }
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; z-index: 999; text-align: left !important; line-height: 1.4 !important; margin-left: 0px !important; }
             .packet-footer { font-size: 11px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 4px; }
-            #perfect-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.8) !important; backdrop-filter: blur(8px); z-index: 9999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-            .packet-dialog { width: min(280px, 75vw) !important; min-height: 380px !important; max-height: 85vh !important; background: #cf4e46 !important; border-radius: 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; color: #fbd69b !important; position: relative !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; animation: packetIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+            
+            /* 适配手机插件主页面的弹窗层级 */
+            #perfect-overlay { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(0,0,0,0.8) !important; backdrop-filter: blur(8px); z-index: 9999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+            .packet-dialog { width: min(280px, 75vw) !important; min-height: 380px !important; background: #cf4e46 !important; border-radius: 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; color: #fbd69b !important; position: relative !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; }
             .open-btn-anim { width: 85px; height: 85px; background: #fbd69b; color: #cf4e46; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; cursor: pointer; margin-top: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: transform 0.6s; }
             .open-btn-anim.spin { transform: rotateY(720deg); }
             .close-x { position:absolute; top:15px; right:15px; font-size:24px; color:rgba(251,214,155,0.6); cursor:pointer; z-index: 10; padding: 10px; }
@@ -6569,14 +6572,15 @@ renderAddFriendTab() {
     }
 
     /**
-     * 【第三部分：通用全局函数 (红包+通话)】
+     * 【第三部分：通用全局函数】
      */
     window.launchPerfectPacket = (wish, amount) => {
         if (document.getElementById('perfect-overlay')) return;
+        const container = document.getElementById('message-detail-content') || document.body;
         const overlay = document.createElement('div');
         overlay.id = 'perfect-overlay';
         overlay.innerHTML = `<div class="packet-dialog"><div class="close-x" onclick="document.getElementById('perfect-overlay').remove()">✕</div><div style="margin-top:50px; opacity:0.7; font-size:13px;">来自好友的红包</div><div style="margin-top:25px; font-size:19px; font-weight:bold; padding:0 25px; text-align:center; line-height:1.4;">${wish}</div><div id="p-open-target" class="open-btn-anim">開</div></div>`;
-        document.body.appendChild(overlay);
+        container.appendChild(overlay);
         document.getElementById('p-open-target').onclick = function() {
             this.classList.add('spin');
             setTimeout(() => {
@@ -6609,53 +6613,66 @@ renderAddFriendTab() {
             </div>
             <style>
                 @keyframes soul-breathe { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.4); opacity: 0.5; } }
-                .soul-bubble { background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); padding: 10px 18px; border-radius: 20px; font-size: 14px; max-width: 85%; border: 0.5px solid rgba(255,255,255,0.1); animation: soul-in 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards; text-align: center; }
-                @keyframes soul-in { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-                .soul-fade-out { opacity: 0 !important; transform: scale(0.9) translateY(-15px) !important; transition: all 0.8s ease; }
+                .soul-bubble { background: rgba(255,255,255,0.12); backdrop-filter: blur(20px); padding: 10px 18px; border-radius: 20px; font-size: 14px; max-width: 85%; border: 0.5px solid rgba(255,255,255,0.1); text-align: center; }
             </style>`;
         phoneScreen.appendChild(overlay);
         const cvs = document.getElementById('soul-wave'); const ctx = cvs.getContext('2d'); let off = 0;
         function draw() { if(!document.getElementById('soul-wave')) return; ctx.clearRect(0,0,80,15); ctx.beginPath(); ctx.strokeStyle='#fbab51'; ctx.lineWidth=2; ctx.lineCap='round'; for(let i=0;i<12;i++){ const h=Math.abs(Math.sin(i*0.4+off))*10+2; ctx.moveTo(5+i*6,7.5-h/2); ctx.lineTo(5+i*6,7.5+h/2); } ctx.stroke(); off+=0.15; requestAnimationFrame(draw); } draw();
         let s=0; const tInterval = setInterval(() => { s++; const m = String(Math.floor(s/60)).padStart(2,'0'); const sc = String(s%60).padStart(2,'0'); const timerEl = document.getElementById('soul-timer'); if(timerEl) timerEl.innerText = `${m}:${sc}`; }, 1000);
         const cont = document.getElementById('soul-container'); let idx = 0;
-        function next() { if(!cont || idx >= targetDialogues.length) return; const b = document.createElement('div'); b.className = 'soul-bubble'; b.innerText = targetDialogues[idx++]; cont.insertBefore(b, cont.firstChild); const bs = cont.getElementsByClassName('soul-bubble'); if(bs.length > 3) { bs[bs.length-1].classList.add('soul-fade-out'); setTimeout(() => bs[bs.length-1]?.remove(), 800); } setTimeout(next, 3500); }
+        function next() { if(!cont || idx >= targetDialogues.length) return; const b = document.createElement('div'); b.className = 'soul-bubble'; b.innerText = targetDialogues[idx++]; cont.insertBefore(b, cont.firstChild); setTimeout(next, 3500); }
         setTimeout(next, 800);
-        const closeBtn = document.getElementById('soul-close-btn'); closeBtn.onclick = () => { clearInterval(tInterval); overlay.remove(); };
+        document.getElementById('soul-close-btn').onclick = () => { clearInterval(tInterval); overlay.remove(); };
     };
 
     /**
-     * 【第四部分：核心抓取逻辑】
+     * 【第四部分：核心抓取逻辑 (加固改良版)】
      */
     const mainInterval = setInterval(() => {
         if (window.friendRenderer && window.friendRenderer.extractFriendsFromContext) {
             clearInterval(mainInterval);
-            const originalExtractor = window.friendRenderer.extractFriendsFromContext;
+            
             window.friendRenderer.extractFriendsFromContext = function() {
                 const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
-                let lastValidBlockIdx = -1;
-                for (let i = chatLog.length - 1; i >= 0; i--) {
-                    if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidBlockIdx = i; break; }
-                }
-                let allMobileText = "";
-                chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
+                // 找到所有含有手机快讯的消息内容
+                let allMobileRaw = chatLog.map(e => e.mes || "").filter(m => m.includes('[手机快讯]'));
+                
                 let contacts = [];
                 CLOUD_IDS.forEach(fId => {
                     const info = PERMANENT_CONTACTS[fId];
-                    let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                    const lines = allMobileText.split('\n');
-                    for (let j = lines.length - 1; j >= 0; j--) {
-                        if (lines[j].includes(`|${fId}|`)) {
-                            const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
-                            item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
-                            const cMatch = lines[j].match(/\[(?:文字|图片|表情包|红包|通话)\|([^\]]+)\]/);
-                            if (cMatch) item.lastMessage = cMatch[1].split('|')[0].includes('http') ? "[图片/表情]" : cMatch[1].split('|')[0];
-                            item.messageIndex = j; break;
+                    let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无最新消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
+                    
+                    // 从后往前搜寻该 ID 的消息
+                    for (let j = allMobileRaw.length - 1; j >= 0; j--) {
+                        const line = allMobileRaw[j];
+                        if (line.includes(`|${fId}|`) || line.includes(`|${fId}]`)) {
+                            // 1. 时间提取 (暴力定位)
+                            if (line.includes('[时间|')) {
+                                item.lastMessageTime = line.split('[时间|')[1].split(']')[0];
+                            }
+                            
+                            // 2. 预览内容提取 (暴力定位)
+                            if (line.includes('[通话|')) {
+                                const c = line.split('[通话|')[1].split(']')[0].split('|');
+                                item.lastMessage = `[通话] ${c[2] || '通话记录'}`;
+                            } else if (line.includes('[红包|')) {
+                                item.lastMessage = "[微信红包] 恭喜发财";
+                            } else if (line.includes('[文字|')) {
+                                item.lastMessage = line.split('[文字|')[1].split('|')[0].replace(']', '');
+                            } else {
+                                const p = line.split('|'); item.lastMessage = p[p.length-1].replace(/\]/g, '') || "新消息";
+                            }
+                            item.messageIndex = j;
+                            break;
                         }
                     }
-                    if (lastValidBlockIdx !== -1) {
-                        const lastBlockMes = chatLog[lastValidBlockIdx].mes;
-                        if (lastBlockMes.includes(`|${fId}|`) && lastBlockMes.includes('[UNREAD]')) {
-                            item.hasUnreadTag = true; item.messageIndex += 500000;
+
+                    // 3. 未读红点判定
+                    if (chatLog.length > 0) {
+                        const lastMsg = chatLog[chatLog.length-1].mes || "";
+                        if (lastMsg.includes(`|${fId}`) && lastMsg.includes('[UNREAD]')) {
+                            item.hasUnreadTag = true;
+                            item.messageIndex += 1000000;
                         }
                     }
                     contacts.push(item);
@@ -6683,45 +6700,75 @@ renderAddFriendTab() {
                         }
                     }
                     
-                    // 2. 列表项逻辑
+                    // 2. 列表项渲染
                     document.querySelectorAll('.message-item').forEach(item => {
                         const fId = item.getAttribute('data-friend-id');
                         const info = PERMANENT_CONTACTS[fId];
                         const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
                         if (!data) return;
+                        
                         const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
                         if (nameEl) {
                             const tempNick = window.tempNicknames?.[fId];
                             if (tempNick) {
                                 const pureName = info ? info.name : data.name;
-                                const tag = info ? (info.tag || "") : "";
-                                nameEl.innerHTML = `<span style="font-size: 15px; font-weight: 900; color: #333; line-height: 1.2;">${tempNick}</span><span style="font-size: 11px; opacity: 0.7; font-weight: normal; margin-left: 5px; color: #444;">(${pureName})</span><span style="font-size: 14px; margin-left: 2px; vertical-align: middle;">${tag}</span>`;
+                                nameEl.innerHTML = `<span style="font-size: 15px; font-weight: 900; color: #333;">${tempNick}</span><span style="font-size: 11px; opacity: 0.7; margin-left: 5px;">(${pureName})</span>`;
                             } else if (info) {
                                 nameEl.innerText = `${info.name} ${info.tag || ''}`;
-                            } else {
-                                nameEl.innerText = data.name;
                             }
-                            if (info && info.isSpecial) nameEl.classList.add('special-friend-name');
+                            if (info?.isSpecial) nameEl.classList.add('special-friend-name');
                         }
-                        if (info && info.isSpecial) {
-                            const imgEl = item.querySelector('img');
-                            if (imgEl) imgEl.classList.add('special-friend-avatar');
+                        
+                        if (info?.isSpecial) {
+                            item.querySelector('img')?.classList.add('special-friend-avatar');
                         }
+                        
                         let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                         tSpan.innerText = data.lastMessageTime;
+                        
                         let dot = item.querySelector('.unread-dot');
                         if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
                     });
 
-                    // 3. 红包解析
-                    document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+                    // 3. 消息详情页解析 (红包 + 通话)
+                    document.querySelectorAll('.message-text:not(.fixed-v9)').forEach(msg => {
                         const raw = msg.innerText;
-                        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('[通话|')) {
-                            msg.classList.add('fixed');
-                            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                            const bubble = msg.closest('.message-content') || msg.parentElement;
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                        const bubble = msg.closest('.message-content') || msg.parentElement;
+
+                        // --- 通话解析 ---
+                        if (raw.includes('[通话|')) {
+                            msg.classList.add('fixed-v9');
+                            const content = raw.split('[通话|')[1].split(']')[0];
+                            const parts = content.split('|');
+                            const name = parts[0] || "联系人";
+                            const status = parts[2] || "接通"; 
+                            const duration = parts[3] || "00:00";
+                            const dialogues = parts.slice(4);
+
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin-left:0 !important;";
+                            const card = document.createElement('div');
+                            card.className = 'beautiful-packet';
+                            card.style.cssText = `background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; min-width: 195px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important;`;
+                            
+                            if (status === '接通') {
+                                card.innerHTML = `<div style="font-size: 18px;">📞</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div><div style="font-size: 11px; color: #999;">点击回看对话详情</div></div><div style="color: #ccc; font-size: 12px;">▶</div>`;
+                                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectSoulUI(name, duration, dialogues); };
+                            } else {
+                                const isMissed = (status === '未接听' || status === '未接来电');
+                                card.innerHTML = `<div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div><div style="flex-grow: 1;"><div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div><div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div></div>`;
+                            }
+                            msg.innerHTML = ''; msg.appendChild(card);
+                        }
+
+                        // --- 红包解析 ---
+                        if (raw.includes('[红包|')) {
+                            msg.classList.add('fixed-v9');
+                            const content = raw.split('[红包|')[1].split(']')[0];
+                            const parts = content.split('|'); // ID|金额|祝福
+                            const amt = parts[1] || "8.88";
+                            const wish = parts[2] || "恭喜发财";
+                            
+                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin-left:0 !important;";
                             const card = document.createElement('div');
                             card.className = 'beautiful-packet';
                             card.innerHTML = `<div>🧧 ${wish}</div><div class="packet-footer">微信红包 (￥${amt})</div>`;
@@ -6730,67 +6777,8 @@ renderAddFriendTab() {
                         }
                     });
 
-                    // --- 4. 通话记录解析逻辑 (全兼容增强版) ---
-                    document.querySelectorAll('.message-text:not(.call-fixed)').forEach(msg => {
-                        const raw = msg.innerText;
-                        // 只要包含 [通话| 且没被处理过就激活
-                        if (raw.includes('[通话|')) {
-                            msg.classList.add('call-fixed');
-                            
-                            // 更加鲁棒的解析：提取方括号内部的内容
-                            // 适配格式：[通话|姓名|ID|状态|时长|对话1|对话2...]
-                            const callMatch = raw.match(/\[通话\|(.*?)\]/);
-                            if (!callMatch) return;
-                            
-                            const content = callMatch[1]; // 获取 姓名|ID|状态... 这一部分
-                            const parts = content.split('|');
-                            
-                            const name = parts[0] || "联系人";
-                            const status = parts[2] || "接通"; 
-                            const duration = parts[3] || "00:00";
-                            const dialogues = parts.slice(4); 
-
-                            const bubble = msg.closest('.message-content') || msg.parentElement;
-                            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                            
-                            const card = document.createElement('div');
-                            card.className = 'beautiful-packet'; 
-                            card.style.cssText = `background: #fff !important; color: #333 !important; border-radius: 12px !important; padding: 12px 15px !important; min-width: 195px !important; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; border: 1px solid #eee !important; display: flex; align-items: center; gap: 10px; margin-left: 0px !important;`;
-
-                            if (status === '接通') {
-                                card.innerHTML = `
-                                    <div style="font-size: 18px;">📞</div>
-                                    <div style="flex-grow: 1;">
-                                        <div style="font-weight: bold; font-size: 14px;">通话时长 ${duration}</div>
-                                        <div style="font-size: 11px; color: #999;">点击回看对话详情</div>
-                                    </div>
-                                    <div style="color: #ccc; font-size: 12px;">▶</div>
-                                `;
-                                card.onclick = (e) => { 
-                                    e.stopPropagation(); 
-                                    window.launchPerfectSoulUI(name, duration, dialogues); 
-                                };
-                            } else {
-                                const isMissed = (status === '未接听' || status === '未接来电');
-                                card.style.opacity = "0.8"; card.style.cursor = "default";
-                                card.innerHTML = `
-                                    <div style="font-size: 18px; color: ${isMissed ? '#ff3b30' : '#999'};">${isMissed ? '🚫' : '✖️'}</div>
-                                    <div style="flex-grow: 1;">
-                                        <div style="font-weight: bold; font-size: 14px; color: ${isMissed ? '#ff3b30' : '#333'};">${isMissed ? '未接来电' : '通话已拒绝'}</div>
-                                        <div style="font-size: 11px; color: #999;">${isMissed ? '对方无应答' : '已结束'}</div>
-                                    </div>
-                                `;
-                            }
-                            msg.innerHTML = '';
-                            msg.appendChild(card);
-                        }
-                    });
-
-                } catch (e) { 
-                    console.error("刷新出错:", e); 
-                } finally {
-                    setTimeout(() => { isHandling = false; }, 200);
-                }
+                } catch (e) { console.error("渲染出错:", e); } 
+                finally { setTimeout(() => { isHandling = false; }, 200); }
             });
             uiObserver.observe(document.body, { childList: true, subtree: true });
         }
