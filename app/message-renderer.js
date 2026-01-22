@@ -391,93 +391,93 @@ if (typeof window.MessageRenderer === 'undefined') {
      * 提取指定好友的所有消息
      * @param {string|string[]} friendId - 好友ID，可以是单个ID或ID数组
      */
-    async extractMessagesForFriend(friendId) {
-      if (!this.contextMonitor) {
-        throw new Error('上下文监控器未加载');
-      }
+   async extractMessagesForFriend(friendId, friendName) {
+        console.log(`[Message Renderer] 正在提取好友消息: ${friendId} (${friendName})`);
 
-      try {
-        // =========== 🚀 增强版：全状态通话识别与头像修复 ===========
         let chatData = [];
         const raw = window.chat;
-        chatData = Array.isArray(raw) ? raw : (raw?.chat || []);
+        chatData = (raw && Array.isArray(raw)) ? raw : (raw?.chat || []);
 
-        // 1. 扫描 DOM 抓取实时数据和头像
+        // 1. 数据保底：如果变量拿不到，直接扫描网页 DOM (含头像和名称清洗)
         if (chatData.length === 0) {
-            console.warn('[Message Renderer] 启动 DOM 精准扫描...');
+            console.warn('[Message Renderer] 启动 DOM 深度扫描模式...');
             chatData = Array.from(document.querySelectorAll('.mes')).map(el => {
                 const textEl = el.querySelector('.mes_text');
                 const imgEl = el.querySelector('.avatar img');
-                const nameEl = el.querySelector('.ch_name');
+                // 解决你之前诊断出的“名称+时间戳”问题：只取换行符前的内容
+                let rawName = el.querySelector('.ch_name')?.innerText || '';
+                let cleanName = rawName.split('\n')[0].trim();
+                
                 return {
                     mes: textEl ? textEl.innerText : '',
                     is_user: el.classList.contains('last_mes_user'),
-                    name: nameEl ? nameEl.innerText.trim() : '',
-                    avatar: imgEl ? imgEl.src : '' 
+                    name: cleanName,
+                    avatar: imgEl ? imgEl.src : ''
                 };
             });
         }
 
-        const allMessages = [];
+        // 2. 遍历解析消息，区分“指令”和“普通对话”
+        const allParsedMessages = [];
         chatData.forEach((msg, index) => {
             const rawText = msg.mes || '';
-            
-            // 2. 识别是否包含 [通话| 标签
-            if (rawText.includes('[通话|')) {
-                // 正则匹配完整的通话指令块
-                const callMatches = rawText.match(/\[通话\|[^\]]+\]/g);
-                if (callMatches) {
-                    callMatches.forEach((matchStr, subIdx) => {
-                        const parts = matchStr.replace('[', '').replace(']', '').split('|');
-                        // parts 结构: ["通话", "姓名", "ID", "状态", "时长/内容...", ...]
-                        const status = parts[3]; // 接通 / 未接听 / 已拒绝
-                        
-                        allMessages.push({
-                            id: `call-${index}-${subIdx}`,
-                            content: matchStr,
-                            isMine: msg.is_user,
-                            senderName: parts[1],
-                            senderId: parts[2],
+            const isInstruction = rawText.includes('[时间|') || rawText.includes('[通话|');
+
+            if (isInstruction) {
+                // 指令模式：处理通话或时间标签
+                const matches = rawText.match(/\[(?:时间|通话)\|[^\]]+\][^\[]*/g);
+                if (matches) {
+                    matches.forEach((m, subIdx) => {
+                        const content = m.trim();
+                        const isCall = content.includes('[通话|');
+                        allParsedMessages.push({
+                            id: `inst-${index}-${subIdx}`,
+                            content: content,
+                            isMine: content.includes('我方消息') || msg.is_user,
+                            senderName: isCall ? (content.split('|')[1] || msg.name) : msg.name,
                             avatar: msg.avatar,
-                            type: '通话',
-                            callStatus: status, // 存入状态供后续渲染图像使用
-                            dialogues: status === '接通' ? parts.slice(5) : [] // 提取 5 索引之后的对话流
+                            type: isCall ? '通话' : '文字',
+                            isInstruction: true
                         });
                     });
                 }
             } else {
-                // 3. 保留普通聊天（解决抓取过死的问题）
-                // 排除 [手机快讯] 等系统标记，保留真实文字
-                const cleanText = rawText.replace(/\[手机快讯\]/g, '').trim();
-                if (cleanText) {
-                    allMessages.push({
-                        id: `msg-${index}`,
-                        content: cleanText,
-                        isMine: msg.is_user,
-                        senderName: msg.name || (msg.is_user ? '我' : '对方'),
-                        avatar: msg.avatar,
-                        type: '文字'
-                    });
-                }
+                // 普通对话模式：不再丢弃，全部保留
+                allParsedMessages.push({
+                    id: `msg-${index}`,
+                    content: rawText,
+                    isMine: msg.is_user,
+                    senderName: msg.name || (msg.is_user ? '我' : '对方'),
+                    avatar: msg.avatar,
+                    type: '文字',
+                    isInstruction: false
+                });
             }
         });
 
-        // 4. 根据当前详情页好友 ID 过滤
-        const targetFriendId = String(friendId);
-        const filteredForFriend = allMessages.filter(m => {
-            // 如果消息 ID 匹配，或者发送人名字匹配，或者是我发的
-            return (m.senderId === targetFriendId) || 
-                   (m.senderName && m.senderName.includes("陈一众") && targetFriendId === "103") ||
-                   m.isMine;
+        // 3. 智能过滤：根据当前点开的好友 ID 或 名字进行筛选
+        const targetId = String(friendId);
+        const filtered = allParsedMessages.filter(m => {
+            const c = m.content;
+            // 匹配逻辑：
+            // A. 指令里包含该好友 ID (如 |103|)
+            // B. 消息发送者名字正好是该好友名
+            // C. 针对陈一众(103)的特殊兼容
+            // D. 如果是我发的消息，且上下文属于该好友
+            return c.includes(`|${targetId}|`) || 
+                   m.senderName === friendName || 
+                   (targetId === "103" && m.senderName.includes("陈一众")) ||
+                   (m.isMine && allParsedMessages.some((prev, pIdx) => pIdx < allParsedMessages.indexOf(m) && prev.content.includes(`|${targetId}|`)));
         });
 
-        this.allMessages = filteredForFriend;
-        return { 
-            allMessages: filteredForFriend, 
-            myMessages: filteredForFriend.filter(m => m.isMine), 
-            otherMessages: filteredForFriend.filter(m => !m.isMine),
-            groupMessages: [] 
+        this.allMessages = filtered;
+        return {
+            allMessages: filtered,
+            myMessages: filtered.filter(m => m.isMine),
+            otherMessages: filtered.filter(m => !m.isMine),
+            groupMessages: []
         };
+    }
         
         if (window.DEBUG_MESSAGE_RENDERER) {
           console.log('[Message Renderer] 🔥 开始使用统一提取法...');
