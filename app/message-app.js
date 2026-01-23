@@ -6779,46 +6779,41 @@ renderAddFriendTab() {
             // 修改后的探测逻辑：只要包含“红包”，且有分隔符或数字，就强行介入
             else if (raw.includes('红包') && (raw.includes('|') || raw.includes('(') || raw.match(/\d/))) {
                 
-                // 标记已处理，防止重复渲染
-                msg.classList.add('v21-done');
-
-                // --- 强力提取金额和祝福语 (兼容被其他插件修改后的格式) ---
+                // 提取数据
                 const amtMatch = raw.match(/\d+(\.\d+)?/);
                 const amt = amtMatch ? amtMatch[0] : "8.88";
-                
-                // 祝福语提取：取最后一个竖线或括号后的内容
                 const parts = raw.split(/[|(|)]/);
                 const wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
                 
+                // 12px 圆角及微信红包卡片 HTML
+                // 注意：这里直接写死 style，确保不被外部 CSS 干扰
+                const cardHtml = `
+                    <div class="message-text v21-done beautiful-packet" 
+                         style="background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; 
+                                border-radius: 12px !important; 
+                                padding: 12px 16px !important; 
+                                width: 210px !important; 
+                                cursor: pointer; 
+                                box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                                margin: 4px 0 !important;
+                                display: block !important;"
+                         onclick="window.launchPerfectPacket('${wish}', '${amt}')">
+                        <div style="font-size:14px; font-weight:bold; color:white !important; margin-bottom:4px;">🧧 ${wish}</div>
+                        <div style="font-size:11px; opacity:0.8; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; color:white !important;">微信红包</div>
+                    </div>
+                `;
+
                 if (bubble) {
-                    // 【样式锁定】必须强制透明并靠左，防止被原作者的“大气泡”遮挡
+                    // 彻底清除父级气泡的所有视觉特征（背景、边框、阴影）
                     bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important; width:auto !important; min-width:unset !important;";
                     if (bubble.parentElement) {
                         bubble.parentElement.style.justifyContent = "flex-start";
                         bubble.parentElement.style.display = "flex";
                     }
                 }
-                
-                // 彻底清空可能存在的残留文字（如作者生成的括号文字）
-                msg.innerHTML = ''; 
 
-                const card = document.createElement('div');
-                // 使用你的 beautiful-packet 类名，并补上 12px 圆角内联样式
-                card.className = 'beautiful-packet';
-                card.style.borderRadius = "12px"; 
-                
-                card.innerHTML = `
-                    <div style="font-size:14px; font-weight:bold; color:white !important;">🧧 ${wish}</div>
-                    <div style="font-size:11px; opacity:0.8; margin-top:4px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; color:white !important;">微信红包</div>
-                `;
-                
-                // 保留你的点击回调功能
-                card.onclick = (e) => { 
-                    e.stopPropagation(); 
-                    window.launchPerfectPacket(wish, amt); 
-                };
-                
-                msg.appendChild(card);
+                // 【核心变动】不再用 appendChild，而是直接替换掉整个 msg 节点
+                msg.outerHTML = cardHtml;
             }
         });
     }, 800);
