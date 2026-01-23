@@ -2142,23 +2142,55 @@
 }
 .delete-group-content{padding-top: 10px;}
 
-/* --- 修改建议：message-renderer.css --- */
+/* --- V21 增强型红包渲染防御逻辑 --- */
 
-/* 强制锁定红包容器的 12px 圆角和左边距 */
-.message-detail-app .beautiful-packet {
-    margin-left: 0px !important;
-    border-radius: 12px !important;
-    background: linear-gradient(135deg, #f25542 0%, #d84e43 100%) !important;
-    padding: 12px 16px !important;
-    min-width: 200px !important;
-    box-shadow: 0 4px 12px rgba(242, 85, 66, 0.3) !important;
-    color: #fff !important;
-    overflow: hidden !important;
+/* 1. 彻底抹除原作者对红包气泡的所有视觉干预 */
+.message-received[title='红包'] > .message-content,
+.message-sent[title='红包'] > .message-content {
+    background: transparent !important; /* 抹除作者的气泡颜色 */
+    border: none !important;            /* 抹除边框 */
+    box-shadow: none !important;        /* 抹除阴影 */
+    padding: 0 !important;              /* 抹除内边距，由我们的卡片控制 */
+    min-width: unset !important;        /* 重置最小宽度 */
+    transform: none !important;         /* 禁用作者的浮动动画 */
+    animation: none !important;
 }
 
-/* 拦截收到红包消息时的背景残留 */
-.message-received .message-content.v21-done {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+/* 2. 清除作者残留的伪元素符号(￥等) */
+.message-received[title='红包'] .message-text::before,
+.message-received[title='红包'] .message-text::after,
+.message-sent[title='红包'] .message-text::before,
+.message-sent[title='红包'] .message-text::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* 3. 强制锁定我们自己的红包卡片样式 (12px 圆角 + 靠左) */
+.message-detail-app .beautiful-packet {
+    margin-left: 0px !important;            /* 强制靠左 */
+    border-radius: 12px !important;         /* 强制12px圆角 */
+    background: linear-gradient(135deg, #f25542 0%, #d84e43 100%) !important;
+    padding: 12px 16px !important;
+    min-width: 210px !important;
+    max-width: 250px !important;
+    box-shadow: 0 4px 12px rgba(242, 85, 66, 0.2) !important;
+    color: #ffffff !important;
+    overflow: hidden !important;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+/* 4. 处理红包内的文字排版，防止被作者的老样式干扰 */
+.beautiful-packet div {
+    color: #ffffff !important;
+    text-align: left !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: sans-serif !important;
+}
+
+/* 5. 简单的点击反馈(可选) */
+.beautiful-packet:active {
+    transform: scale(0.98);
+    filter: brightness(0.9);
 }
