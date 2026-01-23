@@ -6776,31 +6776,41 @@ renderAddFriendTab() {
             } 
             
             // 2. 红包渲染逻辑 (进行拦截与样式锁定)
-            else if (raw.includes('|红包|')) {
-                // 如果已经渲染过了，直接跳过，防止由于多次渲染导致的闪烁
-                if (msg.querySelector('.new-packet-fixed')) return;
-
+            // 2. 红包渲染逻辑 (增强探测与强力覆盖)
+            // 探测逻辑：只要包含“红包”两个字，且带有分隔符，或者已经被作者改过的特征
+            else if (raw.includes('红包') && (raw.includes('|') || raw.includes('('))) {
+                
+                // 标记已处理
                 msg.classList.add('v21-done');
-                const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+
+                // --- 提取金额和祝福语 (兼容作者改动后的格式) ---
+                // 尝试从不同的格式中提取数字和文字
+                const amtMatch = raw.match(/\d+(\.\d+)?/);
+                const amt = amtMatch ? amtMatch[0] : "8.88";
+                
+                // 提取祝福语：取最后一个分隔符后的文字，并去掉括号或中括号
+                const parts = raw.split(/[|(|)]/);
+                const wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
                 
                 if (bubble) {
-                    // 【底层锁定】彻底清除气泡背景，强制靠左，左边距 0
-                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important;";
+                    // 【底层锁定】彻底清除原作者的背景
+                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important; width:auto !important; min-width:unset !important;";
                     if (bubble.parentElement) {
                         bubble.parentElement.style.justifyContent = "flex-start";
+                        bubble.parentElement.style.display = "flex";
                     }
                 }
                 
+                // 清空原作者渲染的“大号文字”
+                msg.innerHTML = ''; 
+
                 const card = document.createElement('div');
-                // 【类名标记】加入 new-packet-fixed 方便后续识别拦截
                 card.className = 'beautiful-packet new-packet-fixed';
-                // 【圆角锁定】直接在 HTML 里注入 12px 圆角保险
-                card.style.borderRadius = "12px";
+                // 这里的 CSS 类名会触发你在 CSS 文件里写的 12px 圆角样式
                 
                 card.innerHTML = `
-                    <div style="font-size:14px; font-weight:bold;">🧧 ${wish}</div>
-                    <div style="font-size:11px; opacity:0.8; margin-top:4px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包</div>
+                    <div style="font-size:14px; font-weight:bold; color:white !important;">🧧 ${wish}</div>
+                    <div style="font-size:11px; opacity:0.8; margin-top:4px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; color:white !important;">微信红包</div>
                 `;
                 
                 card.onclick = (e) => { 
@@ -6808,8 +6818,6 @@ renderAddFriendTab() {
                     window.launchPerfectPacket(wish, amt); 
                 };
                 
-                // 彻底清空，防止残留
-                msg.innerHTML = ''; 
                 msg.appendChild(card);
             }
         });
