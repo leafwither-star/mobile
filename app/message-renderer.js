@@ -138,11 +138,6 @@ if (typeof window.MessageRenderer === 'undefined') {
       // 3. 根据消息类型和内容特征估计位置
       let estimatedPosition = globalIndex || 0;
 
-      // 如果是红包消息，通常比较早
-      if (content.includes('红包') || content.includes('100')) {
-        estimatedPosition = estimatedPosition - 1000;
-      }
-
       // 如果是语音消息，通常比较晚
       if (content.includes('语音') || message.msgType === '语音') {
         estimatedPosition = estimatedPosition + 1000;
