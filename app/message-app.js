@@ -6758,10 +6758,12 @@ renderAddFriendTab() {
             }
         });
 
-        // 聊天气泡渲染
+        // 聊天气泡渲染 - 加固稳定版
         document.querySelectorAll('.message-text:not(.v21-done)').forEach(msg => {
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
+            
+            // 1. 语音通话逻辑 (保持原样，仅做微调)
             if (raw.includes('语音通话') || raw.includes('📞')) {
                 msg.classList.add('v21-done');
                 const parts = raw.split('|').map(p => p.trim());
@@ -6771,22 +6773,44 @@ renderAddFriendTab() {
                 card.innerHTML = `<div style="font-size:14px;">📞 语音通话</div><div style="font-size:11px;color:#b2b2b2;margin-left:20px;">${parts[0].replace('📞','').trim()}</div>`;
                 card.onclick = (e) => { e.stopPropagation(); window.launchCallUI("联系人", parts.slice(1), (document.getElementById('app-title')?.innerText.match(/\d+/) || ["103"])[0]); };
                 msg.innerHTML = ''; msg.appendChild(card);
-            } else if (raw.includes('|红包|')) {
+            } 
+            
+            // 2. 红包渲染逻辑 (进行拦截与样式锁定)
+            else if (raw.includes('|红包|')) {
+                // 如果已经渲染过了，直接跳过，防止由于多次渲染导致的闪烁
+                if (msg.querySelector('.new-packet-fixed')) return;
+
                 msg.classList.add('v21-done');
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                 const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
                 
                 if (bubble) {
-                    // 彻底清除容器背景与阴影，强制靠左对齐
-                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0 !important;";
-                    if (bubble.parentElement) bubble.parentElement.style.justifyContent = "flex-start";
+                    // 【底层锁定】彻底清除气泡背景，强制靠左，左边距 0
+                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important;";
+                    if (bubble.parentElement) {
+                        bubble.parentElement.style.justifyContent = "flex-start";
+                    }
                 }
                 
                 const card = document.createElement('div');
-                card.className = 'beautiful-packet';
-                card.innerHTML = `<div style="font-size:14px;">🧧 ${wish}</div><div style="font-size:11px;opacity:0.7;margin-top:4px;border-top:1px solid rgba(255,255,255,0.2);padding-top:4px;">微信红包</div>`;
-                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; msg.appendChild(card);
+                // 【类名标记】加入 new-packet-fixed 方便后续识别拦截
+                card.className = 'beautiful-packet new-packet-fixed';
+                // 【圆角锁定】直接在 HTML 里注入 12px 圆角保险
+                card.style.borderRadius = "12px";
+                
+                card.innerHTML = `
+                    <div style="font-size:14px; font-weight:bold;">🧧 ${wish}</div>
+                    <div style="font-size:11px; opacity:0.8; margin-top:4px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包</div>
+                `;
+                
+                card.onclick = (e) => { 
+                    e.stopPropagation(); 
+                    window.launchPerfectPacket(wish, amt); 
+                };
+                
+                // 彻底清空，防止残留
+                msg.innerHTML = ''; 
+                msg.appendChild(card);
             }
         });
     }, 800);
