@@ -2141,3 +2141,24 @@
   color: #333 !important;
 }
 .delete-group-content{padding-top: 10px;}
+
+/* --- 修改建议：message-renderer.css --- */
+
+/* 强制锁定红包容器的 12px 圆角和左边距 */
+.message-detail-app .beautiful-packet {
+    margin-left: 0px !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #f25542 0%, #d84e43 100%) !important;
+    padding: 12px 16px !important;
+    min-width: 200px !important;
+    box-shadow: 0 4px 12px rgba(242, 85, 66, 0.3) !important;
+    color: #fff !important;
+    overflow: hidden !important;
+}
+
+/* 拦截收到红包消息时的背景残留 */
+.message-received .message-content.v21-done {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
