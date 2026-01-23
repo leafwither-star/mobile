@@ -6775,25 +6775,23 @@ renderAddFriendTab() {
                 msg.innerHTML = ''; msg.appendChild(card);
             } 
             
-            // 2. 红包渲染逻辑 (进行拦截与样式锁定)
-            // 2. 红包渲染逻辑 (增强探测与强力覆盖)
-            // 探测逻辑：只要包含“红包”两个字，且带有分隔符，或者已经被作者改过的特征
-            else if (raw.includes('红包') && (raw.includes('|') || raw.includes('('))) {
+            // 2. 红包渲染逻辑 (增强探测与强力覆盖 - 保持所有原有功能)
+            // 修改后的探测逻辑：只要包含“红包”，且有分隔符或数字，就强行介入
+            else if (raw.includes('红包') && (raw.includes('|') || raw.includes('(') || raw.match(/\d/))) {
                 
-                // 标记已处理
+                // 标记已处理，防止重复渲染
                 msg.classList.add('v21-done');
 
-                // --- 提取金额和祝福语 (兼容作者改动后的格式) ---
-                // 尝试从不同的格式中提取数字和文字
+                // --- 强力提取金额和祝福语 (兼容被其他插件修改后的格式) ---
                 const amtMatch = raw.match(/\d+(\.\d+)?/);
                 const amt = amtMatch ? amtMatch[0] : "8.88";
                 
-                // 提取祝福语：取最后一个分隔符后的文字，并去掉括号或中括号
+                // 祝福语提取：取最后一个竖线或括号后的内容
                 const parts = raw.split(/[|(|)]/);
                 const wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
                 
                 if (bubble) {
-                    // 【底层锁定】彻底清除原作者的背景
+                    // 【样式锁定】必须强制透明并靠左，防止被原作者的“大气泡”遮挡
                     bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important; width:auto !important; min-width:unset !important;";
                     if (bubble.parentElement) {
                         bubble.parentElement.style.justifyContent = "flex-start";
@@ -6801,18 +6799,20 @@ renderAddFriendTab() {
                     }
                 }
                 
-                // 清空原作者渲染的“大号文字”
+                // 彻底清空可能存在的残留文字（如作者生成的括号文字）
                 msg.innerHTML = ''; 
 
                 const card = document.createElement('div');
-                card.className = 'beautiful-packet new-packet-fixed';
-                // 这里的 CSS 类名会触发你在 CSS 文件里写的 12px 圆角样式
+                // 使用你的 beautiful-packet 类名，并补上 12px 圆角内联样式
+                card.className = 'beautiful-packet';
+                card.style.borderRadius = "12px"; 
                 
                 card.innerHTML = `
                     <div style="font-size:14px; font-weight:bold; color:white !important;">🧧 ${wish}</div>
                     <div style="font-size:11px; opacity:0.8; margin-top:4px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; color:white !important;">微信红包</div>
                 `;
                 
+                // 保留你的点击回调功能
                 card.onclick = (e) => { 
                     e.stopPropagation(); 
                     window.launchPerfectPacket(wish, amt); 
