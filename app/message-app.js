@@ -6959,53 +6959,79 @@ renderAddFriendTab() {
     const card = document.createElement('div');
     card.className = 'call-record-card';
     
-    if (isSuccess) {
-        // 修改点：增加“📖 ▽”按钮
-        card.innerHTML = `
-            <div class="call-row-top"><span>📞</span>语音通话</div>
-            <div class="call-row-bottom">
-                <span>${status}</span>
-                <span class="pre-btn" style="color:#999; cursor:pointer; font-size:12px; margin-left:8px;">📖 ▽</span>
-            </div>
-        `;
+    收到！我完全明白你的“红包恐惧症”了，咱们这次执行最高级别的“红包保护协议”：红包部分的代码我连空格都不敢动你的，原封不动挪过来。
 
-        // 只有接通状态才创建预览框
-        const preview = document.createElement('div');
-        preview.className = 'call-text-preview';
-        // 这里的 style 完全保留，不影响红包
-        preview.style.cssText = "width:195px; background:#fafafa; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#777; display:none; white-space:pre-wrap; margin-top:-6px; margin-bottom:8px;";
-        preview.innerText = dialogues.join('\n');
+报错的原因确实还是括号逻辑。在 if (isSuccess) { ... } else { ... } 结束之后，少了一个用来关掉最外层 if (raw.includes('语音通话')) 的大括号，导致后面的 else if 红包逻辑直接报错。
 
-        // 绑定点击：点卡片触发通话，点 📖 展开文字
-        card.onclick = (e) => { 
-            e.stopPropagation(); 
-            window.launchCallUI(name, dialogues, fId); 
-        };
+这是为你精准缝合后的版本，直接全选替换你刚才贴给我的这一整块：
 
-        const btn = card.querySelector('.pre-btn');
-        btn.onclick = (e) => {
-            e.stopPropagation(); // 阻止触发通话
-            const isH = preview.style.display === 'none';
-            preview.style.display = isH ? 'block' : 'none';
-            btn.innerHTML = isH ? '📖 △' : '📖 ▽';
-            card.style.borderRadius = isH ? '8px 8px 0 0' : '8px';
-            card.style.borderBottom = isH ? 'none' : '1px solid #eeeeee';
-        };
+JavaScript
+            // --- 1. 语音通话气泡转换 ---
+            if (raw.includes('语音通话') || raw.includes('📞')) {
+                msg.classList.add('fixed');
+                const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
+                
+                let status = isSuccess ? "(已接通)" : "(未接通)";
+                const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
+                if (leftBracketIdx !== -1) {
+                    let afterBracket = raw.substring(leftBracketIdx);
+                    status = afterBracket.split(/[|\]]/)[0].trim();
+                }
 
-        msg.innerHTML = '';
-        msg.appendChild(card);
-        msg.appendChild(preview); // 将预览框挂在卡片下面
-    } else {
-        // 未接通保持原样
-        card.innerHTML = `
-            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
-            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
-        `;
-        card.style.cursor = "default";
-        card.onclick = (e) => { e.stopPropagation(); };
-        msg.innerHTML = '';
-        msg.appendChild(card);
-    }
+                let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+                const parts = cleanRaw.split('|').map(p => p.trim());
+                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+                const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
+                
+                const titleEl = document.getElementById('app-title');
+                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+
+                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+                
+                const card = document.createElement('div');
+                card.className = 'call-record-card';
+                
+                if (isSuccess) {
+                    card.innerHTML = `
+                        <div class="call-row-top"><span>📞</span>语音通话</div>
+                        <div class="call-row-bottom">
+                            <span>${status}</span>
+                            <span class="pre-btn" style="color:#999; cursor:pointer; font-size:12px; margin-left:8px;">📖 ▽</span>
+                        </div>
+                    `;
+                    const preview = document.createElement('div');
+                    preview.className = 'call-text-preview';
+                    preview.style.cssText = "width:195px; background:#fafafa; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#777; display:none; white-space:pre-wrap; margin-top:-6px; margin-bottom:8px;";
+                    preview.innerText = dialogues.join('\n');
+
+                    card.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        window.launchCallUI(name, dialogues, fId); 
+                    };
+                    const btn = card.querySelector('.pre-btn');
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const isH = preview.style.display === 'none';
+                        preview.style.display = isH ? 'block' : 'none';
+                        btn.innerHTML = isH ? '📖 △' : '📖 ▽';
+                        card.style.borderRadius = isH ? '8px 8px 0 0' : '8px';
+                        card.style.borderBottom = isH ? 'none' : '1px solid #eeeeee';
+                    };
+                    msg.innerHTML = '';
+                    msg.appendChild(card);
+                    msg.appendChild(preview);
+                } else {
+                    card.innerHTML = `
+                        <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
+                        <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
+                    `;
+                    card.style.cursor = "default";
+                    card.onclick = (e) => { e.stopPropagation(); };
+                    msg.innerHTML = '';
+                    msg.appendChild(card);
+                } 
+            } // <--- 关键点：这个大括号是用来结束“语音通话”判断的
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
