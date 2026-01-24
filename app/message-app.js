@@ -6587,6 +6587,24 @@ renderAddFriendTab() {
             @keyframes in-v16 { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         `;
         document.head.appendChild(style);
+      /* 强制修正红包容器：锁死位置和圆角裁切 */
+            .message-received .message-text:has(.beautiful-packet) {
+                display: block !important;
+                text-align: left !important;
+                overflow: visible !important;
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+                width: 100% !important;
+            }
+
+            /* 强制修正红包卡片：确保它不飘移 */
+            .message-received .message-text .beautiful-packet {
+                margin-left: 0 !important;
+                margin-right: auto !important;
+                display: block !important;
+                position: relative !important;
+                left: 0 !important;
+            }
     }
 
     /**
