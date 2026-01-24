@@ -6840,25 +6840,28 @@ renderAddFriendTab() {
     
     const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
     
-    // 【核心修复】精准抓取：只拿第一对括号里的内容
-    const statusMatch = raw.match(/[(（][^()（）]*[)）]/);
-    let status = statusMatch ? statusMatch[0] : (isSuccess ? "(已接通)" : "(未接通)");
+    // --- 1. 提取状态文字（包含括号和后面的时长） ---
+    let status = isSuccess ? "(已接通)" : "(未接通)";
+    // 逻辑：找到第一个左括号开始，一直截取到这一段的末尾（管道符之前）
+    const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
+    if (leftBracketIdx !== -1) {
+        let afterBracket = raw.substring(leftBracketIdx);
+        // 在管道符 | 或者 结束符 ] 处截止
+        status = afterBracket.split(/[|\]]/)[0].trim();
+    }
 
-    // 提取对话：先切掉所有标记和状态描述
+    // --- 2. 提取对话内容 ---
     let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-    
-    // 寻找对话起始点：在状态描述之后的第一个管道符 |
     const parts = cleanRaw.split('|').map(p => p.trim());
     const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-    
-    // 只有在 statusIdx 之后的才是真正的对话
-    const dialogues = (statusIdx !== -1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
+    // 确保 dialogues 是个数组，即使后面没话也不报错
+    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
     
     const titleEl = document.getElementById('app-title');
     const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
     const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
-    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
     
     const card = document.createElement('div');
     card.className = 'call-record-card';
@@ -6868,8 +6871,11 @@ renderAddFriendTab() {
             <div class="call-row-top"><span>📞</span>语音通话</div>
             <div class="call-row-bottom">${status}</div>
         `;
+        // 绑定点击事件
         card.onclick = (e) => { 
+            e.preventDefault();
             e.stopPropagation(); 
+            // 只有接通状态且有对话时才弹出 UI，防止报错闪烁
             window.launchCallUI(name, dialogues, fId); 
         };
     } else {
@@ -6878,6 +6884,7 @@ renderAddFriendTab() {
             <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
         `;
         card.style.cursor = "default";
+        card.onclick = (e) => { e.stopPropagation(); }; // 阻止未接通时的事件冒泡
     }
     
     msg.innerHTML = '';
