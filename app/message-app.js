@@ -6738,66 +6738,94 @@ renderAddFriendTab() {
     };
 
    /**
-     * 【6. 渲染循环 - 强制夺权版】
+     * 【6. 渲染循环 - 影子劫持增强版】
+     * 专门应对作者 message-sender.js 对红包格式的篡改
      */
     const forceRenderPacket = () => {
-        // 查找所有包含“红包”文字但还没处理好的消息
+        // 查找所有包含“红包”文字的消息，无论作者给它加了什么乱码
         document.querySelectorAll('.message-text:not(.v21-done)').forEach(msg => {
-            const raw = msg.innerText;
+            const raw = msg.innerText || "";
             const bubble = msg.closest('.message-content');
             
-            // 只要包含红包关键字和特定符号
-            if (raw.includes('红包') && (raw.includes('|') || raw.includes('('))) {
+            // 只要文字里有“红包”两个字就介入
+            if (raw.includes('红包')) {
                 
+                // 1. 智能提取金额 (从作者格式中寻找数字)
                 const amtMatch = raw.match(/\d+(\.\d+)?/);
                 const amt = amtMatch ? amtMatch[0] : "8.88";
-                const parts = raw.split(/[|(|)]/);
-                const wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
-
-                // 1. 强制抹除父级气泡（防止作者脚本还原样式）
-                if (bubble) {
-                    bubble.style.setProperty('background', 'transparent', 'important');
-                    bubble.style.setProperty('border', 'none', 'important');
-                    bubble.style.setProperty('box-shadow', 'none', 'important');
-                    bubble.style.setProperty('padding', '0', 'important');
-                    bubble.parentElement.style.justifyContent = "flex-start";
+                
+                // 2. 智能提取祝福语 (兼容作者 sender.js 产生的：[红包：祝福语] 或 [红包|金额|祝福语])
+                let wish = "恭喜发财";
+                if (raw.includes('：')) {
+                    // 拆分作者 sender.js 的冒号格式
+                    wish = raw.split('：')[1]?.split('|')[0]?.split(']')[0] || "恭喜发财";
+                } else if (raw.includes('|')) {
+                    const parts = raw.split('|');
+                    wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
+                } else {
+                    // 保底：去掉标点符号提取文字
+                    wish = raw.replace(/[\[\]\(\)\d\.\|]/g, '').replace('红包', '').trim() || "恭喜发财";
                 }
 
-                // 2. 构造不含 message-text 类的 HTML，防止被 CSS 屏蔽
+                // 3. 强制抹除父级气泡所有样式 (彻底抹除作者的渲染痕迹)
+                if (bubble) {
+                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin-left:0px !important; width:auto !important; display:block !important;";
+                    if (bubble.parentElement) {
+                        // 关键：强制让发出的红包也靠左对齐，模仿微信风格
+                        bubble.parentElement.style.cssText = "display:flex !important; justify-content:flex-start !important; width:100% !important; background:none !important;";
+                    }
+                }
+
+                // 4. 构建并插入美化卡片
                 const card = document.createElement('div');
                 card.className = 'beautiful-packet v21-done'; 
-                card.style.cssText = "background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; border-radius: 12px !important; padding: 12px 16px !important; width: 210px !important; cursor: pointer; color: white !important; display: block !important; margin: 5px 0 !important; font-size: 14px !important;";
-                card.innerHTML = `
-                    <div style="font-weight:bold; margin-bottom:4px; pointer-events:none;">🧧 ${wish}</div>
-                    <div style="font-size:11px; opacity:0.8; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; pointer-events:none;">微信红包</div>
+                card.style.cssText = `
+                    background: linear-gradient(135deg, #fb973f 0%, #ff5e3a 100%) !important; 
+                    border-radius: 12px !important; 
+                    padding: 12px 16px !important; 
+                    width: 210px !important; 
+                    cursor: pointer; 
+                    color: white !important; 
+                    display: block !important; 
+                    margin: 5px 0 !important; 
+                    font-size: 14px !important;
+                    line-height: 1.4 !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+                    position: relative !important;
+                    z-index: 10 !important;
                 `;
                 
+                card.innerHTML = `
+                    <div style="font-weight:bold; color:white !important; margin-bottom:4px; pointer-events:none;">🧧 ${wish.trim()}</div>
+                    <div style="font-size:11px; opacity:0.8; border-top:1px solid rgba(255,255,255,0.2); margin-top:5px; padding-top:4px; color:white !important; pointer-events:none;">微信红包</div>
+                `;
+                
+                // 绑定点击事件：弹出领红包窗口
                 card.onclick = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    window.launchPerfectPacket(wish, amt);
+                    window.launchPerfectPacket(wish.trim(), amt);
                 };
 
-                // 3. 强力插入：清空原文字，塞入新卡片
+                // 执行替换
                 msg.innerHTML = '';
                 msg.appendChild(card);
                 msg.classList.add('v21-done');
-                // 特别防御：给 msg 一个标识，防止被 CSS 再次隐藏
-                msg.style.fontSize = "14px";
-                msg.style.color = "white";
-                msg.style.opacity = "1";
+                
+                // 防御：强制 message-text 容器本身可见且透明
+                msg.style.cssText = "display:block !important; font-size:14px !important; background:transparent !important; border:none !important; opacity:1 !important; visibility:visible !important;";
             }
         });
     };
 
-    // 使用 MutationObserver 监听 DOM 变化（比 setInterval 响应更快，专门对付虚拟滚动）
+    // 使用 MutationObserver 监听：只要 DOM 变了（比如翻页、新消息），就立刻重绘
     const observer = new MutationObserver(() => {
         forceRenderPacket();
-        setupCoreLogic(); // 顺便运行列表逻辑
+        if(window.friendRenderer) setupCoreLogic(); 
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
     
-    // 保底运行
-    setInterval(forceRenderPacket, 500);
+    // 每 800 毫秒保底运行一次，防止漏网之鱼
+    setInterval(forceRenderPacket, 800);
 })();
