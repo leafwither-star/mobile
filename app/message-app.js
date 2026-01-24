@@ -7049,36 +7049,38 @@ renderAddFriendTab() {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-      // --- 新增：微信语音消息识别与发声联动 ---
-        document.querySelectorAll('.voice-play-btn:not(.bound)').forEach(btn => {
-            btn.classList.add('bound'); 
-            
-            btn.onclick = async (e) => {
-                e.stopPropagation();
+     // --- 微信语音联动（兼容原插件版） ---
+        // 1. 使用事件委托：直接监听整个文档，这样哪怕按钮是刚冒出来的也能抓到
+        if (!window.voiceEventBound) {
+            document.addEventListener('click', async (e) => {
+                // 判断点击的是不是那个播放按钮
+                const btn = e.target.closest('.voice-play-btn');
+                if (!btn) return;
+
+                // 不要用 stopPropagation()，让原作者的展开逻辑正常跑
                 
                 const msgEl = btn.closest('.message-text');
                 if (!msgEl) return;
 
-                // 重点：使用 textContent 或从原始属性拿，防止文字展开后干扰抓取
+                // 2. 提取信息
                 const rawText = msgEl.innerText;
-                
-                // 提取说话人名
                 const match = rawText.match(/消息\|([^|]+)\|/); 
                 const speaker = match ? match[1] : "陈一众"; 
                 
-                // 更加干净的内容清洗：去掉所有方括号内容、去掉 ▶ 图标、去掉时间数字
+                // 3. 内容提纯 (去掉图标、方括号、时间、语音字样)
                 const content = rawText.replace(/\[.*?\]/g, '')
-                                      .replace(/[▶\d:：语音\s]+/g, '') // 增加清洗强度
+                                      .replace(/[▶\d:：语音\s]+/g, '')
                                       .trim();
 
-                if (!content) return; // 没内容就不报了
+                console.log(`[语音检测成功] 说话人: ${speaker}, 内容: ${content}`);
 
-                if (typeof fetchAndPlayVoice === 'function') {
-                    // 这里传过去后，fetchAndPlayVoice 会自动根据“陈一众：”来匹配声音
+                // 4. 发声
+                if (content && typeof fetchAndPlayVoice === 'function') {
                     await fetchAndPlayVoice(`${speaker}：${content}`);
                 }
-            };
-        });
+            }, true); // 使用捕获模式，确保能抢在某些逻辑前听到点击
+            window.voiceEventBound = true; // 确保全局只绑定一次
+        }
     };
 
     /**
