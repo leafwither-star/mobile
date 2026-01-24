@@ -6673,53 +6673,33 @@ renderAddFriendTab() {
     }
 
     /**
-     * 【第三部分：交互全系统】
-     */
-    // 红包 UI 逻辑 (完美保留)
-    window.launchPerfectPacket = (wish, amount) => {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:9999999; display:flex; align-items:center; justify-content:center;";
-        overlay.innerHTML = `<div style="width:280px; height:380px; background:#cf4e46; border-radius:20px; display:flex; flex-direction:column; align-items:center; color:#fbd69b; position:relative;">
-            <div style="position:absolute; top:15px; right:15px; font-size:24px; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</div>
-            <div style="margin-top:50px; opacity:0.7; font-size:13px;">来自好友的红包</div>
-            <div style="margin-top:25px; font-size:19px; font-weight:bold; padding:0 25px; text-align:center;">${wish}</div>
-            <div id="p-open-btn" style="width:85px; height:85px; background:#fbd69b; color:#cf4e46; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:bold; cursor:pointer; margin-top:40px; transition:0.6s;">開</div>
-        </div>`;
-        document.body.appendChild(overlay);
-        document.getElementById('p-open-btn').onclick = function() {
-            this.style.transform = "rotateY(720deg)";
-            setTimeout(() => {
-                this.parentElement.innerHTML = `<div style="position:absolute; top:15px; right:15px; font-size:24px; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</div>
-                <div style="margin-top:90px; font-size:45px; font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
-                <div style="margin-top:15px; opacity:0.8; font-size:14px;">已存入零钱</div>`;
-            }, 600);
-        };
-    };
+ * 【第三部分：交互全系统】
+ */
 
-   /**
+// --- 1. 全局配置区（放在所有函数最外面，确保谁都能看见） ---
+const GLOBAL_API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
+const GLOBAL_GROUP_ID = "2014232095953523532";
+
+/**
  * 终极 TTS 引擎：支持微信语音格式提取 & 通话记录格式提取
  */
 window.fetchAndPlayVoice = async function(rawLine) {
     if (!rawLine) return;
 
+    // 内部直接使用外部定义的全局变量
     let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
-    let speakerName = "陈一众"; // 默认角色
+    let speakerName = "陈一众"; 
     let cleanText = "";
 
     // --- 逻辑 A：处理微信语音插件格式 ---
-    // 格式：[时间|...][对方消息|陈一众|103|语音|台词内容...][UNREAD]
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
-        // 1. 提取名字（用来选嗓音）
         const nameMatch = rawLine.match(/\|([^|]+)\|103\|/); 
         speakerName = nameMatch ? nameMatch[1] : "陈一众";
-
-        // 2. 提取台词（剔除所有方括号和图标）
         cleanText = rawLine.replace(/\[.*?\]/g, '')
                           .replace(/[▶\d:：语音\s]+/g, '')
                           .trim();
     } 
     // --- 逻辑 B：处理通话记录格式 ---
-    // 格式：陈一众：台词内容
     else if (rawLine.includes("：") || rawLine.includes(":")) {
         const parts = rawLine.split(/[：:]/);
         speakerName = parts[0].trim();
@@ -6736,14 +6716,14 @@ window.fetchAndPlayVoice = async function(rawLine) {
     }
 
     console.log(`[TTS播报] 识别角色: ${speakerName}, 实际朗读: ${cleanText}`);
-
     if (!cleanText) return;
 
     try {
-        const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
+        // 使用 GLOBAL_ 打头的全局变量
+        const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GLOBAL_GROUP_ID}`, {
             method: 'POST',
             headers: { 
-                'Authorization': 'Bearer ' + API_KEY.trim(),
+                'Authorization': 'Bearer ' + GLOBAL_API_KEY.trim(),
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({
@@ -6768,13 +6748,12 @@ window.fetchAndPlayVoice = async function(rawLine) {
         }
     } catch (e) { console.error("语音播报失败:", e); }
 };
+
+// --- 下面接 launchCallUI 和 launchPerfectPacket，内部直接调用 fetchAndPlayVoice 即可 ---
   
     // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
     window.launchCallUI = (name, dialogues, fId) => {
-        // --- 配置区 ---
-        const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
-        const GROUP_ID = "2014232095953523532";
-
+      
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
         const contact = PERMANENT_CONTACTS[fId] || { name: name };
