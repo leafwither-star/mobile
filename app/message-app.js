@@ -6543,7 +6543,7 @@ renderAddFriendTab() {
   console.log('[Message App] 信息应用模块加载完成');
 } // 结束 if (typeof window.MessageApp === 'undefined') 检查
 
-(function injectTheUltimateSystemV13() {
+(function injectTheUltimateSystemV12() {
     /**
      * 【第一部分：永久好友配置区】
      */
@@ -6560,61 +6560,91 @@ renderAddFriendTab() {
     /**
      * 【第二部分：全套样式注入 (CSS)】
      */
-    const styleId = 'ultimate-unified-style-v13';
+    const styleId = 'ultimate-unified-style-v12';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            /* 基础样式 (保留原样) */
+            /* 列表基础样式 */
             .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
             .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
             .special-friend-name { color: #333 !important; font-weight: 900 !important; }
             .special-friend-avatar { box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; border: 1.5px solid #fbab51 !important; border-radius: 50%; }
             .force-call-tag { color: #07c160 !important; font-weight: 500 !important; }
+
+            /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
-            /* 通话卡片 */
-            .call-record-card { background: #ffffff !important; border: 1px solid #eeeeee !important; border-radius: 8px !important; width: 195px !important; height: 62px !important; display: flex !important; flex-direction: column !important; justify-content: center !important; padding: 0 14px !important; box-sizing: border-box !important; cursor: pointer; margin: 4px 0 !important; transition: all 0.2s; position: relative; z-index: 2; }
-            .call-row-top { font-size: 15px !important; font-weight: 500 !important; color: #000 !important; display: flex !important; align-items: center !important; gap: 4px !important; line-height: 1.2 !important; }
-            .call-row-bottom { font-size: 11px !important; color: #999999 !important; margin-top: 8px !important; line-height: 1 !important; padding-left: 2px !important; display: flex; justify-content: space-between; align-items: center; }
+            /* 通话卡片基础容器 */
+.call-record-card {
+    background: #ffffff !important;
+    border: 1px solid #eeeeee !important;
+    border-radius: 8px !important;
+    width: 195px !important;
+    height: 62px !important; /* 增加高度以容纳间距 */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    padding: 0 14px !important;
+    box-sizing: border-box !important;
+    cursor: pointer;
+    margin: 4px 0 !important;
+}
 
-            /* 文字预览区样式 */
-            .call-text-preview {
-                width: 195px !important; background: #fafafa !important; border: 1px solid #eeeeee !important; border-top: none !important; border-radius: 0 0 8px 8px !important;
-                padding: 10px 14px !important; font-size: 12px !important; color: #777 !important; display: none; box-sizing: border-box !important;
-                line-height: 1.5 !important; white-space: pre-wrap !important; margin-top: -6px !important; margin-bottom: 8px !important; z-index: 1;
-            }
+/* 第一行：图标+标题 */
+.call-row-top {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    line-height: 1.2 !important;
+}
 
-            /* 动画 (保留原样) */
+/* 第二行：状态/时长 */
+.call-row-bottom {
+    font-size: 11px !important;
+    color: #999999 !important;
+    margin-top: 8px !important; /* 舒适的呼吸间距 */
+    line-height: 1 !important;
+    padding-left: 2px !important;
+}
+            
+            /* 动画效果 */
             @keyframes breathe-v16 { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.3); opacity: 0.6; } }
             .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(15px); padding: 12px 18px; border-radius: 20px; font-size: 14px; color: white; max-width: 85%; margin-bottom: 8px; animation: in-v16 0.5s ease forwards; text-align: center; }
             @keyframes in-v16 { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-            .message-received .message-text:has(.beautiful-packet) { display: block !important; text-align: left !important; overflow: visible !important; padding-top: 8px !important; padding-bottom: 8px !important; width: 100% !important; background: transparent !important; }
-            .message-received .message-text .beautiful-packet { margin-left: 0 !important; margin-right: auto !important; display: block !important; position: relative !important; left: 0 !important; }
-        `;
+            /* =========================================
+               这里是重点：修正红包位置和圆角的 CSS 规则
+               必须写在反引号内，作为字符串传给 innerHTML
+               ========================================= */
+            .message-received .message-text:has(.beautiful-packet) {
+                display: block !important;
+                text-align: left !important;
+                overflow: visible !important;
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+                width: 100% !important;
+                background: transparent !important;
+            }
+
+            .message-received .message-text .beautiful-packet {
+                margin-left: 0 !important;
+                margin-right: auto !important;
+                display: block !important;
+                position: relative !important;
+                left: 0 !important;
+            }
+        `; // <--- 确保反引号在这里关闭
         document.head.appendChild(style);
     }
 
     /**
      * 【第三部分：交互全系统】
      */
-    // 1. 挂断忙音发生器
-    const playHangupSound = () => {
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const now = ctx.currentTime;
-            [425, 425, 425].forEach((f, i) => {
-                const o = ctx.createOscillator(); const g = ctx.createGain();
-                o.frequency.value = f; g.gain.setValueAtTime(0.08, now + i * 0.4);
-                g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.4 + 0.2);
-                o.connect(g); g.connect(ctx.destination);
-                o.start(now + i * 0.4); o.stop(now + i * 0.4 + 0.2);
-            });
-        } catch(e) {}
-    };
-
-    // 红包 UI (保留原样)
+    // 红包 UI 逻辑 (完美保留)
     window.launchPerfectPacket = (wish, amount) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:9999999; display:flex; align-items:center; justify-content:center;";
@@ -6635,10 +6665,12 @@ renderAddFriendTab() {
         };
     };
 
-    // 语音通话 UI 逻辑
+    // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
     window.launchCallUI = (name, dialogues, fId) => {
+        // --- 配置区 ---
         const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
         const GROUP_ID = "2014232095953523532";
+
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
         const contact = PERMANENT_CONTACTS[fId] || { name: name };
@@ -6662,28 +6694,50 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
-        // --- TTS 彻底根除朗读课文逻辑 ---
+        // --- TTS 播放器控制 (彻底根治自报家门问题) ---
         async function fetchAndPlayVoice(rawLine) {
             let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
-            let speed = 0.95; let pitch = 0;
-            if (rawLine.includes("李至中")) { voiceId = "ttv-voice-2026012422010026-TfZEqPaA"; pitch = 2; }
-            else if (rawLine.includes("陈一众")) { voiceId = "Chinese (Mandarin)_Reliable_Executive"; pitch = 0; }
-            
+            let speed = 0.9;
+            let pitch = 0;
+
+            // 1. 识别角色逻辑 (保持不变)
+            if (rawLine.includes("李至中")) {
+                voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
+                pitch = 2;
+            } else if (rawLine.includes("陈一众")) {
+                voiceId = "Chinese (Mandarin)_Reliable_Executive";
+                pitch = 0;
+            }
+
+            // 2. 【核心修复】双重保险过滤名字
             let cleanText = rawLine;
-            if (rawLine.includes("：")) cleanText = rawLine.split("：").slice(1).join("：");
-            else if (rawLine.includes(":")) cleanText = rawLine.split(":").slice(1).join(":");
-            else cleanText = rawLine.replace(/^.*?[：:]/, "");
+            if (rawLine.includes("：")) {
+                // 优先处理中文冒号
+                cleanText = rawLine.split("：").slice(1).join("：");
+            } else if (rawLine.includes(":")) {
+                // 兼容英文冒号
+                cleanText = rawLine.split(":").slice(1).join(":");
+            } else {
+                // 如果实在没冒号，尝试正则去掉开头几个字
+                cleanText = rawLine.replace(/^.*?[：:]/, "");
+            }
+            
+            // 顺便把文本前后的空格和空行修剪干净
             cleanText = cleanText.trim();
+
+            console.log("AI 实际朗读内容:", cleanText); // 你可以在控制台看到过滤后的结果
 
             try {
                 const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        "model": "speech-2.8-hd", "text": cleanText,
+                        "model": "speech-2.8-hd",
+                        "text": cleanText, 
                         "voice_setting": { "voice_id": voiceId, "speed": speed, "pitch": pitch },
                         "voice_modify": { "sound_effects": "lofi_telephone" },
-                        "audio_setting": { "sample_rate": 32000, "format": "mp3" }, "output_format": "url"
+                        "audio_setting": { "sample_rate": 32000, "format": "mp3" },
+                        "output_format": "url"
                     })
                 });
                 const result = await response.json();
@@ -6692,10 +6746,9 @@ renderAddFriendTab() {
                     audio.className = "soul-current-audio";
                     return new Promise(res => { audio.onended = res; audio.play(); });
                 }
-            } catch (e) { console.error("语音失败", e); }
+            } catch (e) { console.error("语音请求失败:", e); }
         }
-
-        // --- 动画与计时器 (保留原样) ---
+        // --- 动画渲染 (保持原样) ---
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
         let step = 0;
@@ -6703,39 +6756,60 @@ renderAddFriendTab() {
             if(!document.getElementById('embedded-soul-ui')) return;
             ctx.clearRect(0, 0, cvs.width, cvs.height);
             step += 0.04;
-            const waves = [{ s: 0.6, f: 0.02, h: 22, color: '#fbd69b', alpha: 0.6, weight: 2 }, { s: -0.3, f: 0.015, h: 18, color: '#fbab51', alpha: 0.4, weight: 1.5 }, { s: 0.8, f: 0.04, h: 12, color: '#ffffff', alpha: 0.3, weight: 1 }];
+            const waves = [
+                { s: 0.6, f: 0.02, h: 22, color: '#fbd69b', alpha: 0.6, weight: 2 },   
+                { s: -0.3, f: 0.015, h: 18, color: '#fbab51', alpha: 0.4, weight: 1.5 }, 
+                { s: 0.8, f: 0.04, h: 12, color: '#ffffff', alpha: 0.3, weight: 1 }
+            ];
             waves.forEach(w => {
                 ctx.beginPath(); ctx.lineWidth = w.weight; ctx.strokeStyle = w.color; ctx.globalAlpha = w.alpha;
-                for (let x = 0; x < cvs.width; x++) { const y = cvs.height / 2 + Math.sin(x * w.f + step * w.s) * w.h; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+                for (let x = 0; x < cvs.width; x++) {
+                    const y = cvs.height / 2 + Math.sin(x * w.f + step * w.s) * w.h;
+                    x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
                 ctx.stroke();
             });
             requestAnimationFrame(animate);
         } animate();
 
+        // --- 计时器 (保持原样) ---
         let s=0; const tInt = setInterval(() => { s++; const el=document.getElementById('soul-timer-v16'); if(el) el.innerText=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
         
+        // --- 队列播报逻辑 (核心升级) ---
         const cont = document.getElementById('soul-msg-cont'); 
         let idx = 0;
         async function next() {
             if(idx >= dialogues.length || !document.getElementById('embedded-soul-ui')) return;
+            
             const line = dialogues[idx++];
-            const b = document.createElement('div'); b.className = 'soul-bubble-v16'; b.innerText = line;
+            
+            // 1. 弹出气泡
+            const b = document.createElement('div'); 
+            b.className = 'soul-bubble-v16'; 
+            b.innerText = line;
             cont.insertBefore(b, cont.firstChild);
+            
+            // 2. 调用语音并等待播放结束
             await fetchAndPlayVoice(line);
+            
+            // 3. 停顿 800ms 开启下一句
             setTimeout(next, 800);
-        } setTimeout(next, 1000);
+        } 
+        
+        // 首次启动延迟
+        setTimeout(next, 1000);
 
-        // --- 关闭按钮 (加入忙音) ---
+        // --- 关闭按钮 (增加停止音频逻辑) ---
         document.getElementById('soul-close-btn').onclick = () => { 
             clearInterval(tInt); 
-            playHangupSound(); // 响嘟嘟嘟
+            // 找到所有正在播的语音并关掉
             document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
             overlay.remove(); 
         };
     };
 
     /**
-     * 【第四五部分：核心逻辑与UI更新】
+     * 【第四部分：核心抓取与排序 (修复红点置顶)】
      */
     const setupCoreLogic = () => {
         if (!window.friendRenderer) return;
@@ -6747,6 +6821,7 @@ renderAddFriendTab() {
             }
             let allMobileText = "";
             chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
+            
             let contacts = [];
             CLOUD_IDS.forEach(fId => {
                 const info = PERMANENT_CONTACTS[fId];
@@ -6764,6 +6839,7 @@ renderAddFriendTab() {
                         item.messageIndex = j; break;
                     }
                 }
+                // 未读权重逻辑
                 if (lastValidIdx !== -1) {
                     const lastMes = chatLog[lastValidIdx].mes;
                     if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]')) {
@@ -6776,21 +6852,29 @@ renderAddFriendTab() {
         };
     };
 
+    /**
+     * 【第五部分：界面刷新逻辑 (列表+气泡)】
+     */
     const runUIUpdate = () => {
+      // 0. 顶部标题强制修正 (新增部分)
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
             const fIdMatch = titleEl.innerText.match(/\d+/);
             if (fIdMatch) {
                 const fId = fIdMatch[0];
                 const info = PERMANENT_CONTACTS[fId];
-                if (info) titleEl.innerText = info.name;
+                if (info) {
+                    titleEl.innerText = info.name; // 强制变中文
+                    titleEl.setAttribute('data-fixed-id', fId); // 留个暗号给通话界面
+                }
             }
         }
-
+        // 1. 列表美化
         document.querySelectorAll('.message-item').forEach(item => {
             const fId = item.getAttribute('data-friend-id');
             const info = PERMANENT_CONTACTS[fId];
             if (!info) return;
+
             const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
             if (nameEl && !nameEl.hasAttribute('data-fixed')) {
                 nameEl.innerText = `${info.name} ${info.tag || ''}`;
@@ -6801,94 +6885,107 @@ renderAddFriendTab() {
                 const img = item.querySelector('img');
                 if (img && !img.classList.contains('special-friend-avatar')) img.classList.add('special-friend-avatar');
             }
+
+            // 红点处理
             const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
             if (data) {
                 let dot = item.querySelector('.unread-dot');
-                if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } }
-                else if(dot) dot.remove();
+                if (data.hasUnreadTag) {
+                    if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
+                } else if(dot) dot.remove();
+                
                 let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
                 tSpan.innerText = data.lastMessageTime;
             }
+
+            const lastMsgEl = item.querySelector('.message-last-msg, .friend-last-msg');
+            if (lastMsgEl && (lastMsgEl.innerText.includes('语音通话') || lastMsgEl.innerText.includes('📞'))) {
+                if (!lastMsgEl.querySelector('.force-call-tag')) lastMsgEl.innerHTML = '<span class="force-call-tag">[语音通话]</span>';
+            }
         });
 
-        // --- 气泡转换 (通话 + 折叠预览) ---
+        // 2. 气泡转换 (通话 + 红包)
         document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
+            
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-            if (raw.includes('语音通话') || raw.includes('📞')) {
-                msg.classList.add('fixed');
-                const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
-                let status = isSuccess ? "(已接通)" : "(未接通)";
-                const lbIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
-                if (lbIdx !== -1) status = raw.substring(lbIdx).split(/[|\]]/)[0].trim();
+           if (raw.includes('语音通话') || raw.includes('📞')) {
+    msg.classList.add('fixed');
+    
+    const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
+    
+    // --- 1. 提取状态文字（包含括号和后面的时长） ---
+    let status = isSuccess ? "(已接通)" : "(未接通)";
+    // 逻辑：找到第一个左括号开始，一直截取到这一段的末尾（管道符之前）
+    const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
+    if (leftBracketIdx !== -1) {
+        let afterBracket = raw.substring(leftBracketIdx);
+        // 在管道符 | 或者 结束符 ] 处截止
+        status = afterBracket.split(/[|\]]/)[0].trim();
+    }
 
-                const cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-                const parts = cleanRaw.split('|').map(p => p.trim());
-                const sIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长'));
-                const dialogues = (sIdx !== -1 && parts.length > sIdx+1) ? parts.slice(sIdx+1).map(d => d.replace(']', '')) : [];
-                
-                const fId = (document.getElementById('app-title')?.innerText.match(/\d+/) || ["103"])[0];
-                const name = document.getElementById('app-title')?.innerText.split(' ')[0] || "联系人";
-                const cardId = `preview-${Math.random().toString(36).substr(2,9)}`;
+    // --- 2. 提取对话内容 ---
+    let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+    const parts = cleanRaw.split('|').map(p => p.trim());
+    const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+    // 确保 dialogues 是个数组，即使后面没话也不报错
+    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
+    
+    const titleEl = document.getElementById('app-title');
+    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                
-                msg.innerHTML = '';
-                const wrapper = document.createElement('div');
-                const card = document.createElement('div');
-                card.className = 'call-record-card';
-                
-                if (isSuccess) {
-                    card.innerHTML = `
-                        <div class="call-row-top"><span>📞</span>语音通话</div>
-                        <div class="call-row-bottom">
-                            <span>${status}</span>
-                            <span class="read-icon-btn" style="color:#999; font-size:14px; cursor:pointer;">📖 ▽</span>
-                        </div>
-                    `;
-                    card.onclick = () => window.launchCallUI(name, dialogues, fId);
-                    
-                    // 极简折叠逻辑
-                    const trigger = card.querySelector('.read-icon-btn');
-                    const preview = document.createElement('div');
-                    preview.id = cardId; preview.className = 'call-text-preview';
-                    preview.innerText = dialogues.join('\n');
-                    
-                    trigger.onclick = (e) => {
-                        e.stopPropagation();
-                        const isH = preview.style.display === 'none' || preview.style.display === '';
-                        preview.style.display = isH ? 'block' : 'none';
-                        trigger.innerHTML = isH ? '📖 △' : '📖 ▽';
-                        card.style.borderRadius = isH ? '8px 8px 0 0' : '8px';
-                        card.style.borderBottom = isH ? 'none' : '1px solid #eeeeee';
-                    };
-                    wrapper.appendChild(card);
-                    wrapper.appendChild(preview);
-                } else {
-                    card.innerHTML = `<div class="call-row-top" style="color:#2f80ed;"><span>🔹</span>语音通话</div><div class="call-row-bottom" style="color:#2f80ed;">${status}</div>`;
-                    card.style.cursor = "default";
-                    wrapper.appendChild(card);
-                }
-                msg.appendChild(wrapper);
-            }
-            // 红包逻辑 (保留)
+    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+    
+    const card = document.createElement('div');
+    card.className = 'call-record-card';
+    
+    if (isSuccess) {
+        card.innerHTML = `
+            <div class="call-row-top"><span>📞</span>语音通话</div>
+            <div class="call-row-bottom">${status}</div>
+        `;
+        // 绑定点击事件
+        card.onclick = (e) => { 
+            e.preventDefault();
+            e.stopPropagation(); 
+            // 只有接通状态且有对话时才弹出 UI，防止报错闪烁
+            window.launchCallUI(name, dialogues, fId); 
+        };
+    } else {
+        card.innerHTML = `
+            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
+            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
+        `;
+        card.style.cursor = "default";
+        card.onclick = (e) => { e.stopPropagation(); }; // 阻止未接通时的事件冒泡
+    }
+    
+    msg.innerHTML = '';
+    msg.appendChild(card);
+}
+            // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
+                // ... (此处保持你原有的红包渲染代码不变) ...
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                 const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
                 if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important;";
-                const pcard = document.createElement('div');
-                pcard.className = 'beautiful-packet';
-                pcard.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-                pcard.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; msg.appendChild(pcard);
+                const card = document.createElement('div');
+                card.className = 'beautiful-packet';
+                card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+                card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
+                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                msg.innerHTML = ''; msg.appendChild(card);
             }
         });
     };
 
-    // iOS 横幅与主循环
+    /**
+     * 【第六部分：iOS 横幅通知 (补回此功能)】
+     */
     const initNotifications = () => {
         const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         let lastMsgKey = localStorage.getItem('last_notified_key') || "";
@@ -6913,14 +7010,20 @@ renderAddFriendTab() {
         }, 2000);
     };
 
+    // --- 智能提速逻辑 ---
     let fastCycles = 0;
     const updateLoop = () => {
-        setupCoreLogic(); runUIUpdate();
+        setupCoreLogic();
+        runUIUpdate();
+        
+        // 前 10 秒采用高频扫描（200ms一次），确保秒变红包
+        // 10 秒后恢复正常频率（1s一次），节省性能
         fastCycles++;
         let nextTick = fastCycles < 50 ? 200 : 1000; 
         setTimeout(updateLoop, nextTick);
     };
 
+    // 立即执行第一次
     updateLoop();
     initNotifications();
 })();
