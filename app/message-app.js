@@ -6780,6 +6780,11 @@ renderAddFriendTab() {
                 card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
                 card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
                 msg.innerHTML = ''; msg.appendChild(card);
+              // --- 插入以下三行，修复位置和圆角 ---
+                msg.style.setProperty('display', 'block', 'important');
+                msg.style.setProperty('text-align', 'left', 'important');
+                msg.style.setProperty('overflow', 'visible', 'important');
+                msg.style.setProperty('padding-top', '5px', 'important');
             }
         });
     };
