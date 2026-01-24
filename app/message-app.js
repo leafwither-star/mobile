@@ -6575,41 +6575,10 @@ renderAddFriendTab() {
             /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
-            /* 通话卡片基础容器 */
-.call-record-card {
-    background: #ffffff !important;
-    border: 1px solid #eeeeee !important;
-    border-radius: 8px !important;
-    width: 195px !important;
-    height: 62px !important; /* 增加高度以容纳间距 */
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    padding: 0 14px !important;
-    box-sizing: border-box !important;
-    cursor: pointer;
-    margin: 4px 0 !important;
-}
-
-/* 第一行：图标+标题 */
-.call-row-top {
-    font-size: 15px !important;
-    font-weight: 500 !important;
-    color: #000 !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    line-height: 1.2 !important;
-}
-
-/* 第二行：状态/时长 */
-.call-row-bottom {
-    font-size: 11px !important;
-    color: #999999 !important;
-    margin-top: 8px !important; /* 舒适的呼吸间距 */
-    line-height: 1 !important;
-    padding-left: 2px !important;
-}
+            /* 通话卡片样式 */
+            .call-record-card { background: #ffffff !important; border: 1px solid #eeeeee !important; border-radius: 8px !important; padding: 10px 12px !important; margin: 4px 0; display: flex !important; flex-direction: column !important; width: 190px !important; height: 54px !important; box-sizing: border-box !important; cursor: pointer; transition: none !important; }
+            .call-card-main { display: flex; align-items: center; gap: 6px; color: #000; font-size: 14px; pointer-events: none; }
+            .call-card-sub { font-size: 11px; color: #b2b2b2; margin-left: 20px; pointer-events: none; }
             
             /* 动画效果 */
             @keyframes breathe-v16 { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.3); opacity: 0.6; } }
@@ -6835,52 +6804,66 @@ renderAddFriendTab() {
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-           if (raw.includes('语音通话') || raw.includes('📞')) {
-    msg.classList.add('fixed');
-    
-    // 判定是否为成功接通
-    const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
-    
-    // 提取括号内的状态文字 (如：(接通) 时长 05:02)
-    const statusMatch = raw.match(/[(（].*?[)）].*?(?=\]|$)/) || [""];
-    const status = statusMatch[0] || (isSuccess ? "(已接通)" : "(未接通)");
+            // --- 【第一步】通话判定 (颜色强制修正版) ---
+            if (raw.includes('语音通话') || raw.includes('📞')) {
+                msg.classList.add('fixed');
+                
+                let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+                const parts = cleanRaw.split('|').map(p => p.trim());
+                
+                let status = "语音通话";
+                let isSuccess = true;
 
-    // 提取对话内容用于点击跳转
-    const cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-    const parts = cleanRaw.split('|').map(p => p.trim());
-    const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-    const dialogues = parts.slice(statusIdx + 1).map(d => d.replace(']', ''));
-    
-    const titleEl = document.getElementById('app-title');
-    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接') || p.includes('挂断'));
+                if (statusIdx !== -1) {
+                    let rawStatus = parts[statusIdx].replace(']', '');
+                    status = rawStatus.includes('(') || rawStatus.includes('（') 
+                        ? rawStatus.substring(rawStatus.search(/[(（]/)) 
+                        : rawStatus.replace('📞', '').replace('语音通话', '').trim();
+                    
+                    if (status.includes('未接通') || status.includes('已挂断') || status.includes('已拒绝')) {
+                        isSuccess = false;
+                    }
+                }
 
-    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-    
-    const card = document.createElement('div');
-    card.className = 'call-record-card';
-    
-    if (isSuccess) {
-        card.innerHTML = `
-            <div class="call-row-top"><span>📞</span>语音通话</div>
-            <div class="call-row-bottom">${status}</div>
-        `;
-        card.onclick = (e) => { 
-            e.stopPropagation(); 
-            window.launchCallUI(name, dialogues, fId); 
-        };
-    } else {
-        // 未接通状态：蓝色风格，不可点击
-        card.innerHTML = `
-            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
-            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
-        `;
-        card.style.cursor = "default";
-    }
-    
-    msg.innerHTML = '';
-    msg.appendChild(card);
-}
+                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+                
+                const card = document.createElement('div');
+                card.className = 'call-record-card';
+                
+                if (isSuccess) {
+                    // --- 成功状态：原色/绿色 ---
+                    card.innerHTML = `
+                        <div class="call-card-main">
+                            <span style="color:#07c160; filter: drop-shadow(0 0 0 #07c160);">📞</span>语音通话
+                        </div>
+                        <div class="call-card-sub">${status}</div>
+                    `;
+                    const dialogues = parts.slice(statusIdx + 1).map(d => d.replace(']', ''));
+                    const titleEl = document.getElementById('app-title');
+                    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+                    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+                    
+                    card.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        window.launchCallUI(name, dialogues, fId); 
+                    };
+                } else {
+                    // --- 失败状态：强制蓝色方案 ---
+                    // 这里我们用 🟦 或者把图标强制调成蓝色系
+                    card.innerHTML = `
+                        <div class="call-card-main">
+                            <span style="color:#2f80ed; filter: drop-shadow(0 0 0 #2f80ed);">🔹</span>语音通话
+                        </div>
+                        <div class="call-card-sub" style="color:#2f80ed !important; opacity:0.8;">${status}</div>
+                    `;
+                    card.style.cursor = "default";
+                    card.onclick = null;
+                }
+                
+                msg.innerHTML = ''; 
+                msg.appendChild(card);
+            }
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
