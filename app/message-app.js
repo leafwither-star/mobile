@@ -6795,12 +6795,20 @@ renderAddFriendTab() {
                 msg.classList.add('fixed');
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                 const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
+                
+                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+                
                 const card = document.createElement('div');
                 card.className = 'beautiful-packet';
                 card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+                
+                // --- 暴力修正：通过负 margin 强行把红包向左上拉回 ---
+                // 这里我们假设它偏离了大概 20px，如果还是偏，就把 -20px 改成 -30px
+                card.style.cssText = "margin-left: -15px !important; margin-top: -5px !important; position: relative !important; z-index: 10 !important;";
+                
                 card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; msg.appendChild(card);
+                msg.innerHTML = ''; 
+                msg.appendChild(card);
             }
         });
     };
