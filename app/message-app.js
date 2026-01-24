@@ -6733,7 +6733,21 @@ renderAddFriendTab() {
     /**
      * 【第五部分：界面刷新逻辑 (列表+气泡)】
      */
-    const runUIUpdate = () => {
+    // 0. 顶部标题栏美化 (修复 "好友 103" 问题)
+        const titleEl = document.getElementById('app-title');
+        if (titleEl) {
+            const fIdMatch = titleEl.innerText.match(/\d+/);
+            if (fIdMatch) {
+                const fId = fIdMatch[0];
+                const info = PERMANENT_CONTACTS[fId];
+                if (info && !titleEl.hasAttribute('data-fixed')) {
+                    titleEl.innerText = info.name;
+                    titleEl.setAttribute('data-fixed', 'true');
+                    // --- 下面这一行很重要，是留给通话界面看的“暗号” ---
+                    titleEl.setAttribute('data-fixed-id', fId); 
+                }
+            }
+        }
         // 1. 列表美化
         document.querySelectorAll('.message-item').forEach(item => {
             const fId = item.getAttribute('data-friend-id');
@@ -6779,9 +6793,13 @@ renderAddFriendTab() {
                 msg.classList.add('fixed');
                 const parts = raw.split('|').map(p => p.trim());
                 const status = parts[0].replace('📞', '').trim();
+               // --- 这一段换成稳健的“暗号”读取模式 ---
                 const titleEl = document.getElementById('app-title');
-                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+                // 优先看“暗号”，看不了再找数字
+                const fId = titleEl?.getAttribute('data-fixed-id') || (titleEl?.innerText.match(/\d+/) || ["103"])[0];
+                const info = PERMANENT_CONTACTS[fId];
+                const name = info ? info.name : "联系人"; 
+                // ------------------------------------
 
                 if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
                 const card = document.createElement('div');
