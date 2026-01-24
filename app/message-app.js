@@ -6867,7 +6867,7 @@ renderAddFriendTab() {
         // 前 10 秒采用高频扫描（200ms一次），确保秒变红包
         // 10 秒后恢复正常频率（1s一次），节省性能
         fastCycles++;
-        let nextTick = fastCycles < 50 ? 200 : 1000; 
+        let nextTick = fastCycles < 100 ? 50 : 1000; 
         setTimeout(updateLoop, nextTick);
     };
 
