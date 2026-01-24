@@ -6575,13 +6575,13 @@ renderAddFriendTab() {
             /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
-/* 通话卡片基础容器 - 沿用 finalTest 版 */
+            /* 通话卡片基础容器 */
 .call-record-card {
     background: #ffffff !important;
     border: 1px solid #eeeeee !important;
     border-radius: 8px !important;
     width: 195px !important;
-    height: 62px !important;
+    height: 62px !important; /* 增加高度以容纳间距 */
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
@@ -6589,41 +6589,26 @@ renderAddFriendTab() {
     box-sizing: border-box !important;
     cursor: pointer;
     margin: 4px 0 !important;
-    transition: all 0.2s ease;
-    position: relative;
 }
 
-.call-row-top { font-size: 15px !important; font-weight: 500 !important; color: #000 !important; display: flex !important; align-items: center !important; gap: 4px !important; }
-.call-row-bottom { font-size: 11px !important; color: #999999 !important; margin-top: 8px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
-
-/* 极简文字预览区 */
-.call-text-preview {
-    width: 195px !important;
-    background: #fafafa !important;
-    border: 1px solid #eeeeee !important;
-    border-top: none !important;
-    border-radius: 0 0 8px 8px !important;
-    padding: 10px 14px !important;
-    font-size: 12px !important;
-    color: #777 !important;
-    display: none;
-    box-sizing: border-box !important;
-    line-height: 1.5 !important;
-    white-space: pre-wrap !important;
-    margin-top: -6px !important;
-    margin-bottom: 8px !important;
+/* 第一行：图标+标题 */
+.call-row-top {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    line-height: 1.2 !important;
 }
 
-/* 橙色书本图标按钮 */
-.read-icon-btn {
-    color: #fbab51;
-    font-size: 14px;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    gap: 2px;
+/* 第二行：状态/时长 */
+.call-row-bottom {
+    font-size: 11px !important;
+    color: #999999 !important;
+    margin-top: 8px !important; /* 舒适的呼吸间距 */
+    line-height: 1 !important;
+    padding-left: 2px !important;
 }
             
             /* 动画效果 */
@@ -6685,22 +6670,6 @@ renderAddFriendTab() {
         // --- 配置区 ---
         const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
         const GROUP_ID = "2014232095953523532";
-      
-      // --- 挂断音控制 ---
-        const playHangupSound = () => {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const now = ctx.currentTime;
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.type = 'sine';
-                o.frequency.setValueAtTime(450, now); 
-                g.gain.setValueAtTime(0.3, now); 
-                g.gain.exponentialRampToValueAtTime(0.001, now + 0.5); 
-                o.connect(g); g.connect(ctx.destination);
-                o.start(); o.stop(now + 0.5);
-            } catch(e) {}
-        };
 
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
@@ -6833,7 +6802,6 @@ renderAddFriendTab() {
         // --- 关闭按钮 (增加停止音频逻辑) ---
         document.getElementById('soul-close-btn').onclick = () => { 
             clearInterval(tInt); 
-            if(typeof playHangupSound === 'function') playHangupSound(); // 响一声挂断音
             // 找到所有正在播的语音并关掉
             document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
             overlay.remove(); 
@@ -6945,17 +6913,24 @@ renderAddFriendTab() {
             
            if (raw.includes('语音通话') || raw.includes('📞')) {
     msg.classList.add('fixed');
+    
     const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
     
+    // --- 1. 提取状态文字（包含括号和后面的时长） ---
     let status = isSuccess ? "(已接通)" : "(未接通)";
+    // 逻辑：找到第一个左括号开始，一直截取到这一段的末尾（管道符之前）
     const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
     if (leftBracketIdx !== -1) {
-        status = raw.substring(leftBracketIdx).split(/[|\]]/)[0].trim();
+        let afterBracket = raw.substring(leftBracketIdx);
+        // 在管道符 | 或者 结束符 ] 处截止
+        status = afterBracket.split(/[|\]]/)[0].trim();
     }
 
+    // --- 2. 提取对话内容 ---
     let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
     const parts = cleanRaw.split('|').map(p => p.trim());
     const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+    // 确保 dialogues 是个数组，即使后面没话也不报错
     const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
     
     const titleEl = document.getElementById('app-title');
@@ -6968,60 +6943,28 @@ renderAddFriendTab() {
     card.className = 'call-record-card';
     
     if (isSuccess) {
-        // 1. 生成卡片 HTML 结构 (书本图标版)
         card.innerHTML = `
-            <div class="call-record-card">
-                <div class="call-row-top"><span>📞</span> 语音通话</div>
-                <div class="call-row-bottom">
-                    <span>${status}</span>
-                    <span class="read-icon-btn">📖 ▽</span>
-                </div>
-            </div>
+            <div class="call-row-top"><span>📞</span>语音通话</div>
+            <div class="call-row-bottom">${status}</div>
         `;
-        
-        // 2. 生成预览层 (折叠文字内容)
-        const preview = document.createElement('div');
-        preview.className = 'call-text-preview';
-        // 注意：这里我们通过 Class 来控制样式，这样 JS 看起来会整洁很多
-        preview.innerText = dialogues.join('\n');
-
-        // 3. 核心逻辑 A：点击卡片本体进入通话界面
+        // 绑定点击事件
         card.onclick = (e) => { 
+            e.preventDefault();
             e.stopPropagation(); 
+            // 只有接通状态且有对话时才弹出 UI，防止报错闪烁
             window.launchCallUI(name, dialogues, fId); 
         };
-
-        // 4. 核心逻辑 B：点击“📖 ▽”展开/折叠
-        const trigger = card.querySelector('.read-icon-btn');
-        trigger.onclick = (e) => {
-            e.stopPropagation();
-            const isHidden = preview.style.display === 'none' || preview.style.display === '';
-            preview.style.display = isHidden ? 'block' : 'none';
-            trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
-            
-            // 动态切换圆角，防止预览区弹出时显得断裂
-            card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
-            card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
-        };
-
-        // 5. 渲染到页面
-        msg.innerHTML = '';
-        msg.appendChild(card);
-        msg.appendChild(preview);
     } else {
-        // 未接通状态：保持简洁，不绑定点击事件
         card.innerHTML = `
-            <div class="call-record-card">
-                <div class="call-row-top" style="color:#999;"><span>📞</span> 语音通话</div>
-                <div class="call-row-bottom"><span>${status}</span></div>
-            </div>
+            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
+            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
         `;
         card.style.cursor = "default";
-        card.onclick = (e) => { e.stopPropagation(); };
-        msg.innerHTML = '';
-        msg.appendChild(card);
-    } 
-    // --- 【缝合结束】 ---
+        card.onclick = (e) => { e.stopPropagation(); }; // 阻止未接通时的事件冒泡
+    }
+    
+    msg.innerHTML = '';
+    msg.appendChild(card);
 }
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
