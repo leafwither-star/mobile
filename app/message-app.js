@@ -6710,7 +6710,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
 
     // --- 嗓音分配 ---
     if (speakerName.includes("李至中")) {
-        voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
+        voiceId = "Chinese (Mandarin)_Sincere_Adult";
     } else {
         voiceId = "Chinese (Mandarin)_Reliable_Executive";
     }
