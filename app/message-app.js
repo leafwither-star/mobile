@@ -7049,37 +7049,45 @@ renderAddFriendTab() {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动（兼容原插件版） ---
-        // 1. 使用事件委托：直接监听整个文档，这样哪怕按钮是刚冒出来的也能抓到
+     // --- 微信语音联动（强制接管版） ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', async (e) => {
-                // 判断点击的是不是那个播放按钮
                 const btn = e.target.closest('.voice-play-btn');
                 if (!btn) return;
 
-                // 不要用 stopPropagation()，让原作者的展开逻辑正常跑
-                
+                // 1. 停止页面上所有正在播放的 Audio，防止声音重叠
+                document.querySelectorAll('audio').forEach(a => { a.pause(); a.currentTime = 0; });
+
                 const msgEl = btn.closest('.message-text');
                 if (!msgEl) return;
 
-                // 2. 提取信息
+                // 2. 提取最纯净的文本
                 const rawText = msgEl.innerText;
+                
+                // 自动识别说话人 (从 [对方消息|名字|...] 中提取)
                 const match = rawText.match(/消息\|([^|]+)\|/); 
                 const speaker = match ? match[1] : "陈一众"; 
-                
-                // 3. 内容提纯 (去掉图标、方括号、时间、语音字样)
+
+                // 提取纯台词：剔除所有标签、图标、时间、数字
                 const content = rawText.replace(/\[.*?\]/g, '')
                                       .replace(/[▶\d:：语音\s]+/g, '')
                                       .trim();
 
-                console.log(`[语音检测成功] 说话人: ${speaker}, 内容: ${content}`);
+                console.log(`[强制播报启动] 角色: ${speaker}, 内容: ${content}`);
 
-                // 4. 发声
+                // 3. 核心修复：确保 fetchAndPlayVoice 存在并调用
                 if (content && typeof fetchAndPlayVoice === 'function') {
-                    await fetchAndPlayVoice(`${speaker}：${content}`);
+                    try {
+                        // 强制调用我们自己的 MiniMax 发声函数
+                        await fetchAndPlayVoice(`${speaker}：${content}`);
+                    } catch (err) {
+                        console.error("[语音播报失败]", err);
+                    }
+                } else {
+                    console.error("[系统提示] fetchAndPlayVoice 函数未定义或台词为空");
                 }
-            }, true); // 使用捕获模式，确保能抢在某些逻辑前听到点击
-            window.voiceEventBound = true; // 确保全局只绑定一次
+            }, true); 
+            window.voiceEventBound = true;
         }
     };
 
