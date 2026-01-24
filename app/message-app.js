@@ -6635,11 +6635,13 @@ renderAddFriendTab() {
     };
 
     // 语音通话 UI 逻辑 (头像修复 + 名字显示修复)
-    window.launchCallUI = (name, dialogues, fId) => {
+    window.launchCallUI = (defaultName, dialogues, forceFId) => {
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
-        const contact = PERMANENT_CONTACTS[fId] || { name: name };
-        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fId}`;
+        
+        // 关键改动：优先使用传入的 forceFId 匹配配置
+        const contact = PERMANENT_CONTACTS[forceFId] || { name: defaultName };
+        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${forceFId}`;
         
         const overlay = document.createElement('div');
         overlay.id = "embedded-soul-ui";
@@ -6659,7 +6661,6 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
-        // 动画渲染
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
         let step = 0;
@@ -6797,7 +6798,7 @@ renderAddFriendTab() {
                // --- 这一段换成稳健的“暗号”读取模式 ---
                 const titleEl = document.getElementById('app-title');
                 // 优先看“暗号”，看不了再找数字
-                const fId = titleEl?.getAttribute('data-fixed-id') || (titleEl?.innerText.match(/\d+/) || ["103"])[0];
+                const currentFId = titleEl?.getAttribute('data-fixed-id') || titleEl?.innerText.match(/\d+/)?.[0] || document.querySelector('.message-item[active="true"]')?.getAttribute('data-friend-id') || "103";
                 const info = PERMANENT_CONTACTS[fId];
                 const name = info ? info.name : "联系人"; 
                 // ------------------------------------
