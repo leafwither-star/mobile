@@ -6830,24 +6830,30 @@ renderAddFriendTab() {
         // 首次启动延迟
         setTimeout(next, 1000);
 
-        // --- 关闭按钮 (增加停止音频逻辑) ---
-        document.getElementById('soul-close-btn').onclick = () => { 
-    // 1. 立即播放挂断音效
-    const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3");
-    endSound.volume = 0.5;
-    endSound.play().catch(()=>{});
+      // --- 最终版：关闭按钮（图标初始化 + 挂断逻辑） ---
+        const closeBtn = document.getElementById('soul-close-btn');
+        if (closeBtn) {
+            // 1. 【立即执行】把粉色话筒换成纯白 SVG
+            closeBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="30" height="30" style="transform: rotate(135deg);">
+                    <path fill="white" d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+                </svg>`;
+            
+            // 2. 【点击触发】挂断逻辑
+            closeBtn.onclick = () => { 
+                // 播放清脆音效
+                const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"); 
+                endSound.volume = 0.5;
+                endSound.play().catch(()=>{});
 
-    // 2. 停止计时器
-    clearInterval(tInt); 
-    
-    // 3. 停止所有正在播的语音
-    document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-    
-    // 4. 延迟一小会儿移除界面，让音效播完
-    setTimeout(() => {
-        overlay.remove(); 
-    }, 200);
-};
+                // 核心清理逻辑
+                clearInterval(tInt); 
+                document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+                
+                // 150ms 后移除界面
+                setTimeout(() => { overlay.remove(); }, 150);
+            };
+        }
     };
 
     /**
