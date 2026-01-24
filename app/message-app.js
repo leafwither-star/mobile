@@ -6721,7 +6721,7 @@ renderAddFriendTab() {
                 <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
             </div>
             <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
-            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px;">✕</div></div>
+            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
         `;
         container.appendChild(overlay);
 
@@ -6832,11 +6832,22 @@ renderAddFriendTab() {
 
         // --- 关闭按钮 (增加停止音频逻辑) ---
         document.getElementById('soul-close-btn').onclick = () => { 
-            clearInterval(tInt); 
-            // 找到所有正在播的语音并关掉
-            document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-            overlay.remove(); 
-        };
+    // 1. 立即播放挂断音效
+    const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3");
+    endSound.volume = 0.5;
+    endSound.play().catch(()=>{});
+
+    // 2. 停止计时器
+    clearInterval(tInt); 
+    
+    // 3. 停止所有正在播的语音
+    document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+    
+    // 4. 延迟一小会儿移除界面，让音效播完
+    setTimeout(() => {
+        overlay.remove(); 
+    }, 200);
+};
     };
 
     /**
