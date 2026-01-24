@@ -6666,22 +6666,21 @@ renderAddFriendTab() {
         function animate() {
             if(!document.getElementById('embedded-soul-ui')) return;
             ctx.clearRect(0, 0, cvs.width, cvs.height);
-            step += 0.04; // 控制整体波动的速度
+            step += 0.04;
 
-            // 画 3 条不同频率和透明度的波浪
             const waves = [
-                { s: 0.6, f: 0.02, h: 12, o: 0.8 }, // 主波浪
-                { s: -0.4, f: 0.015, h: 8, o: 0.4 }, // 反向慢波
-                { s: 0.8, f: 0.03, h: 6, o: 0.2 }   // 快速细波
+                { s: 0.6, f: 0.02, h: 22, color: '#fbab51', alpha: 0.9, weight: 2 },   // 主波浪：最深最亮
+                { s: -0.3, f: 0.015, h: 15, color: '#ff7849', alpha: 0.5, weight: 1.5 }, // 副波浪：偏橙色，反向
+                { s: 0.8, f: 0.04, h: 10, color: '#ffffff', alpha: 0.3, weight: 1 }    // 装饰线：纯白色，快速细波
             ];
 
             waves.forEach(w => {
                 ctx.beginPath();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#fbab51';
-                ctx.globalAlpha = w.o;
+                ctx.lineWidth = w.weight;
+                ctx.strokeStyle = w.color;
+                ctx.globalAlpha = w.alpha;
                 for (let x = 0; x < cvs.width; x++) {
-                    // 核心算法：y = 振幅 * sin(x * 频率 + 位移)
+                    // y 轴计算加入了更明显的高度 h
                     const y = cvs.height / 2 + Math.sin(x * w.f + step * w.s) * w.h;
                     x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                 }
