@@ -2142,64 +2142,29 @@
 }
 .delete-group-content{padding-top: 10px;}
 
-/* --- V21 增强型红包渲染防御逻辑 --- */
+/* --- V21 强制夺权：移除作者所有默认样式 --- */
 
-/* 1. 彻底抹除原作者对红包气泡的所有视觉干预 */
-.message-received[title='红包'] > .message-content,
-.message-sent[title='红包'] > .message-content {
-    background: transparent !important; /* 抹除作者的气泡颜色 */
-    border: none !important;            /* 抹除边框 */
-    box-shadow: none !important;        /* 抹除阴影 */
-    padding: 0 !important;              /* 抹除内边距，由我们的卡片控制 */
-    min-width: unset !important;        /* 重置最小宽度 */
-    transform: none !important;         /* 禁用作者的浮动动画 */
-    animation: none !important;
-}
-
-/* 2. 清除作者残留的伪元素符号(￥等) */
-.message-received[title='红包'] .message-text::before,
-.message-received[title='红包'] .message-text::after,
-.message-sent[title='红包'] .message-text::before,
-.message-sent[title='红包'] .message-text::after {
-    content: none !important;
+/* 1. 强制隐藏作者原本渲染出的那些文字内容 */
+.message-text:not(.beautiful-packet) {
     display: none !important;
 }
 
-/* 3. 强制锁定我们自己的红包卡片样式 (12px 圆角 + 靠左) */
-.message-detail-app .beautiful-packet {
-    margin-left: 0px !important;            /* 强制靠左 */
-    border-radius: 12px !important;         /* 强制12px圆角 */
-    background: linear-gradient(135deg, #f25542 0%, #d84e43 100%) !important;
-    padding: 12px 16px !important;
-    min-width: 210px !important;
-    max-width: 250px !important;
-    box-shadow: 0 4px 12px rgba(242, 85, 66, 0.2) !important;
-    color: #ffffff !important;
-    overflow: hidden !important;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-/* 4. 处理红包内的文字排版，防止被作者的老样式干扰 */
-.beautiful-packet div {
-    color: #ffffff !important;
-    text-align: left !important;
+/* 2. 移除所有气泡背景和边框 */
+.message-content[title*="红包"],
+.message-content:has(.beautiful-packet) {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 0 !important;
-    margin: 0 !important;
-    font-family: sans-serif !important;
 }
 
-/* 5. 简单的点击反馈(可选) */
-.beautiful-packet:active {
-    transform: scale(0.98);
-    filter: brightness(0.9);
-}
-
-/* 只要气泡标题包含红包，里面的原始文字直接消失，只显示我们的 beautiful-packet */
-.message-content[title*="红包"] .message-text:not(.beautiful-packet) {
-    display: none !important; /* 直接隐藏掉原始文本节点即可 */
-}
-
-.message-content[title*="红包"] .beautiful-packet {
-    font-size: 14px !important; /* 恢复我们卡片的字号 */
+/* 3. 修正卡片基础属性：12px圆角 + 靠左 */
+.beautiful-packet {
+    display: block !important;
+    margin-left: 0px !important;
+    border-radius: 12px !important;
+    overflow: hidden;
+    width: 210px !important;
+    /* 防止被作者的全局字体颜色覆盖 */
+    color: #ffffff !important; 
 }
