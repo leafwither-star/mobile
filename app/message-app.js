@@ -6700,9 +6700,12 @@ renderAddFriendTab() {
             step += 0.04;
 
             const waves = [
-                { s: 0.6, f: 0.02, h: 22, color: '#fbab51', alpha: 0.9, weight: 2 },   // 主波浪：最深最亮
-                { s: -0.3, f: 0.015, h: 15, color: '#ff7849', alpha: 0.5, weight: 1.5 }, // 副波浪：偏橙色，反向
-                { s: 0.8, f: 0.04, h: 10, color: '#ffffff', alpha: 0.3, weight: 1 }    // 装饰线：纯白色，快速细波
+                // 1. 主波浪：柔和的浅金橙 (去掉了之前的重红色)
+                { s: 0.6, f: 0.02, h: 22, color: '#fbd69b', alpha: 0.6, weight: 2 },   
+                // 2. 副波浪：温暖的淡橙色 (半透明，增加层次)
+                { s: -0.3, f: 0.015, h: 18, color: '#fbab51', alpha: 0.4, weight: 1.5 }, 
+                // 3. 装饰线：纯白色 (细波纹，增加灵动感)
+                { s: 0.8, f: 0.04, h: 12, color: '#ffffff', alpha: 0.3, weight: 1 }
             ];
 
             waves.forEach(w => {
