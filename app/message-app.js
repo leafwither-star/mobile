@@ -6665,13 +6665,29 @@ renderAddFriendTab() {
         let step = 0;
         function animate() {
             if(!document.getElementById('embedded-soul-ui')) return;
-            ctx.clearRect(0,0,cvs.width,cvs.height); step++;
-            ctx.beginPath(); ctx.lineWidth=1.5; ctx.strokeStyle='#fbab51'; ctx.globalAlpha=0.6;
-            for(let x=0; x<cvs.width; x++){
-                const y = cvs.height/2 + Math.sin(x*0.02 + step*0.04)*12;
-                x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-            }
-            ctx.stroke();
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            step += 0.04; // 控制整体波动的速度
+
+            // 画 3 条不同频率和透明度的波浪
+            const waves = [
+                { s: 0.6, f: 0.02, h: 12, o: 0.8 }, // 主波浪
+                { s: -0.4, f: 0.015, h: 8, o: 0.4 }, // 反向慢波
+                { s: 0.8, f: 0.03, h: 6, o: 0.2 }   // 快速细波
+            ];
+
+            waves.forEach(w => {
+                ctx.beginPath();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#fbab51';
+                ctx.globalAlpha = w.o;
+                for (let x = 0; x < cvs.width; x++) {
+                    // 核心算法：y = 振幅 * sin(x * 频率 + 位移)
+                    const y = cvs.height / 2 + Math.sin(x * w.f + step * w.s) * w.h;
+                    x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            });
+
             requestAnimationFrame(animate);
         } animate();
 
