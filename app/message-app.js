@@ -6694,13 +6694,13 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
-        // --- TTS 播放器控制 ---
+        // --- TTS 播放器控制 (彻底根治自报家门问题) ---
         async function fetchAndPlayVoice(rawLine) {
             let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
             let speed = 0.9;
             let pitch = 0;
 
-            // 1. 识别角色
+            // 1. 识别角色逻辑 (保持不变)
             if (rawLine.includes("李至中")) {
                 voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
                 pitch = 2;
@@ -6709,9 +6709,23 @@ renderAddFriendTab() {
                 pitch = 0;
             }
 
-            // 2. 【核心修复】过滤掉名字和冒号
-            // 使用正则表达式匹配“名字+冒号（全角或半角）”，只保留后面的台词
-            const cleanText = rawLine.replace(/^[^：:]*[：:]/, "").trim();
+            // 2. 【核心修复】双重保险过滤名字
+            let cleanText = rawLine;
+            if (rawLine.includes("：")) {
+                // 优先处理中文冒号
+                cleanText = rawLine.split("：").slice(1).join("：");
+            } else if (rawLine.includes(":")) {
+                // 兼容英文冒号
+                cleanText = rawLine.split(":").slice(1).join(":");
+            } else {
+                // 如果实在没冒号，尝试正则去掉开头几个字
+                cleanText = rawLine.replace(/^.*?[：:]/, "");
+            }
+            
+            // 顺便把文本前后的空格和空行修剪干净
+            cleanText = cleanText.trim();
+
+            console.log("AI 实际朗读内容:", cleanText); // 你可以在控制台看到过滤后的结果
 
             try {
                 const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
@@ -6719,7 +6733,7 @@ renderAddFriendTab() {
                     headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         "model": "speech-2.8-hd",
-                        "text": cleanText, // 这里传过滤后的文本
+                        "text": cleanText, 
                         "voice_setting": { "voice_id": voiceId, "speed": speed, "pitch": pitch },
                         "voice_modify": { "sound_effects": "lofi_telephone" },
                         "audio_setting": { "sample_rate": 32000, "format": "mp3" },
@@ -6734,7 +6748,6 @@ renderAddFriendTab() {
                 }
             } catch (e) { console.error("语音请求失败:", e); }
         }
-
         // --- 动画渲染 (保持原样) ---
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
