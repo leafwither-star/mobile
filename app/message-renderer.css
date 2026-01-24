@@ -2141,30 +2141,3 @@
   color: #333 !important;
 }
 .delete-group-content{padding-top: 10px;}
-
-/* --- V21 强制夺权：移除作者所有默认样式 --- */
-
-/* 1. 强制隐藏作者原本渲染出的那些文字内容 */
-.message-text:not(.beautiful-packet) {
-    display: none !important;
-}
-
-/* 2. 移除所有气泡背景和边框 */
-.message-content[title*="红包"],
-.message-content:has(.beautiful-packet) {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-}
-
-/* 3. 修正卡片基础属性：12px圆角 + 靠左 */
-.beautiful-packet {
-    display: block !important;
-    margin-left: 0px !important;
-    border-radius: 12px !important;
-    overflow: hidden;
-    width: 210px !important;
-    /* 防止被作者的全局字体颜色覆盖 */
-    color: #ffffff !important; 
-}
