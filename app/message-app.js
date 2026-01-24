@@ -6733,6 +6733,7 @@ renderAddFriendTab() {
     /**
      * 【第五部分：界面刷新逻辑 (列表+气泡)】
      */
+  const runUIUpdate = () => {
     // 0. 顶部标题栏美化 (修复 "好友 103" 问题)
         const titleEl = document.getElementById('app-title');
         if (titleEl) {
