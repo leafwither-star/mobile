@@ -6665,8 +6665,12 @@ renderAddFriendTab() {
         };
     };
 
-    // 语音通话 UI 逻辑 (头像修复 + 名字显示修复)
+    // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
     window.launchCallUI = (name, dialogues, fId) => {
+        // --- 配置区 ---
+        const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
+        const GROUP_ID = "2014232095953523532";
+
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
         const contact = PERMANENT_CONTACTS[fId] || { name: name };
@@ -6690,7 +6694,44 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
-        // 动画渲染
+        // --- TTS 播放器控制 ---
+        async function fetchAndPlayVoice(rawLine) {
+            let voiceId = "Chinese (Mandarin)_Reliable_Executive"; // 默认
+            let speed = 0.9;
+            let pitch = 0;
+
+            // 识别角色：根据你给的格式 [陈一众：...] 或 [李至中：...]
+            if (rawLine.includes("李至中")) {
+                voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
+                pitch = 2;
+            } else if (rawLine.includes("陈一众")) {
+                voiceId = "Chinese (Mandarin)_Reliable_Executive";
+                pitch = 0;
+            }
+
+            try {
+                const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        "model": "speech-2.8-hd",
+                        "text": rawLine,
+                        "voice_setting": { "voice_id": voiceId, "speed": speed, "pitch": pitch },
+                        "voice_modify": { "sound_effects": "lofi_telephone" },
+                        "audio_setting": { "sample_rate": 32000, "format": "mp3" },
+                        "output_format": "url"
+                    })
+                });
+                const result = await response.json();
+                if (result.data?.audio) {
+                    const audio = new Audio(result.data.audio);
+                    audio.className = "soul-current-audio"; // 标记，方便关闭通话时停音
+                    return new Promise(res => { audio.onended = res; audio.play(); });
+                }
+            } catch (e) { console.error("语音请求失败:", e); }
+        }
+
+        // --- 动画渲染 (保持原样) ---
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
         let step = 0;
@@ -6698,41 +6739,56 @@ renderAddFriendTab() {
             if(!document.getElementById('embedded-soul-ui')) return;
             ctx.clearRect(0, 0, cvs.width, cvs.height);
             step += 0.04;
-
             const waves = [
-                // 1. 主波浪：柔和的浅金橙 (去掉了之前的重红色)
                 { s: 0.6, f: 0.02, h: 22, color: '#fbd69b', alpha: 0.6, weight: 2 },   
-                // 2. 副波浪：温暖的淡橙色 (半透明，增加层次)
                 { s: -0.3, f: 0.015, h: 18, color: '#fbab51', alpha: 0.4, weight: 1.5 }, 
-                // 3. 装饰线：纯白色 (细波纹，增加灵动感)
                 { s: 0.8, f: 0.04, h: 12, color: '#ffffff', alpha: 0.3, weight: 1 }
             ];
-
             waves.forEach(w => {
-                ctx.beginPath();
-                ctx.lineWidth = w.weight;
-                ctx.strokeStyle = w.color;
-                ctx.globalAlpha = w.alpha;
+                ctx.beginPath(); ctx.lineWidth = w.weight; ctx.strokeStyle = w.color; ctx.globalAlpha = w.alpha;
                 for (let x = 0; x < cvs.width; x++) {
-                    // y 轴计算加入了更明显的高度 h
                     const y = cvs.height / 2 + Math.sin(x * w.f + step * w.s) * w.h;
                     x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                 }
                 ctx.stroke();
             });
-
             requestAnimationFrame(animate);
         } animate();
 
+        // --- 计时器 (保持原样) ---
         let s=0; const tInt = setInterval(() => { s++; const el=document.getElementById('soul-timer-v16'); if(el) el.innerText=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
-        const cont = document.getElementById('soul-msg-cont'); let idx = 0;
-        function next() {
+        
+        // --- 队列播报逻辑 (核心升级) ---
+        const cont = document.getElementById('soul-msg-cont'); 
+        let idx = 0;
+        async function next() {
             if(idx >= dialogues.length || !document.getElementById('embedded-soul-ui')) return;
-            const b = document.createElement('div'); b.className='soul-bubble-v16'; b.innerText=dialogues[idx++];
+            
+            const line = dialogues[idx++];
+            
+            // 1. 弹出气泡
+            const b = document.createElement('div'); 
+            b.className = 'soul-bubble-v16'; 
+            b.innerText = line;
             cont.insertBefore(b, cont.firstChild);
-            setTimeout(next, 3200);
-        } next();
-        document.getElementById('soul-close-btn').onclick = () => { clearInterval(tInt); overlay.remove(); };
+            
+            // 2. 调用语音并等待播放结束
+            await fetchAndPlayVoice(line);
+            
+            // 3. 停顿 800ms 开启下一句
+            setTimeout(next, 800);
+        } 
+        
+        // 首次启动延迟
+        setTimeout(next, 1000);
+
+        // --- 关闭按钮 (增加停止音频逻辑) ---
+        document.getElementById('soul-close-btn').onclick = () => { 
+            clearInterval(tInt); 
+            // 找到所有正在播的语音并关掉
+            document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+            overlay.remove(); 
+        };
     };
 
     /**
