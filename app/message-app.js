@@ -6809,7 +6809,7 @@ renderAddFriendTab() {
                 // margin-left: -45px (继续向左拉，贴近头像)
                 // margin-top: -8px (轻微向上修正)
                 // min-width: 200px (确保拉的时候卡片宽度不变形)
-                card.style.cssText = "margin-left: -45px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
+                card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
                 
                 card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
                 msg.innerHTML = ''; 
