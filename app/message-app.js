@@ -6557,7 +6557,7 @@ renderAddFriendTab() {
 
     const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
-   /**
+    /**
      * 【第二部分：全套样式注入 (CSS)】
      */
     const styleId = 'ultimate-unified-style-v12';
@@ -6575,11 +6575,20 @@ renderAddFriendTab() {
             /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
+            /* 通话卡片样式 */
+            .call-record-card { background: #ffffff !important; border: 1px solid #eeeeee !important; border-radius: 8px !important; padding: 10px 12px !important; margin: 4px 0; display: flex !important; flex-direction: column !important; width: 190px !important; height: 54px !important; box-sizing: border-box !important; cursor: pointer; transition: none !important; }
+            .call-card-main { display: flex; align-items: center; gap: 6px; color: #000; font-size: 14px; pointer-events: none; }
+            .call-card-sub { font-size: 11px; color: #b2b2b2; margin-left: 20px; pointer-events: none; }
+            
             /* 动画效果 */
             @keyframes breathe-v16 { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.3); opacity: 0.6; } }
             .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(15px); padding: 12px 18px; border-radius: 20px; font-size: 14px; color: white; max-width: 85%; margin-bottom: 8px; animation: in-v16 0.5s ease forwards; text-align: center; }
             @keyframes in-v16 { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+            /* =========================================
+               这里是重点：修正红包位置和圆角的 CSS 规则
+               必须写在反引号内，作为字符串传给 innerHTML
+               ========================================= */
             .message-received .message-text:has(.beautiful-packet) {
                 display: block !important;
                 text-align: left !important;
@@ -6597,7 +6606,7 @@ renderAddFriendTab() {
                 position: relative !important;
                 left: 0 !important;
             }
-        `; 
+        `; // <--- 确保反引号在这里关闭
         document.head.appendChild(style);
     }
 
