@@ -6557,7 +6557,7 @@ renderAddFriendTab() {
 
     const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
-    /**
+   /**
      * 【第二部分：全套样式注入 (CSS)】
      */
     const styleId = 'ultimate-unified-style-v12';
@@ -6575,60 +6575,11 @@ renderAddFriendTab() {
             /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
-            // --- 通话卡片转换 (UI 净化版) ---
-            if (raw.includes('语音通话') || raw.includes('📞')) {
-                msg.classList.add('fixed');
-                
-                // 1. 切割管道符
-                const parts = raw.split('|').map(p => p.trim());
-                
-                // 2. 找到包含通话信息的那一格 (通常是 parts[4])
-                let fullStatus = parts[4] || "语音通话";
-                
-                // --- 【核心优化点】：净化卡片第二行文字 ---
-                // 我们把“📞”、“语音”、“通话”这些重复字眼全部删掉
-                // 这样 "📞语音通话(接通) 时长 05:03" 就会变成 "(接通) 时长 05:03"
-                let cleanStatus = fullStatus
-                    .replace('📞', '')
-                    .replace('语音通话', '')
-                    .replace(']', '')
-                    .trim();
-
-                // 3. 提取对话：从 status 所在格之后的所有内容
-                const dialogues = parts.slice(5).map(d => d.replace(']', ''));
-
-                const titleEl = document.getElementById('app-title');
-                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
-
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                
-                const card = document.createElement('div');
-                card.className = 'call-record-card';
-                // 第一行固定美观，第二行显示净化后的 cleanStatus
-                card.innerHTML = `
-                    <div class="call-card-main"><span>📞</span>语音通话</div>
-                    <div class="call-card-sub">${cleanStatus}</div>
-                `;
-                
-                card.onclick = (e) => { 
-                    e.stopPropagation(); 
-                    window.launchCallUI(name, dialogues, fId); 
-                };
-                
-                msg.innerHTML = ''; 
-                msg.appendChild(card);
-            }
-            
             /* 动画效果 */
             @keyframes breathe-v16 { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.3); opacity: 0.6; } }
             .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(15px); padding: 12px 18px; border-radius: 20px; font-size: 14px; color: white; max-width: 85%; margin-bottom: 8px; animation: in-v16 0.5s ease forwards; text-align: center; }
             @keyframes in-v16 { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-            /* =========================================
-               这里是重点：修正红包位置和圆角的 CSS 规则
-               必须写在反引号内，作为字符串传给 innerHTML
-               ========================================= */
             .message-received .message-text:has(.beautiful-packet) {
                 display: block !important;
                 text-align: left !important;
@@ -6646,7 +6597,7 @@ renderAddFriendTab() {
                 position: relative !important;
                 left: 0 !important;
             }
-        `; // <--- 确保反引号在这里关闭
+        `; 
         document.head.appendChild(style);
     }
 
