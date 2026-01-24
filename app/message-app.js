@@ -6575,13 +6575,13 @@ renderAddFriendTab() {
             /* 红包基础样式 */
             .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
             
-            /* 通话卡片基础容器 */
+/* 通话卡片基础容器 - 沿用 finalTest 版 */
 .call-record-card {
     background: #ffffff !important;
     border: 1px solid #eeeeee !important;
     border-radius: 8px !important;
     width: 195px !important;
-    height: 62px !important; /* 增加高度以容纳间距 */
+    height: 62px !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
@@ -6589,26 +6589,41 @@ renderAddFriendTab() {
     box-sizing: border-box !important;
     cursor: pointer;
     margin: 4px 0 !important;
+    transition: all 0.2s ease;
+    position: relative;
 }
 
-/* 第一行：图标+标题 */
-.call-row-top {
-    font-size: 15px !important;
-    font-weight: 500 !important;
-    color: #000 !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    line-height: 1.2 !important;
+.call-row-top { font-size: 15px !important; font-weight: 500 !important; color: #000 !important; display: flex !important; align-items: center !important; gap: 4px !important; }
+.call-row-bottom { font-size: 11px !important; color: #999999 !important; margin-top: 8px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
+
+/* 极简文字预览区 */
+.call-text-preview {
+    width: 195px !important;
+    background: #fafafa !important;
+    border: 1px solid #eeeeee !important;
+    border-top: none !important;
+    border-radius: 0 0 8px 8px !important;
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+    color: #777 !important;
+    display: none;
+    box-sizing: border-box !important;
+    line-height: 1.5 !important;
+    white-space: pre-wrap !important;
+    margin-top: -6px !important;
+    margin-bottom: 8px !important;
 }
 
-/* 第二行：状态/时长 */
-.call-row-bottom {
-    font-size: 11px !important;
-    color: #999999 !important;
-    margin-top: 8px !important; /* 舒适的呼吸间距 */
-    line-height: 1 !important;
-    padding-left: 2px !important;
+/* 橙色书本图标按钮 */
+.read-icon-btn {
+    color: #fbab51;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
             
             /* 动画效果 */
@@ -6953,49 +6968,53 @@ renderAddFriendTab() {
     card.className = 'call-record-card';
     
     if (isSuccess) {
+        // 1. 生成卡片 HTML 结构 (书本图标版)
         card.innerHTML = `
-            <div class="call-row-top">
-                <span style="margin-right:4px;">📞</span>
-                <span>语音通话</span>
-            </div>
-            <div class="call-row-bottom">
-                <span class="status-text">${status}</span>
-                <span class="pre-btn" style="color:#007AFF; cursor:pointer; font-size:11px; margin-left:10px; font-weight:bold;">详情 ▽</span>
+            <div class="call-record-card">
+                <div class="call-row-top"><span>📞</span> 语音通话</div>
+                <div class="call-row-bottom">
+                    <span>${status}</span>
+                    <span class="read-icon-btn">📖 ▽</span>
+                </div>
             </div>
         `;
         
-        // 预览层（折叠文字内容）
+        // 2. 生成预览层 (折叠文字内容)
         const preview = document.createElement('div');
         preview.className = 'call-text-preview';
-        preview.style.cssText = "width:195px; background:#f9f9f9; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#666; display:none; white-space:pre-wrap; margin-top:-5px; margin-bottom:8px; line-height:1.5; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);";
+        // 注意：这里我们通过 Class 来控制样式，这样 JS 看起来会整洁很多
         preview.innerText = dialogues.join('\n');
 
-        // 点击卡片本体：进入通话界面
+        // 3. 核心逻辑 A：点击卡片本体进入通话界面
         card.onclick = (e) => { 
             e.stopPropagation(); 
             window.launchCallUI(name, dialogues, fId); 
         };
 
-        // 点击“详情”按钮：展开/折叠文字
-        const btn = card.querySelector('.pre-btn');
-        btn.onclick = (e) => {
+        // 4. 核心逻辑 B：点击“📖 ▽”展开/折叠
+        const trigger = card.querySelector('.read-icon-btn');
+        trigger.onclick = (e) => {
             e.stopPropagation();
-            const isHidden = preview.style.display === 'none';
+            const isHidden = preview.style.display === 'none' || preview.style.display === '';
             preview.style.display = isHidden ? 'block' : 'none';
-            btn.innerHTML = isHidden ? '收起 △' : '详情 ▽';
-            // 动态调整卡片圆角，展开时下方变直角
+            trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
+            
+            // 动态切换圆角，防止预览区弹出时显得断裂
             card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
             card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
         };
 
+        // 5. 渲染到页面
         msg.innerHTML = '';
         msg.appendChild(card);
         msg.appendChild(preview);
     } else {
-        // 未接通状态：保持简洁
+        // 未接通状态：保持简洁，不绑定点击事件
         card.innerHTML = `
-            <div class="call-row-top" style="color:#999;"><span style="margin-right:4px;">📞</span>语音通话</div>
-            <div class="call-row-bottom" style="color:#ff3b30; opacity:0.8;">${status}</div>
+            <div class="call-record-card">
+                <div class="call-row-top" style="color:#999;"><span>📞</span> 语音通话</div>
+                <div class="call-row-bottom"><span>${status}</span></div>
+            </div>
         `;
         card.style.cursor = "default";
         card.onclick = (e) => { e.stopPropagation(); };
