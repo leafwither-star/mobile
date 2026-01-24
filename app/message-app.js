@@ -6842,7 +6842,9 @@ renderAddFriendTab() {
                 msg.appendChild(card);
             }
             // 红包
-            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
+            else if (raw.includes('|') && 
+                     !raw.includes('📞VOICE_CALL') && // 关键：如果包含通话暗号，绝对不跳进红包逻辑
+                     (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                 const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
