@@ -6799,6 +6799,10 @@ renderAddFriendTab() {
 
         // 2. 气泡转换 (通话 + 红包)
         document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+          // 新增这三行：防止列表里的内容被错误美化
+            if (msg.closest('.message-item') || msg.closest('.friend-item')) {
+                return; 
+            }
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
