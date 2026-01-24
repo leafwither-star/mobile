@@ -6780,11 +6780,16 @@ renderAddFriendTab() {
                 card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
                 card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
                 msg.innerHTML = ''; msg.appendChild(card);
-              // --- 插入以下三行，修复位置和圆角 ---
+                // --- 核心修正：位置 + 彻底修复圆角裁切 ---
                 msg.style.setProperty('display', 'block', 'important');
                 msg.style.setProperty('text-align', 'left', 'important');
-                msg.style.setProperty('overflow', 'visible', 'important');
-                msg.style.setProperty('padding-top', '5px', 'important');
+                msg.style.setProperty('overflow', 'visible', 'important'); // 允许圆角溢出显示
+                msg.style.setProperty('padding-top', '8px', 'important');    // 增加顶部呼吸空间
+                msg.style.setProperty('padding-bottom', '8px', 'important'); // 增加底部呼吸空间
+                
+                // 确保红包卡片本身是块级，且没有外边距干扰
+                card.style.setProperty('margin', '0', 'important');
+                card.style.setProperty('display', 'block', 'important');
             }
         });
     };
