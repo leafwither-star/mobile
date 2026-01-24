@@ -7049,6 +7049,36 @@ renderAddFriendTab() {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
+      // --- 新增：微信语音消息识别与发声联动 ---
+        document.querySelectorAll('.voice-play-btn:not(.bound)').forEach(btn => {
+            btn.classList.add('bound'); 
+            
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                
+                const msgEl = btn.closest('.message-text');
+                if (!msgEl) return;
+
+                // 重点：使用 textContent 或从原始属性拿，防止文字展开后干扰抓取
+                const rawText = msgEl.innerText;
+                
+                // 提取说话人名
+                const match = rawText.match(/消息\|([^|]+)\|/); 
+                const speaker = match ? match[1] : "陈一众"; 
+                
+                // 更加干净的内容清洗：去掉所有方括号内容、去掉 ▶ 图标、去掉时间数字
+                const content = rawText.replace(/\[.*?\]/g, '')
+                                      .replace(/[▶\d:：语音\s]+/g, '') // 增加清洗强度
+                                      .trim();
+
+                if (!content) return; // 没内容就不报了
+
+                if (typeof fetchAndPlayVoice === 'function') {
+                    // 这里传过去后，fetchAndPlayVoice 会自动根据“陈一众：”来匹配声音
+                    await fetchAndPlayVoice(`${speaker}：${content}`);
+                }
+            };
+        });
     };
 
     /**
