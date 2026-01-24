@@ -56,67 +56,56 @@ if (typeof window.MessageRenderer === 'undefined') {
      * 🔥 从原始文本中解析消息（保持完美顺序）
      */
     parseMessagesFromRawText(rawText) {
-      const messages = [];
-      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
+    const messages = [];
+    // 1. 最强兼容正则：支持原有的 4 字段和你的 5-6 字段通话格式
+    const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息|通话)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^\]]*))?\]/g;
 
-      let match;
-      let position = 0;
+    let match;
+    let position = 0;
 
-      while ((match = messageRegex.exec(rawText)) !== null) {
-        const [fullMatch, messageType, field1, field2, field3, field4] = match;
+    while ((match = messageRegex.exec(rawText)) !== null) {
+        const [fullMatch, messageType, f1, f2, f3, f4, f5] = match;
 
-        // 核心映射逻辑
-        let sender, number, msgType, content;
+        let sender, number, msgType, content, isMe = false;
 
-        if (messageType === '群聊消息') {
-          sender = field2; 
-          number = field1; 
-          msgType = field3; 
-          content = field4;
+        // 2. 核心分发逻辑
+        if (messageType === '通话') {
+            sender = f1;        // 陈一众
+            number = f2;        // 103
+            msgType = 'call';    // 强制标记为通话类型
+            // 重新组合 content：把状态、时间和对话内容拼起来，方便渲染层解析
+            content = `${f3}|${f4}|${f5 || ""}`; 
+            isMe = false;
+        } else if (messageType === '群聊消息') {
+            sender = f2; number = f1; msgType = f3; content = f4; isMe = false;
         } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
-          sender = '李至中'; 
-          number = field2; 
-          msgType = field3; 
-          content = field4;
-          // 🚀 这里的关键：给这条消息打上“我方”标签
-          var isMe = true; 
+            sender = '李至中'; number = f2; msgType = f3; content = f4; isMe = true;
         } else {
-          sender = field1;
-          // ... 
-          var isMe = false;
+            // 普通对方消息
+            sender = f1; number = f2; msgType = f3; content = f4; isMe = false;
         }
 
+        // 3. 压入队列
         messages.push({
-          fullMatch: fullMatch,
-          messageType: messageType,
-          sender: sender,
-          number: number,
-          msgType: msgType,
-          content: content,
-          textPosition: match.index,
-          contextOrder: position++,
-          isMe: isMe // 🔥 这一行是新加的，把标记传给渲染层
+            fullMatch: fullMatch,
+            messageType: messageType,
+            sender: sender,
+            number: number,
+            msgType: msgType,
+            content: content,
+            textPosition: match.index,
+            contextOrder: position++,
+            isMe: isMe
         });
-      }
-
-      // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
-      // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
-      messages.sort((a, b) => a.textPosition - b.textPosition);
-      console.log('[Message Renderer] 按原始文本位置排序，确保时间顺序正确');
-
-      console.log('[Message Renderer] 从原始文本解析到', messages.length, '条消息');
-      console.log(
-        '[Message Renderer] 排序后的消息顺序:',
-        messages.map((msg, i) => ({
-          index: i,
-          textPosition: msg.textPosition,
-          content: msg.content?.substring(0, 20) + '...',
-          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
-        })),
-      );
-
-      return messages;
     }
+
+    // 排序并打印到控制台，方便我们观察
+    messages.sort((a, b) => a.textPosition - b.textPosition);
+    console.log('[Message Renderer] 成功解析到消息数量:', messages.length);
+    console.table(messages.map(m => ({ 类型: m.messageType, 内容: m.content?.substring(0,15) })));
+
+    return messages;
+}
 
     /**
      * 🔥 估计消息在上下文中的位置
@@ -137,6 +126,11 @@ if (typeof window.MessageRenderer === 'undefined') {
 
       // 3. 根据消息类型和内容特征估计位置
       let estimatedPosition = globalIndex || 0;
+
+      // 如果是红包消息，通常比较早
+      if (content.includes('红包') || content.includes('100')) {
+        estimatedPosition = estimatedPosition - 1000;
+      }
 
       // 如果是语音消息，通常比较晚
       if (content.includes('语音') || message.msgType === '语音') {
@@ -1405,6 +1399,43 @@ if (typeof window.MessageRenderer === 'undefined') {
                 </div>
             `;
       }
+
+      // 📞 通话记录渲染 (匹配上面的 content 结构)
+if (messageType === '通话' && content) {
+    const parts = content.split('|');
+    const status = parts[0] || "已接通";
+    const duration = parts[1] || "00:00";
+    const dialogText = parts[2] || "";
+    const dialogArray = dialogText.split(/[。！?？\n]/).filter(s => s.trim().length > 1);
+
+    const callCardHtml = `
+        <div class="custom-call-card" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; min-width:180px;" 
+             onclick="window.launchCallV20 && window.launchCallV20('${sender}', ${JSON.stringify(dialogArray)}, document.querySelector('#message-avatar-${number} img')?.src)">
+            <div style="font-size:22px;">📞</div>
+            <div style="flex:1">
+                <div style="font-weight:bold; font-size:13px; color:#333;">语音通话 (${status} ${duration})</div>
+                <div style="font-size:11px; color:#999;">点击回放通话详情</div>
+            </div>
+        </div>
+    `;
+
+    return `
+        <div class="message-detail ${messageClass}" title="通话记录" data-friend-id="${friendId}">
+            ${!isMine && !isMyGroupMessage ? `<span class="message-sender">${sender}</span>` : ''}
+            <div class="message-body" style="display:flex; ${isMine ? 'flex-direction:row-reverse;' : ''}">
+                <div class="message-avatar" id="message-avatar-${friendId}">
+                    ${this.getMessageAvatar(isMine || isMyGroupMessage, sender)}
+                </div>
+                <div class="message-content" style="background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important;">
+                    <div class="message-meta">
+                        <span class="message-type">通话</span>
+                    </div>
+                    <div class="message-text" style="background:transparent!important;">${callCardHtml}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
 
       // 为接收的消息创建特殊布局，将sender移到头像上方
       if (!isMine && !isMyGroupMessage) {
