@@ -2196,9 +2196,8 @@
 }
 
 /* 只要气泡标题包含红包，里面的原始文字直接消失，只显示我们的 beautiful-packet */
-.message-content[title*="红包"] .message-text {
-    font-size: 0 !important;
-    color: transparent !important;
+.message-content[title*="红包"] .message-text:not(.beautiful-packet) {
+    display: none !important; /* 直接隐藏掉原始文本节点即可 */
 }
 
 .message-content[title*="红包"] .beautiful-packet {
