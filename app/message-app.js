@@ -6952,47 +6952,57 @@ renderAddFriendTab() {
     const card = document.createElement('div');
     card.className = 'call-record-card';
     
-    // --- 这里是你的 if (isSuccess) 逻辑，注意结尾的括号 ---
     if (isSuccess) {
         card.innerHTML = `
-            <div class="call-row-top"><span>📞</span>语音通话</div>
+            <div class="call-row-top">
+                <span style="margin-right:4px;">📞</span>
+                <span>语音通话</span>
+            </div>
             <div class="call-row-bottom">
-                <span>${status}</span>
-                <span class="pre-btn" style="color:#999; cursor:pointer; font-size:12px; margin-left:8px;">📖 ▽</span>
+                <span class="status-text">${status}</span>
+                <span class="pre-btn" style="color:#007AFF; cursor:pointer; font-size:11px; margin-left:10px; font-weight:bold;">详情 ▽</span>
             </div>
         `;
+        
+        // 预览层（折叠文字内容）
         const preview = document.createElement('div');
         preview.className = 'call-text-preview';
-        preview.style.cssText = "width:195px; background:#fafafa; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#777; display:none; white-space:pre-wrap; margin-top:-6px; margin-bottom:8px;";
+        preview.style.cssText = "width:195px; background:#f9f9f9; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#666; display:none; white-space:pre-wrap; margin-top:-5px; margin-bottom:8px; line-height:1.5; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);";
         preview.innerText = dialogues.join('\n');
 
+        // 点击卡片本体：进入通话界面
         card.onclick = (e) => { 
             e.stopPropagation(); 
             window.launchCallUI(name, dialogues, fId); 
         };
+
+        // 点击“详情”按钮：展开/折叠文字
         const btn = card.querySelector('.pre-btn');
         btn.onclick = (e) => {
             e.stopPropagation();
-            const isH = preview.style.display === 'none';
-            preview.style.display = isH ? 'block' : 'none';
-            btn.innerHTML = isH ? '📖 △' : '📖 ▽';
-            card.style.borderRadius = isH ? '8px 8px 0 0' : '8px';
-            card.style.borderBottom = isH ? 'none' : '1px solid #eeeeee';
+            const isHidden = preview.style.display === 'none';
+            preview.style.display = isHidden ? 'block' : 'none';
+            btn.innerHTML = isHidden ? '收起 △' : '详情 ▽';
+            // 动态调整卡片圆角，展开时下方变直角
+            card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
+            card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
         };
+
         msg.innerHTML = '';
         msg.appendChild(card);
         msg.appendChild(preview);
     } else {
+        // 未接通状态：保持简洁
         card.innerHTML = `
-            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
-            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
+            <div class="call-row-top" style="color:#999;"><span style="margin-right:4px;">📞</span>语音通话</div>
+            <div class="call-row-bottom" style="color:#ff3b30; opacity:0.8;">${status}</div>
         `;
         card.style.cursor = "default";
         card.onclick = (e) => { e.stopPropagation(); };
         msg.innerHTML = '';
         msg.appendChild(card);
     } 
-    // 通话逻辑到此彻底结束
+    // --- 【缝合结束】 ---
 }
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
