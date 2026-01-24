@@ -6635,13 +6635,11 @@ renderAddFriendTab() {
     };
 
     // 语音通话 UI 逻辑 (头像修复 + 名字显示修复)
-    window.launchCallUI = (defaultName, dialogues, forceFId) => {
+    window.launchCallUI = (name, dialogues, fId) => {
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
-        
-        // 关键改动：优先使用传入的 forceFId 匹配配置
-        const contact = PERMANENT_CONTACTS[forceFId] || { name: defaultName };
-        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${forceFId}`;
+        const contact = PERMANENT_CONTACTS[fId] || { name: name };
+        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fId}`;
         
         const overlay = document.createElement('div');
         overlay.id = "embedded-soul-ui";
@@ -6661,6 +6659,7 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
+        // 动画渲染
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
         let step = 0;
@@ -6734,22 +6733,7 @@ renderAddFriendTab() {
     /**
      * 【第五部分：界面刷新逻辑 (列表+气泡)】
      */
-  const runUIUpdate = () => {
-    // 0. 顶部标题栏美化 (修复 "好友 103" 问题)
-        const titleEl = document.getElementById('app-title');
-        if (titleEl) {
-            const fIdMatch = titleEl.innerText.match(/\d+/);
-            if (fIdMatch) {
-                const fId = fIdMatch[0];
-                const info = PERMANENT_CONTACTS[fId];
-                if (info && !titleEl.hasAttribute('data-fixed')) {
-                    titleEl.innerText = info.name;
-                    titleEl.setAttribute('data-fixed', 'true');
-                    // --- 下面这一行很重要，是留给通话界面看的“暗号” ---
-                    titleEl.setAttribute('data-fixed-id', fId); 
-                }
-            }
-        }
+    const runUIUpdate = () => {
         // 1. 列表美化
         document.querySelectorAll('.message-item').forEach(item => {
             const fId = item.getAttribute('data-friend-id');
@@ -6795,13 +6779,9 @@ renderAddFriendTab() {
                 msg.classList.add('fixed');
                 const parts = raw.split('|').map(p => p.trim());
                 const status = parts[0].replace('📞', '').trim();
-               // --- 这一段换成稳健的“暗号”读取模式 ---
                 const titleEl = document.getElementById('app-title');
-                // 优先看“暗号”，看不了再找数字
-                const currentFId = titleEl?.getAttribute('data-fixed-id') || titleEl?.innerText.match(/\d+/)?.[0] || document.querySelector('.message-item[active="true"]')?.getAttribute('data-friend-id') || "103";
-                const info = PERMANENT_CONTACTS[fId];
-                const name = info ? info.name : "联系人"; 
-                // ------------------------------------
+                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
                 if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
                 const card = document.createElement('div');
@@ -6836,7 +6816,7 @@ renderAddFriendTab() {
                 msg.appendChild(card);
             }
         });
-    }
+    };
 
     /**
      * 【第六部分：iOS 横幅通知 (补回此功能)】
