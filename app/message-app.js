@@ -7047,27 +7047,59 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动：终极点击抢夺版 ---
+     // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
-            // 使用 true (捕获模式)，确保抢在插件自带的拦截逻辑之前拿到点击信号
             document.addEventListener('click', (e) => {
-                const btn = e.target.closest('.voice-play-btn');
-                if (!btn) return;
+                // 1. 识别点击目标
+                const isVoice = e.target.innerText?.includes('▶') || 
+                                e.target.closest('[class*="voice"]') || 
+                                e.target.closest('[class*="play"]');
+                if (!isVoice) return;
 
-                // 找到消息文本容器
-                const msgEl = btn.closest('.message-text');
-                if (!msgEl) return;
+                // 2. 寻找气泡
+                const bubble = e.target.closest('.message-text') || 
+                               e.target.closest('.message-content') || 
+                               e.target.parentElement;
 
-                console.log("🎯 [抢夺联动] 捕获到语音点击，准备播报...");
+                if (bubble) {
+                    console.log("⏳ 捕获语音点击，等待文字同步...");
+                    let lastText = "";
+                    let stableCount = 0;
+                    
+                    const waiter = setInterval(() => {
+                        const currentText = bubble.innerText;
+                        
+                        // 判定文字是否停止变动（且长度合理）
+                        if (currentText === lastText && currentText.length > 5) {
+                            stableCount++;
+                        } else {
+                            stableCount = 0;
+                        }
+                        lastText = currentText;
 
-                // 直接调用你放在脚本最外层的那个全局函数
-                if (typeof window.fetchAndPlayVoice === 'function') {
-                    // 传入整段文字，函数内部会自动识别是陈一众还是李至中，并过滤杂质
-                    window.fetchAndPlayVoice(msgEl.innerText);
+                        // 连续 3 次检查不变则抓取
+                        if (stableCount >= 3) {
+                            clearInterval(waiter);
+                            
+                            // 提取纯台词：剔除时间前缀和杂质
+                            const cleanContent = currentText.replace(/^\d+:\d+\s*/, '')
+                                                           .replace(/\[.*?\]/g, '')
+                                                           .trim();
+
+                            if (typeof window.fetchAndPlayVoice === 'function') {
+                                // 自动判定角色（优先从文本抓，抓不到点默认）
+                                const nameMatch = currentText.match(/\|([^|]+)\|/);
+                                const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
+                                
+                                console.log(`✅ 同步播报启动: ${speaker}`);
+                                window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
+                            }
+                        }
+                    }, 400);
                 }
             }, true); 
             window.voiceEventBound = true;
-            console.log("✅ 语音同步监听器：模式 6 (事件捕获) 已启动");
+            console.log("🚀 语音同步模块已随界面逻辑启动");
         }
     };
 
