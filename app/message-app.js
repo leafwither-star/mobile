@@ -6799,28 +6799,33 @@ renderAddFriendTab() {
 
         // 2. 气泡转换 (通话 + 红包)
         document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-          // 新增这三行：防止列表里的内容被错误美化
-            if (msg.closest('.message-item') || msg.closest('.friend-item')) {
-                return; 
-            }
+            if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
+            
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-            // --- 通话卡片转换 (针对新暗号格式) ---
-            if (raw.includes('📞VOICE_CALL')) {
+            // --- 【第一步】先进行通话判定 (提高优先级，增强识别) ---
+            // 只要包含 📞 或 VOICE_CALL 关键词，优先走通话逻辑
+            if (raw.includes('VOICE_CALL') || raw.includes('📞')) {
                 msg.classList.add('fixed');
                 
-                // 1. 净化文本：去掉末尾的暗号和未读标签，避免干扰解析
-                let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('[UNREAD]', '').trim();
-                
-                // 2. 切割管道符
+                // 清洗掉可能存在的暗号标记和未读标记
+                let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
                 const parts = cleanRaw.split('|').map(p => p.trim());
                 
-                // 根据新格式 [时间|方向|姓名|ID|文字|通话状态|对话1|...]
-                // parts[5] 是“通话状态”，parts.slice(6) 后面全是对话
-                const status = parts[5] ? parts[5].replace(']', '') : "语音通话";
-                const dialogues = parts.slice(6).map(d => d.replace(']', ''));
+                // 动态定位：如果格式是 [时间|方向|姓名|ID|类型|状态|...]
+                // 我们取包含“通话”二字的那个部分作为状态
+                let status = "语音通话";
+                let dialogueIndex = 6; // 默认对话从第7个位置开始
+                
+                // 自动寻找包含“通话”或“时长”的那一项作为状态描述
+                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长'));
+                if (statusIdx !== -1) {
+                    status = parts[statusIdx].replace(']', '');
+                    dialogueIndex = statusIdx + 1;
+                }
 
+                const dialogues = parts.slice(dialogueIndex).map(d => d.replace(']', ''));
                 const titleEl = document.getElementById('app-title');
                 const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
                 const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
@@ -6829,10 +6834,8 @@ renderAddFriendTab() {
                 
                 const card = document.createElement('div');
                 card.className = 'call-record-card';
-                // 这里显示状态，比如“已接通”或“通话时长 05:03”
                 card.innerHTML = `<div class="call-card-main"><span>📞</span>语音通话</div><div class="call-card-sub">${status}</div>`;
                 
-                // 点击时把解析出来的对话数组传给 UI
                 card.onclick = (e) => { 
                     e.stopPropagation(); 
                     window.launchCallUI(name, dialogues, fId); 
@@ -6840,33 +6843,20 @@ renderAddFriendTab() {
                 
                 msg.innerHTML = ''; 
                 msg.appendChild(card);
-            }
-            // 红包
-            else if (raw.includes('|') && 
-                     !raw.includes('📞VOICE_CALL') && // 关键：如果包含通话暗号，绝对不跳进红包逻辑
-                     (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
+            } 
+            // --- 【第二步】如果是红包 (且确定不是通话) ---
+            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
+                // ... (此处保持你原有的红包渲染代码不变) ...
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
                 const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                
-                // 彻底清除父容器可能存在的背景和内边距，并强制它不要限制红包
-                if (bubble) {
-                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important;";
-                }
-                
+                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important;";
                 const card = document.createElement('div');
                 card.className = 'beautiful-packet';
                 card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-                
-                // --- 再次加大拉力 ---
-                // margin-left: -45px (继续向左拉，贴近头像)
-                // margin-top: -8px (轻微向上修正)
-                // min-width: 200px (确保拉的时候卡片宽度不变形)
                 card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
-                
                 card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; 
-                msg.appendChild(card);
+                msg.innerHTML = ''; msg.appendChild(card);
             }
         });
     };
