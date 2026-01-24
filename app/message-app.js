@@ -7067,32 +7067,53 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动：控制台劫持版 ---
-        if (!window.consoleHijacked) {
-            const originalLog = console.log;
-            console.log = function(...args) {
-                // 1. 照常打印原来的日志，不破坏原功能
-                originalLog.apply(console, args);
+     // --- 微信语音联动：MutationObserver 追踪版 ---
+        if (!window.domObserverBound) {
+            const voiceObserver = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    // 当气泡内的文字（CharacterData）或者子节点（ChildList）变动时
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        const target = mutation.target.parentElement || mutation.target;
+                        
+                        // 1. 确认这是一个语音消息气泡，且文字长度已经超过基本标识
+                        if (target.classList && target.classList.contains('message-text') && target.innerText.includes('▶')) {
+                            
+                            // 2. 提取纯文字
+                            const fullText = target.innerText;
+                            const cleanContent = fullText.replace(/\[.*?\]/g, '')
+                                                       .replace(/[▶\d:：语音\s]+/g, '')
+                                                       .trim();
 
-                // 2. 捕捉插件的特定日志
-                const logMsg = args[0];
-                if (typeof logMsg === 'string' && logMsg.includes('[Voice Message] 开始流式传输:')) {
-                    // 提取冒号后面的文字内容
-                    const content = logMsg.split('开始流式传输:')[1].trim();
-                    
-                    // 自动判断当前聊天对象（从插件状态获取）
-                    const speaker = (window.currentAppState && window.currentAppState.friendName) || "陈一众";
+                            // 3. 只有当抓到的文字长度 > 1，且之前没读过这段文字时才触发
+                            if (cleanContent.length > 1 && window.lastSpokenText !== cleanContent) {
+                                console.warn(`[DOM追踪成功] 发现新文字展开: ${cleanContent}`);
+                                
+                                // 标记已读，防止流式展开过程中重复触发
+                                window.lastSpokenText = cleanContent;
+                                
+                                // 获取角色
+                                const nameMatch = fullText.match(/\|([^|]+)\|/);
+                                const speaker = nameMatch ? nameMatch[1] : "陈一众";
 
-                    // 延迟 50ms 触发，避开音频竞争
-                    setTimeout(() => {
-                        if (typeof window.fetchAndPlayVoice === 'function') {
-                            console.warn(`[劫持联动] 检测到插件动作，同步启动TTS: ${content}`);
-                            window.fetchAndPlayVoice(`${speaker}：${content}`);
+                                if (typeof window.fetchAndPlayVoice === 'function') {
+                                    window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
+                                }
+                            }
                         }
-                    }, 50);
+                    }
                 }
-            };
-            window.consoleHijacked = true;
+            });
+
+            // 开始监听整个手机容器的变化
+            const phoneBody = document.querySelector('.mobile-body') || document.body;
+            voiceObserver.observe(phoneBody, { 
+                childList: true, 
+                subtree: true, 
+                characterData: true 
+            });
+            
+            window.domObserverBound = true;
+            console.log("✅ 语音同步监听器：模式 5 (DOM Observer) 已启动");
         }
     };
 
