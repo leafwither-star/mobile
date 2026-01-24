@@ -6696,36 +6696,7 @@ renderAddFriendTab() {
         };
     };
 
-    // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
-    window.launchCallUI = (name, dialogues, fId) => {
-        // --- 配置区 ---
-        const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
-        const GROUP_ID = "2014232095953523532";
-
-        const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
-        if (!container) return;
-        const contact = PERMANENT_CONTACTS[fId] || { name: name };
-        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fId}`;
-        
-        const overlay = document.createElement('div');
-        overlay.id = "embedded-soul-ui";
-        overlay.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: space-between; color: white; overflow: hidden;`;
-        overlay.innerHTML = `
-            <div style="margin-top: 50px; text-align: center; width: 100%;">
-                <div style="position: relative; width: 100px; height: 100px; margin: 0 auto;">
-                    <div style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(25px); animation: breathe-v16 2.5s infinite;"></div>
-                    <img src="${avatarUrl}" style="position: relative; width:100%; height:100%; border-radius:50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3);">
-                </div>
-                <div style="margin-top: 18px; font-size: 22px; font-weight: 500;">${contact.name}</div>
-                <div style="margin-top: 5px; font-size: 13px; opacity: 0.5;">通话中 <span id="soul-timer-v16">00:00</span></div>
-                <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
-            </div>
-            <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
-            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
-        `;
-        container.appendChild(overlay);
-
-        /**
+   /**
  * 终极 TTS 引擎：支持微信语音格式提取 & 通话记录格式提取
  */
 window.fetchAndPlayVoice = async function(rawLine) {
@@ -6797,6 +6768,36 @@ window.fetchAndPlayVoice = async function(rawLine) {
         }
     } catch (e) { console.error("语音播报失败:", e); }
 };
+  
+    // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
+    window.launchCallUI = (name, dialogues, fId) => {
+        // --- 配置区 ---
+        const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
+        const GROUP_ID = "2014232095953523532";
+
+        const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
+        if (!container) return;
+        const contact = PERMANENT_CONTACTS[fId] || { name: name };
+        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fId}`;
+        
+        const overlay = document.createElement('div');
+        overlay.id = "embedded-soul-ui";
+        overlay.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: space-between; color: white; overflow: hidden;`;
+        overlay.innerHTML = `
+            <div style="margin-top: 50px; text-align: center; width: 100%;">
+                <div style="position: relative; width: 100px; height: 100px; margin: 0 auto;">
+                    <div style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(25px); animation: breathe-v16 2.5s infinite;"></div>
+                    <img src="${avatarUrl}" style="position: relative; width:100%; height:100%; border-radius:50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3);">
+                </div>
+                <div style="margin-top: 18px; font-size: 22px; font-weight: 500;">${contact.name}</div>
+                <div style="margin-top: 5px; font-size: 13px; opacity: 0.5;">通话中 <span id="soul-timer-v16">00:00</span></div>
+                <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
+            </div>
+            <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
+            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
+        `;
+        container.appendChild(overlay);
+
         // --- 动画渲染 (保持原样) ---
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
@@ -7067,53 +7068,27 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动：MutationObserver 追踪版 ---
-        if (!window.domObserverBound) {
-            const voiceObserver = new MutationObserver((mutations) => {
-                for (const mutation of mutations) {
-                    // 当气泡内的文字（CharacterData）或者子节点（ChildList）变动时
-                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                        const target = mutation.target.parentElement || mutation.target;
-                        
-                        // 1. 确认这是一个语音消息气泡，且文字长度已经超过基本标识
-                        if (target.classList && target.classList.contains('message-text') && target.innerText.includes('▶')) {
-                            
-                            // 2. 提取纯文字
-                            const fullText = target.innerText;
-                            const cleanContent = fullText.replace(/\[.*?\]/g, '')
-                                                       .replace(/[▶\d:：语音\s]+/g, '')
-                                                       .trim();
+     // --- 微信语音联动：终极点击抢夺版 ---
+        if (!window.voiceEventBound) {
+            // 使用 true (捕获模式)，确保抢在插件自带的拦截逻辑之前拿到点击信号
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.voice-play-btn');
+                if (!btn) return;
 
-                            // 3. 只有当抓到的文字长度 > 1，且之前没读过这段文字时才触发
-                            if (cleanContent.length > 1 && window.lastSpokenText !== cleanContent) {
-                                console.warn(`[DOM追踪成功] 发现新文字展开: ${cleanContent}`);
-                                
-                                // 标记已读，防止流式展开过程中重复触发
-                                window.lastSpokenText = cleanContent;
-                                
-                                // 获取角色
-                                const nameMatch = fullText.match(/\|([^|]+)\|/);
-                                const speaker = nameMatch ? nameMatch[1] : "陈一众";
+                // 找到消息文本容器
+                const msgEl = btn.closest('.message-text');
+                if (!msgEl) return;
 
-                                if (typeof window.fetchAndPlayVoice === 'function') {
-                                    window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
-                                }
-                            }
-                        }
-                    }
+                console.log("🎯 [抢夺联动] 捕获到语音点击，准备播报...");
+
+                // 直接调用你放在脚本最外层的那个全局函数
+                if (typeof window.fetchAndPlayVoice === 'function') {
+                    // 传入整段文字，函数内部会自动识别是陈一众还是李至中，并过滤杂质
+                    window.fetchAndPlayVoice(msgEl.innerText);
                 }
-            });
-
-            // 开始监听整个手机容器的变化
-            const phoneBody = document.querySelector('.mobile-body') || document.body;
-            voiceObserver.observe(phoneBody, { 
-                childList: true, 
-                subtree: true, 
-                characterData: true 
-            });
-            
-            window.domObserverBound = true;
-            console.log("✅ 语音同步监听器：模式 5 (DOM Observer) 已启动");
+            }, true); 
+            window.voiceEventBound = true;
+            console.log("✅ 语音同步监听器：模式 6 (事件捕获) 已启动");
         }
     };
 
