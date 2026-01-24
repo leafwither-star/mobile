@@ -6696,11 +6696,11 @@ renderAddFriendTab() {
 
         // --- TTS 播放器控制 ---
         async function fetchAndPlayVoice(rawLine) {
-            let voiceId = "Chinese (Mandarin)_Reliable_Executive"; // 默认
+            let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
             let speed = 0.9;
             let pitch = 0;
 
-            // 识别角色：根据你给的格式 [陈一众：...] 或 [李至中：...]
+            // 1. 识别角色
             if (rawLine.includes("李至中")) {
                 voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
                 pitch = 2;
@@ -6709,13 +6709,17 @@ renderAddFriendTab() {
                 pitch = 0;
             }
 
+            // 2. 【核心修复】过滤掉名字和冒号
+            // 使用正则表达式匹配“名字+冒号（全角或半角）”，只保留后面的台词
+            const cleanText = rawLine.replace(/^[^：:]*[：:]/, "").trim();
+
             try {
                 const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         "model": "speech-2.8-hd",
-                        "text": rawLine,
+                        "text": cleanText, // 这里传过滤后的文本
                         "voice_setting": { "voice_id": voiceId, "speed": speed, "pitch": pitch },
                         "voice_modify": { "sound_effects": "lofi_telephone" },
                         "audio_setting": { "sample_rate": 32000, "format": "mp3" },
@@ -6725,7 +6729,7 @@ renderAddFriendTab() {
                 const result = await response.json();
                 if (result.data?.audio) {
                     const audio = new Audio(result.data.audio);
-                    audio.className = "soul-current-audio"; // 标记，方便关闭通话时停音
+                    audio.className = "soul-current-audio";
                     return new Promise(res => { audio.onended = res; audio.play(); });
                 }
             } catch (e) { console.error("语音请求失败:", e); }
