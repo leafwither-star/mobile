@@ -6734,6 +6734,19 @@ renderAddFriendTab() {
      * 【第五部分：界面刷新逻辑 (列表+气泡)】
      */
     const runUIUpdate = () => {
+      // 0. 顶部标题强制修正 (新增部分)
+        const titleEl = document.getElementById('app-title');
+        if (titleEl) {
+            const fIdMatch = titleEl.innerText.match(/\d+/);
+            if (fIdMatch) {
+                const fId = fIdMatch[0];
+                const info = PERMANENT_CONTACTS[fId];
+                if (info) {
+                    titleEl.innerText = info.name; // 强制变中文
+                    titleEl.setAttribute('data-fixed-id', fId); // 留个暗号给通话界面
+                }
+            }
+        }
         // 1. 列表美化
         document.querySelectorAll('.message-item').forEach(item => {
             const fId = item.getAttribute('data-friend-id');
