@@ -7067,34 +7067,32 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动：终极合体版 ---
-        if (!window.voiceEventBound) {
-            // 使用事件捕获，抢在插件逻辑前识别点击
-            document.addEventListener('click', async (e) => {
-                const btn = e.target.closest('.voice-play-btn');
-                if (!btn) return;
+     // --- 微信语音联动：控制台劫持版 ---
+        if (!window.consoleHijacked) {
+            const originalLog = console.log;
+            console.log = function(...args) {
+                // 1. 照常打印原来的日志，不破坏原功能
+                originalLog.apply(console, args);
 
-                // 找到消息文本容器
-                const msgEl = btn.closest('.message-text');
-                if (!msgEl) return;
+                // 2. 捕捉插件的特定日志
+                const logMsg = args[0];
+                if (typeof logMsg === 'string' && logMsg.includes('[Voice Message] 开始流式传输:')) {
+                    // 提取冒号后面的文字内容
+                    const content = logMsg.split('开始流式传输:')[1].trim();
+                    
+                    // 自动判断当前聊天对象（从插件状态获取）
+                    const speaker = (window.currentAppState && window.currentAppState.friendName) || "陈一众";
 
-                // 提取角色和内容
-                const rawText = msgEl.innerText;
-                const match = rawText.match(/消息\|([^|]+)\|/);
-                const speaker = match ? match[1] : "陈一众";
-                
-                const content = rawText.replace(/\[.*?\]/g, '')
-                                      .replace(/[▶\d:：语音\s]+/g, '')
-                                      .trim();
-
-                console.log(`[点击联动] 识别到角色: ${speaker}, 准备发声`);
-
-                // 调用刚才挂载在 window 上的全局函数
-                if (content && typeof window.fetchAndPlayVoice === 'function') {
-                    window.fetchAndPlayVoice(`${speaker}：${content}`);
+                    // 延迟 50ms 触发，避开音频竞争
+                    setTimeout(() => {
+                        if (typeof window.fetchAndPlayVoice === 'function') {
+                            console.warn(`[劫持联动] 检测到插件动作，同步启动TTS: ${content}`);
+                            window.fetchAndPlayVoice(`${speaker}：${content}`);
+                        }
+                    }, 50);
                 }
-            }, true); 
-            window.voiceEventBound = true;
+            };
+            window.consoleHijacked = true;
         }
     };
 
