@@ -6726,7 +6726,7 @@ renderAddFriendTab() {
         container.appendChild(overlay);
 
         // --- TTS 播放器控制 (彻底根治自报家门问题) ---
-        async function fetchAndPlayVoice(rawLine) {
+        window.fetchAndPlayVoice = async function(rawLine) {
             let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
             let speed = 0.9;
             let pitch = 0;
