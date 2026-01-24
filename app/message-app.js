@@ -6725,60 +6725,78 @@ renderAddFriendTab() {
         `;
         container.appendChild(overlay);
 
-        // --- TTS 播放器控制 (彻底根治自报家门问题) ---
-        window.fetchAndPlayVoice = async function(rawLine) {
-            let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
-            let speed = 0.9;
-            let pitch = 0;
+        /**
+ * 终极 TTS 引擎：支持微信语音格式提取 & 通话记录格式提取
+ */
+window.fetchAndPlayVoice = async function(rawLine) {
+    if (!rawLine) return;
 
-            // 1. 识别角色逻辑 (保持不变)
-            if (rawLine.includes("李至中")) {
-                voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
-                pitch = 2;
-            } else if (rawLine.includes("陈一众")) {
-                voiceId = "Chinese (Mandarin)_Reliable_Executive";
-                pitch = 0;
-            }
+    let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
+    let speakerName = "陈一众"; // 默认角色
+    let cleanText = "";
 
-            // 2. 【核心修复】双重保险过滤名字
-            let cleanText = rawLine;
-            if (rawLine.includes("：")) {
-                // 优先处理中文冒号
-                cleanText = rawLine.split("：").slice(1).join("：");
-            } else if (rawLine.includes(":")) {
-                // 兼容英文冒号
-                cleanText = rawLine.split(":").slice(1).join(":");
-            } else {
-                // 如果实在没冒号，尝试正则去掉开头几个字
-                cleanText = rawLine.replace(/^.*?[：:]/, "");
-            }
-            
-            // 顺便把文本前后的空格和空行修剪干净
-            cleanText = cleanText.trim();
+    // --- 逻辑 A：处理微信语音插件格式 ---
+    // 格式：[时间|...][对方消息|陈一众|103|语音|台词内容...][UNREAD]
+    if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
+        // 1. 提取名字（用来选嗓音）
+        const nameMatch = rawLine.match(/\|([^|]+)\|103\|/); 
+        speakerName = nameMatch ? nameMatch[1] : "陈一众";
 
-            console.log("AI 实际朗读内容:", cleanText); // 你可以在控制台看到过滤后的结果
+        // 2. 提取台词（剔除所有方括号和图标）
+        cleanText = rawLine.replace(/\[.*?\]/g, '')
+                          .replace(/[▶\d:：语音\s]+/g, '')
+                          .trim();
+    } 
+    // --- 逻辑 B：处理通话记录格式 ---
+    // 格式：陈一众：台词内容
+    else if (rawLine.includes("：") || rawLine.includes(":")) {
+        const parts = rawLine.split(/[：:]/);
+        speakerName = parts[0].trim();
+        cleanText = parts.slice(1).join("：").trim();
+    } else {
+        cleanText = rawLine.trim();
+    }
 
-            try {
-                const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        "model": "speech-2.8-hd",
-                        "text": cleanText, 
-                        "voice_setting": { "voice_id": voiceId, "speed": speed, "pitch": pitch },
-                        "voice_modify": { "sound_effects": "lofi_telephone" },
-                        "audio_setting": { "sample_rate": 32000, "format": "mp3" },
-                        "output_format": "url"
-                    })
-                });
-                const result = await response.json();
-                if (result.data?.audio) {
-                    const audio = new Audio(result.data.audio);
-                    audio.className = "soul-current-audio";
-                    return new Promise(res => { audio.onended = res; audio.play(); });
-                }
-            } catch (e) { console.error("语音请求失败:", e); }
+    // --- 嗓音分配 ---
+    if (speakerName.includes("李至中")) {
+        voiceId = "ttv-voice-2026012422010026-TfZEqPaA";
+    } else {
+        voiceId = "Chinese (Mandarin)_Reliable_Executive";
+    }
+
+    console.log(`[TTS播报] 识别角色: ${speakerName}, 实际朗读: ${cleanText}`);
+
+    if (!cleanText) return;
+
+    try {
+        const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GROUP_ID}`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': 'Bearer ' + API_KEY.trim(),
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                "model": "speech-2.8-hd",
+                "text": cleanText, 
+                "voice_setting": { "voice_id": voiceId, "speed": 0.9, "pitch": 0 },
+                "voice_modify": { "sound_effects": "lofi_telephone" },
+                "audio_setting": { "sample_rate": 32000, "format": "mp3" },
+                "output_format": "url"
+            })
+        });
+
+        const result = await response.json();
+        if (result.data?.audio) {
+            document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+            const audio = new Audio(result.data.audio);
+            audio.className = "soul-current-audio";
+            return new Promise(res => { 
+                audio.onended = () => { audio.remove(); res(); };
+                audio.play();
+            });
         }
+    } catch (e) { console.error("语音播报失败:", e); }
+};
         // --- 动画渲染 (保持原样) ---
         const cvs = document.getElementById('multi-wave-cvs');
         const ctx = cvs.getContext('2d');
@@ -7049,42 +7067,31 @@ renderAddFriendTab() {
                 msg.innerHTML = ''; msg.appendChild(card);
             }
         });
-     // --- 微信语音联动（强制接管版） ---
+     // --- 微信语音联动：终极合体版 ---
         if (!window.voiceEventBound) {
+            // 使用事件捕获，抢在插件逻辑前识别点击
             document.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.voice-play-btn');
                 if (!btn) return;
 
-                // 1. 停止页面上所有正在播放的 Audio，防止声音重叠
-                document.querySelectorAll('audio').forEach(a => { a.pause(); a.currentTime = 0; });
-
+                // 找到消息文本容器
                 const msgEl = btn.closest('.message-text');
                 if (!msgEl) return;
 
-                // 2. 提取最纯净的文本
+                // 提取角色和内容
                 const rawText = msgEl.innerText;
+                const match = rawText.match(/消息\|([^|]+)\|/);
+                const speaker = match ? match[1] : "陈一众";
                 
-                // 自动识别说话人 (从 [对方消息|名字|...] 中提取)
-                const match = rawText.match(/消息\|([^|]+)\|/); 
-                const speaker = match ? match[1] : "陈一众"; 
-
-                // 提取纯台词：剔除所有标签、图标、时间、数字
                 const content = rawText.replace(/\[.*?\]/g, '')
                                       .replace(/[▶\d:：语音\s]+/g, '')
                                       .trim();
 
-                console.log(`[强制播报启动] 角色: ${speaker}, 内容: ${content}`);
+                console.log(`[点击联动] 识别到角色: ${speaker}, 准备发声`);
 
-                // 3. 核心修复：确保 fetchAndPlayVoice 存在并调用
-                if (content && typeof fetchAndPlayVoice === 'function') {
-                    try {
-                        // 强制调用我们自己的 MiniMax 发声函数
-                        await fetchAndPlayVoice(`${speaker}：${content}`);
-                    } catch (err) {
-                        console.error("[语音播报失败]", err);
-                    }
-                } else {
-                    console.error("[系统提示] fetchAndPlayVoice 函数未定义或台词为空");
+                // 调用刚才挂载在 window 上的全局函数
+                if (content && typeof window.fetchAndPlayVoice === 'function') {
+                    window.fetchAndPlayVoice(`${speaker}：${content}`);
                 }
             }, true); 
             window.voiceEventBound = true;
