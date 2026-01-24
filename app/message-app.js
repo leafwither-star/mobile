@@ -1,2454 +1,1476 @@
 /**
- * Message App - 信息应用
- * 为mobile-phone.js提供消息功能
+ * Message Renderer - 消息渲染器
+ * 从上下文中提取并渲染具体的聊天消息
+ * 支持虚拟滚动和性能优化
  */
 
-// 延迟加载SillyTavern的事件系统
-let eventSource, event_types, chat, characters, this_chid, name1, name2;
-let sillyTavernImportAttempted = false;
-
-// 尝试导入SillyTavern的核心模块
-async function importSillyTavernModules() {
-  if (sillyTavernImportAttempted) {
-    return;
-  }
-  sillyTavernImportAttempted = true;
-
-  // 简化日志：只在调试模式下输出详细信息
-  if (window.DEBUG_MESSAGE_APP) {
-    console.log('[Message App] 🔍 开始导入SillyTavern模块...');
-    console.log('[Message App] 🔍 检查全局对象中的变量:');
-    console.log('  - window.eventSource:', typeof window['eventSource'], !!window['eventSource']);
-    console.log('  - window.event_types:', typeof window['event_types'], !!window['event_types']);
-    console.log('  - window.chat:', typeof window['chat'], !!window['chat']);
-  }
-
-  try {
-    // 首先尝试从全局对象获取
-    eventSource = window['eventSource'];
-    event_types = window['event_types'];
-    chat = window['chat'];
-    characters = window['characters'];
-    this_chid = window['this_chid'];
-    name1 = window['name1'];
-    name2 = window['name2'];
-
-    if (window.DEBUG_MESSAGE_APP) {
-      console.log('[Message App] 🔍 从全局对象获取结果:');
-      console.log('  - eventSource:', !!eventSource, typeof eventSource);
-      console.log('  - event_types:', !!event_types, typeof event_types);
-    }
-
-    if (eventSource && event_types) {
-      if (window.DEBUG_MESSAGE_APP) {
-        console.log('[Message App] ✅ 成功从全局对象获取SillyTavern模块');
-      }
-      return;
-    }
-  } catch (error) {
-    console.warn('[Message App] 无法从全局对象获取SillyTavern模块:', error);
-  }
-
-  try {
-    // @ts-ignore - 动态导入可能失败，这里进行安全处理
-    const scriptModule = await import('../../../script.js').catch(() => null);
-    if (scriptModule) {
-      if (window.DEBUG_MESSAGE_APP) {
-        console.log('[Message App] 🔍 动态导入模块内容:', Object.keys(scriptModule));
-      }
-      ({ eventSource, event_types, chat, characters, this_chid, name1, name2 } = scriptModule);
-      if (window.DEBUG_MESSAGE_APP) {
-        console.log('[Message App] ✅ 成功通过动态导入获取SillyTavern模块');
-      }
-    }
-  } catch (error) {
-    console.warn('[Message App] 无法通过动态导入获取SillyTavern模块:', error);
-  }
-
-  // 最终状态检查
-  console.log('[Message App] 🔍 最终导入状态:');
-  console.log('  - eventSource:', !!eventSource, eventSource?.constructor?.name);
-  console.log('  - event_types:', !!event_types, event_types ? Object.keys(event_types).length + ' events' : 'null');
-}
-
 // 避免重复定义
-if (typeof window.MessageApp === 'undefined') {
-  class MessageApp {
+if (typeof window.MessageRenderer === 'undefined') {
+  // @ts-ignore
+  window.MessageRenderer = class MessageRenderer {
     constructor() {
-      this.currentView = 'list'; // 'list', 'addFriend', 'messageDetail', 'friendsCircle'
-      this.currentTab = 'add'; // 'add', 'delete', 'createGroup', 'deleteGroup'
-      this.currentMainTab = 'friends'; // 'friends', 'circle' - 主要页面切换
-      this.friendRenderer = null;
+      this.contextMonitor = null;
       this.currentFriendId = null;
-      this.currentFriendName = null;
-      this.currentIsGroup = null; // 当前聊天是否为群聊
-      this.currentSelectedFriend = null; // 当前选中的好友，用于发送消息
+      this.myMessages = [];
+      this.otherMessages = [];
+      this.groupMessages = [];
+      this.allMessages = [];
+      this.retryCount = 0;
+      this.maxRetries = 10;
 
-      // 朋友圈相关
-      this.friendsCircle = null;
-      this.friendsCircleInitialized = false;
+      // 性能优化相关
+      this.virtualScrolling = {
+        itemHeight: 80, // 预估消息项高度
+        visibleCount: 20, // 可见消息数量
+        buffer: 10, // 缓冲区大小
+        scrollTop: 0,
+        startIndex: 0,
+        endIndex: 20,
+      };
 
-      // 实时监控相关
-      this.realtimeMonitor = null;
-      this.lastMessageCount = 0;
-      this.lastMessageId = null;
-      this.isAutoRenderEnabled = true;
-      this.lastRenderTime = 0;
-      this.renderCooldown = 1000; // 渲染冷却时间，避免过于频繁
+      this.pagination = {
+        pageSize: 50, // 每页消息数量
+        currentPage: 0,
+        totalPages: 0,
+        loadedMessages: [],
+        isLoading: false,
+      };
 
-      // 实时同步器集成
-      this.realTimeSync = null;
-      this.syncEnabled = true;
+      this.messageCache = new Map(); // 消息缓存
+      this.renderCache = new Map(); // 渲染缓存
 
-      // 增量渲染相关
-      this.incrementalRenderer = null;
-      this.useIncrementalRender = true; // 默认启用增量渲染
-      this.fullRenderMode = false; // 是否使用全量渲染模式
-
-      // 延迟渲染相关
-      this.delayedRenderTimer = null; // 延迟渲染定时器
-      this.delayedRenderDelay = 2000; // 延迟2秒
+      // 🔥 新增：好友姓名到ID的映射
+      this.friendNameToIdMap = new Map();
+      this.groupNameToIdMap = new Map();
+      this.generatedUserIds = new Map(); // 缓存生成的用户ID
 
       this.init();
     }
 
     init() {
-      console.log('[Message App] 信息应用初始化开始');
-
-      // 立即绑定事件（包括返回按钮）
-      this.bindEvents();
-
-      // 使用异步初始化，避免阻塞界面渲染
-      setTimeout(() => {
-        this.loadFriendRenderer();
-      }, 50);
-
-      setTimeout(() => {
-        this.setupIncrementalRenderer();
-      }, 100);
-
-      setTimeout(() => {
-        this.setupRealtimeMonitor();
-      }, 5000); // 修复：增加延迟时间到5秒，给SillyTavern更多加载时间
-
-      console.log('[Message App] 信息应用初始化完成');
-
-      // 延迟集成实时同步器
-      setTimeout(() => {
-        this.integrateRealTimeSync();
-      }, 2000);
-
-      // 延迟初始化朋友圈功能
-      setTimeout(() => {
-        this.initFriendsCircle();
-      }, 1000);
-
-      // 延迟加载附件发送器（静默加载，不显示面板）
-      setTimeout(() => {
-        this.loadAttachmentSenderSilently();
-      }, 1500);
+      console.log('[Message Renderer] 消息渲染器初始化完成 - 已启用性能优化');
+      this.loadContextMonitor();
     }
 
-    // 设置增量渲染器
-    setupIncrementalRenderer() {
-      console.log('[Message App] 设置增量渲染器...');
+     /**
+     * 🔥 从原始文本中解析消息（保持完美顺序）
+     */
+    parseMessagesFromRawText(rawText) {
+      const messages = [];
+      const messageRegex = /\[(我方消息|对方消息|群聊消息|我方群聊消息)\|([^|]*)\|([^|]*)\|([^|]*)\|([^\]]*)\]/g;
 
-      // 延迟创建增量渲染器，确保依赖已加载
-      setTimeout(() => {
-        this.createIncrementalRenderer();
-      }, 500);
-    }
+      let match;
+      let position = 0;
 
-    // 创建增量渲染器
-    createIncrementalRenderer() {
-      try {
-        // @ts-ignore - 使用类型断言访问全局对象
-        if (window['IncrementalRenderer']) {
-          // @ts-ignore - 使用类型断言创建实例
-          this.incrementalRenderer = new window['IncrementalRenderer']();
+      while ((match = messageRegex.exec(rawText)) !== null) {
+        const [fullMatch, messageType, field1, field2, field3, field4] = match;
 
-          // 监听增量更新事件
-          window.addEventListener('incrementalRenderUpdate', event => {
-            // @ts-ignore - 事件类型断言
-            this.handleIncrementalUpdate(event.detail);
-          });
+        // 核心映射逻辑
+        let sender, number, msgType, content;
 
-          console.log('[Message App] ✅ 增量渲染器已创建');
+        if (messageType === '群聊消息') {
+          sender = field2; 
+          number = field1; 
+          msgType = field3; 
+          content = field4;
+        } else if (messageType === '我方群聊消息' || messageType === '我方消息') {
+          sender = '李至中'; 
+          number = field2; 
+          msgType = field3; 
+          content = field4;
+          // 🚀 这里的关键：给这条消息打上“我方”标签
+          var isMe = true; 
         } else {
-          console.log('[Message App] IncrementalRenderer 暂不可用，将稍后重试');
-          this.useIncrementalRender = false;
+          sender = field1;
+          // ... 
+          var isMe = false;
         }
-      } catch (error) {
-        console.warn('[Message App] 创建增量渲染器失败:', error);
-        this.useIncrementalRender = false;
+
+        messages.push({
+          fullMatch: fullMatch,
+          messageType: messageType,
+          sender: sender,
+          number: number,
+          msgType: msgType,
+          content: content,
+          textPosition: match.index,
+          contextOrder: position++,
+          isMe: isMe // 🔥 这一行是新加的，把标记传给渲染层
+        });
       }
+
+      // 🔥 修复：确保消息按原始文本中的出现顺序排列（最早→最新）
+      // 原始文本中的消息顺序通常是正确的：对方消息在前，我方消息在后
+      messages.sort((a, b) => a.textPosition - b.textPosition);
+      console.log('[Message Renderer] 按原始文本位置排序，确保时间顺序正确');
+
+      console.log('[Message Renderer] 从原始文本解析到', messages.length, '条消息');
+      console.log(
+        '[Message Renderer] 排序后的消息顺序:',
+        messages.map((msg, i) => ({
+          index: i,
+          textPosition: msg.textPosition,
+          content: msg.content?.substring(0, 20) + '...',
+          fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+        })),
+      );
+
+      return messages;
     }
 
-    // 处理增量更新
-    handleIncrementalUpdate(detail) {
-      if (window.DEBUG_MESSAGE_APP) {
-        console.log('[Message App] 收到增量更新:', detail);
+    /**
+     * 🔥 估计消息在上下文中的位置
+     */
+    estimateMessagePosition(message, globalIndex) {
+      // 🔥 修复：基于消息内容和上下文正确估计位置
+
+      // 1. 如果有明确的位置字段，使用它
+      if (message.textPosition !== undefined) return message.textPosition;
+      if (message.contextOrder !== undefined) return message.contextOrder;
+      if (message.index !== undefined) return message.index;
+      if (message.position !== undefined) return message.position;
+      if (message.order !== undefined) return message.order;
+
+      // 2. 基于消息内容分析位置
+      const content = message.content || '';
+      const fullMatch = message.fullMatch || '';
+
+      // 3. 根据消息类型和内容特征估计位置
+      let estimatedPosition = globalIndex || 0;
+
+      // 如果是红包消息，通常比较早
+      if (content.includes('红包') || content.includes('100')) {
+        estimatedPosition = estimatedPosition - 1000;
       }
 
-      if (!this.useIncrementalRender) {
-        return;
+      // 如果是语音消息，通常比较晚
+      if (content.includes('语音') || message.msgType === '语音') {
+        estimatedPosition = estimatedPosition + 1000;
       }
 
-      // 支持两种数据格式：旧的detail格式和新的SillyTavern事件格式
-      if (detail.eventType && detail.chatData) {
-        // 新格式：来自SillyTavern事件
-        console.log('[Message App] 处理SillyTavern事件格式的增量更新');
-
-        // 如果有增量渲染器，让它处理新消息
-        if (this.incrementalRenderer && detail.chatData.messages) {
-          try {
-            // 将SillyTavern的消息格式传递给增量渲染器
-            this.incrementalRenderer.processNewMessages(detail.chatData.messages);
-          } catch (error) {
-            console.error('[Message App] 增量渲染器处理失败:', error);
-          }
-        }
-
-        // 更新界面
-        this.updateMessageListIncrementally();
-      } else {
-        // 旧格式：兼容性处理
-        console.log('[Message App] 处理传统格式的增量更新');
-        this.updateMessageListIncrementally();
+      // 如果是"早点休息"这类结束语，通常最晚
+      if (content.includes('早点休息') || content.includes('明天见')) {
+        estimatedPosition = estimatedPosition + 2000;
       }
+
+      // 如果是"没事的"这类回应，通常在中间
+      if (content.includes('没事的')) {
+        estimatedPosition = estimatedPosition + 500;
+      }
+
+      // 如果是"在吗"这类开场白，通常比较早
+      if (content.includes('在吗')) {
+        estimatedPosition = estimatedPosition - 500;
+      }
+
+      // 4. 根据提取顺序调整
+      if (message._extractionOrder !== undefined) {
+        estimatedPosition = estimatedPosition + message._extractionOrder * 100;
+      }
+
+      // 5. 根据类型索引调整
+      if (message._typeIndex !== undefined) {
+        estimatedPosition = estimatedPosition + message._typeIndex;
+      }
+
+      return estimatedPosition;
     }
 
-    // 增量更新消息列表
-    updateMessageListIncrementally() {
-      try {
-        console.log('[Message App] 🔄 开始增量更新消息列表...');
-
-        // 如果当前不在消息列表页面，跳过更新
-        if (this.currentView !== 'list') {
-          console.log('[Message App] 当前不在消息列表页面，跳过更新');
-          return;
-        }
-
-        // 获取消息列表容器
-        const messageListContainer = document.querySelector('.message-list');
-        if (!messageListContainer) {
-          console.warn('[Message App] 找不到消息列表容器');
-          return;
-        }
-
-        // 重新渲染整个好友列表
-        this.refreshFriendListUI();
-
-        console.log('[Message App] ✅ 消息列表已增量更新');
-      } catch (error) {
-        console.error('[Message App] 增量更新消息列表失败:', error);
+    /**
+     * 简单哈希函数
+     */
+    simpleHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // 转换为32位整数
       }
+      return Math.abs(hash);
     }
 
-    // 刷新好友列表UI
-    refreshFriendListUI() {
-      try {
-        if (window.DEBUG_MESSAGE_APP) {
-          console.log('[Message App] 🔄 刷新好友列表UI...');
-        }
+    /**
+     * 🔥 新增：建立好友姓名到ID的映射关系
+     * 从动态提取的数据格式中解析好友和群聊信息
+     */
+    buildFriendNameToIdMapping() {
+      const friendMap = new Map();
+      const groupMap = new Map();
 
-        // 获取消息列表容器
-        const messageListContainer = document.querySelector('.message-list');
-        if (!messageListContainer) {
-          console.warn('[Message App] 找不到消息列表容器');
-          return;
-        }
-
-        // 检查好友渲染器是否可用
-        if (typeof window.renderFriendsFromContext !== 'function') {
-          console.warn('[Message App] 好友渲染器不可用，尝试重新加载...');
-          this.loadFriendRenderer();
-          return;
-        }
-
-        // 重新渲染好友列表
-        const friendsHTML = window.renderFriendsFromContext();
-        messageListContainer.innerHTML = friendsHTML;
-
-        // 重新绑定事件
-        this.bindMessageListEvents();
-
-        console.log('[Message App] ✅ 好友列表UI已刷新');
-      } catch (error) {
-        console.error('[Message App] 刷新好友列表UI失败:', error);
-      }
-    }
-
-    // 更新项目未读计数
-    updateItemUnreadCount(item) {
-      try {
-        const unreadElement = item.querySelector('.unread-count');
-        if (unreadElement) {
-          // 这里可以添加实际的未读计数逻辑
-          // 暂时保持现有显示
-        }
-      } catch (error) {
-        console.error('[Message App] 更新未读计数失败:', error);
-      }
-    }
-
-    // 更新项目时间显示
-    updateItemTimeDisplay(item) {
-      try {
-        const timeElement = item.querySelector('.time');
-        if (timeElement) {
-          // 更新为当前时间
-          timeElement.textContent = new Date().toLocaleTimeString('zh-CN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-        }
-      } catch (error) {
-        console.error('[Message App] 更新时间显示失败:', error);
-      }
-    }
-
-    // 设置实时监控
-    setupRealtimeMonitor() {
-      console.log('[Message App] 设置SillyTavern原生事件监控...');
-
-      // 使用SillyTavern的原生事件系统
-      this.setupSillyTavernEventListeners();
-    }
-
-    // 集成实时同步器
-    integrateRealTimeSync() {
-      try {
-        console.log('[Message App] 🔗 集成实时同步器...');
-
-        // 初始化重试计数器
-        if (!this.syncRetryCount) {
-          this.syncRetryCount = 0;
-        }
-
-        // 检查实时同步器是否可用
-        if (!window.realTimeSync) {
-          this.syncRetryCount++;
-
-          if (this.syncRetryCount <= 3) {
-            // 最多重试3次
-            console.warn(`[Message App] 实时同步器不可用，第${this.syncRetryCount}次重试...`);
-
-            // 尝试动态加载实时同步器
-            this.loadRealTimeSyncModule();
-
-            setTimeout(() => {
-              this.integrateRealTimeSync();
-            }, 3000);
+      // 检查是否有FriendRenderer实例
+      // @ts-ignore
+      if (window.friendRenderer && window.friendRenderer.extractedFriends) {
+        // @ts-ignore
+        window.friendRenderer.extractedFriends.forEach(contact => {
+          if (contact.isGroup) {
+            // 群聊：记录群名到群ID的映射
+            groupMap.set(contact.name, contact.number);
+            if (window.DEBUG_MESSAGE_RENDERER) {
+              console.log(`[Message Renderer] 群聊映射: ${contact.name} -> ${contact.number}`);
+            }
           } else {
-            console.error('[Message App] ❌ 实时同步器加载失败，已达到最大重试次数');
-            this.setupFallbackSync(); // 启用备用同步机制
-          }
-          return;
-        }
-
-        // 重置重试计数器
-        this.syncRetryCount = 0;
-
-        // @ts-ignore - 实时同步器类型声明
-        this.realTimeSync = window.realTimeSync;
-
-        // 监听实时同步事件
-        window.addEventListener('realTimeSyncUpdate', event => {
-          // @ts-ignore - 事件类型声明
-          this.handleRealTimeSyncUpdate(event.detail);
-        });
-
-        console.log('[Message App] ✅ 实时同步器集成完成');
-      } catch (error) {
-        console.error('[Message App] 集成实时同步器失败:', error);
-      }
-    }
-
-    // 动态加载实时同步器模块
-    loadRealTimeSyncModule() {
-      try {
-        console.log('[Message App] 🔄 尝试动态加载实时同步器...');
-
-        // 检查脚本是否已经存在
-        const existingScript = document.querySelector('script[src*="real-time-sync.js"]');
-        if (existingScript) {
-          console.log('[Message App] 实时同步器脚本已存在');
-          return;
-        }
-
-        // 创建脚本标签
-        const script = document.createElement('script');
-        script.src = 'scripts/extensions/third-party/mobile/app/real-time-sync.js';
-        script.onload = () => {
-          console.log('[Message App] ✅ 实时同步器脚本加载完成');
-        };
-        script.onerror = error => {
-          console.error('[Message App] ❌ 实时同步器脚本加载失败:', error);
-        };
-
-        document.head.appendChild(script);
-      } catch (error) {
-        console.error('[Message App] 动态加载实时同步器失败:', error);
-      }
-    }
-
-    // 设置备用同步机制
-    setupFallbackSync() {
-      try {
-        console.log('[Message App] 🔄 启动备用同步机制...');
-
-        // 使用简单的轮询机制
-        if (this.fallbackSyncTimer) {
-          clearInterval(this.fallbackSyncTimer);
-        }
-
-        this.fallbackSyncTimer = setInterval(() => {
-          this.performFallbackSync();
-        }, 5000); // 5秒轮询
-
-        console.log('[Message App] ✅ 备用同步机制已启动');
-      } catch (error) {
-        console.error('[Message App] 备用同步机制启动失败:', error);
-      }
-    }
-
-    // 执行备用同步
-    async performFallbackSync() {
-      try {
-        // 只在消息列表页面执行同步
-        if (this.currentView !== 'list') {
-          return;
-        }
-
-        // 检查上下文是否有变化
-        if (window.contextMonitor) {
-          // @ts-ignore - 上下文监控器类型声明
-          const chatData = await window.contextMonitor.getCurrentChatMessages();
-          if (chatData && chatData.totalMessages !== this.lastMessageCount) {
-            console.log('[Message App] 🔄 备用同步检测到消息变化，刷新列表');
-            this.updateMessageListIncrementally();
-            this.lastMessageCount = chatData.totalMessages;
-          }
-        }
-      } catch (error) {
-        console.error('[Message App] 备用同步执行失败:', error);
-      }
-    }
-
-    // 处理实时同步更新
-    handleRealTimeSyncUpdate(detail) {
-      try {
-        if (window.DEBUG_MESSAGE_APP) {
-          console.log('[Message App] 📡 收到实时同步更新:', detail);
-        }
-
-        if (!this.syncEnabled) {
-          return;
-        }
-
-        // 根据当前视图决定如何处理更新
-        if (this.currentView === 'list') {
-          // 在消息列表视图中，更新好友列表
-          this.handleFriendListUpdate(detail);
-        } else if (this.currentView === 'messageDetail') {
-          // 在消息详情视图中，更新消息内容
-          this.handleMessageDetailUpdate(detail);
-        }
-      } catch (error) {
-        console.error('[Message App] 处理实时同步更新失败:', error);
-      }
-    }
-
-    // 处理好友列表更新
-    handleFriendListUpdate(detail) {
-      try {
-        console.log('[Message App] 👥 处理好友列表更新:', detail);
-
-        // 检查是否有新的好友或消息
-        if (detail.hasNewFriends || detail.hasNewMessages) {
-          console.log('[Message App] 🔄 检测到新好友或消息，刷新好友列表');
-
-          // 强制刷新好友列表UI
-          this.refreshFriendListUI();
-        } else {
-          console.log('[Message App] 🔄 执行轻量级更新');
-
-          // 只更新时间和计数等轻量级信息
-          this.updateExistingItemsOnly();
-        }
-      } catch (error) {
-        console.error('[Message App] 处理好友列表更新失败:', error);
-      }
-    }
-
-    // 只更新现有项目的信息
-    updateExistingItemsOnly() {
-      try {
-        const messageItems = document.querySelectorAll('.message-item');
-
-        messageItems.forEach(item => {
-          // 更新未读计数显示
-          this.updateItemUnreadCount(item);
-
-          // 更新时间显示
-          this.updateItemTimeDisplay(item);
-        });
-
-        console.log('[Message App] ✅ 现有项目已更新');
-      } catch (error) {
-        console.error('[Message App] 更新现有项目失败:', error);
-      }
-    }
-
-    // 处理消息详情更新
-    handleMessageDetailUpdate(detail) {
-      try {
-        if (detail.hasNewMessages) {
-          if (window.DEBUG_MESSAGE_APP) {
-            console.log('[Message App] 💬 更新消息详情');
-          }
-
-          // 刷新消息详情页面
-          this.refreshMessageDetail();
-        }
-      } catch (error) {
-        console.error('[Message App] 处理消息详情更新失败:', error);
-      }
-    }
-
-    // 启用/禁用实时同步
-    setSyncEnabled(enabled) {
-      this.syncEnabled = enabled;
-      console.log(`[Message App] 实时同步 ${enabled ? '启用' : '禁用'}`);
-    }
-
-    // 获取实时同步状态
-    getRealTimeSyncStatus() {
-      return {
-        syncEnabled: this.syncEnabled,
-        hasRealTimeSync: !!this.realTimeSync,
-        realTimeSyncStatus: this.realTimeSync ? this.realTimeSync.getSyncStatus() : null,
-      };
-    }
-
-    // 设置SillyTavern事件监听器（使用Live App的成功模式）
-    async setupSillyTavernEventListeners() {
-      try {
-        console.log('[Message App] 设置SillyTavern事件监听器...');
-
-        // 使用新的智能检测系统
-        const detectionResult = this.smartDetectEventSystem();
-        if (detectionResult.found) {
-          console.log('[Message App] ✅ 智能检测找到事件系统:', detectionResult);
-
-          const eventSource = detectionResult.eventSource;
-          const event_types = detectionResult.event_types;
-
-          // 绑定消息接收事件
-          if (event_types.MESSAGE_RECEIVED) {
-            eventSource.on(event_types.MESSAGE_RECEIVED, this.onMessageReceived.bind(this));
-            console.log('[Message App] ✅ 成功监听 MESSAGE_RECEIVED 事件');
-
-            // 保存事件系统引用用于清理
-            this.eventSource = eventSource;
-            this.event_types = event_types;
-            this.isEventListening = true;
-
-            // 初始化消息计数
-            this.updateMessageCount();
-            return;
-          }
-        }
-
-        // 修复：改进重试机制，增加重试次数和延迟时间
-        if (!this.retryCount) this.retryCount = 0;
-        this.retryCount++;
-
-        if (this.retryCount <= 10) {
-          // 从5次增加到10次
-          console.log(`[Message App] 重试次数: ${this.retryCount}/10`);
-          setTimeout(() => {
-            this.setupSillyTavernEventListeners();
-          }, 2000 + this.retryCount * 1000); // 增加延迟时间：2秒基础 + 递增1秒
-        } else {
-          console.warn('[Message App] 达到最大重试次数，但继续尝试事件监听...');
-          // 修复：不立即回退到轮询，而是继续尝试事件监听
-          setTimeout(() => {
-            this.retryCount = 0; // 重置重试计数
-            this.setupSillyTavernEventListeners();
-          }, 10000); // 10秒后重新开始尝试
-        }
-        return;
-      } catch (error) {
-        console.error('[Message App] 设置SillyTavern事件监听器失败:', error);
-        this.fallbackToPolling();
-      }
-    }
-
-    // 智能检测事件系统（使用Live App的成功模式）
-    smartDetectEventSystem() {
-      console.log('[Message App] 🧠 开始智能检测事件系统...');
-
-      const detectionMethods = [
-        // 方法1: 使用SillyTavern.getContext().eventSource（推荐，Live App验证成功）
-        () => {
-          if (
-            typeof window !== 'undefined' &&
-            window.SillyTavern &&
-            typeof window.SillyTavern.getContext === 'function'
-          ) {
-            const context = window.SillyTavern.getContext();
-            if (context && context.eventSource && typeof context.eventSource.on === 'function' && context.event_types) {
-              return {
-                eventSource: context.eventSource,
-                event_types: context.event_types,
-                foundIn: 'SillyTavern.getContext()',
-              };
+            // 好友：记录好友名到好友ID的映射
+            friendMap.set(contact.name, contact.number);
+            if (window.DEBUG_MESSAGE_RENDERER) {
+              console.log(`[Message Renderer] 好友映射: ${contact.name} -> ${contact.number}`);
             }
           }
-          return null;
-        },
-
-        // 方法2: 使用全局 eventOn 函数（Live App验证成功）
-        () => {
-          if (typeof eventOn === 'function' && typeof tavern_events !== 'undefined' && tavern_events.MESSAGE_RECEIVED) {
-            return {
-              eventSource: { on: eventOn, off: eventOff || (() => {}) },
-              event_types: tavern_events,
-              foundIn: 'global eventOn',
-            };
-          }
-          return null;
-        },
-
-        // 方法3: 使用父窗口 eventSource（Live App验证成功）
-        () => {
-          if (
-            typeof window !== 'undefined' &&
-            window.parent &&
-            window.parent.eventSource &&
-            typeof window.parent.eventSource.on === 'function'
-          ) {
-            if (window.parent.event_types && window.parent.event_types.MESSAGE_RECEIVED) {
-              return {
-                eventSource: window.parent.eventSource,
-                event_types: window.parent.event_types,
-                foundIn: 'parent.eventSource',
-              };
-            }
-          }
-          return null;
-        },
-      ];
-
-      for (let i = 0; i < detectionMethods.length; i++) {
-        try {
-          const result = detectionMethods[i]();
-          if (result && result.eventSource && result.event_types) {
-            console.log(`[Message App] ✅ 方法${i + 1}检测成功:`, result);
-            return {
-              found: true,
-              method: i + 1,
-              ...result,
-            };
-          }
-        } catch (error) {
-          console.warn(`[Message App] 方法${i + 1}检测失败:`, error);
-        }
+        });
       }
 
-      console.warn('[Message App] ❌ 所有检测方法都失败了');
-      return { found: false };
-    }
-
-    /**
-     * 获取当前消息数量（使用正确的API）
-     */
-    getCurrentMessageCount() {
-      try {
-        // 方法1: 使用SillyTavern.getContext().chat（正确的接口）
-        if (
-          typeof window !== 'undefined' &&
-          window.SillyTavern &&
-          typeof window.SillyTavern.getContext === 'function'
-        ) {
-          const context = window.SillyTavern.getContext();
-          if (context && context.chat && Array.isArray(context.chat)) {
-            const count = context.chat.length;
-            return count;
-          }
-        }
-
-        // 方法2: 使用mobileContextEditor作为备用
-        const mobileContextEditor = window['mobileContextEditor'];
-        if (mobileContextEditor && typeof mobileContextEditor.getCurrentChatData === 'function') {
-          const chatData = mobileContextEditor.getCurrentChatData();
-          if (chatData && chatData.messages && Array.isArray(chatData.messages)) {
-            return chatData.messages.length;
-          }
-        }
-
-        // 方法3: 尝试从父窗口获取chat变量
-        if (typeof window !== 'undefined' && window.parent && window.parent.chat && Array.isArray(window.parent.chat)) {
-          const count = window.parent.chat.length;
-          return count;
-        }
-
-        return 0;
-      } catch (error) {
-        console.warn('[Message App] 获取消息数量失败:', error);
-        return 0;
+      // 如果没有提取到信息，尝试从上下文中直接解析
+      if (friendMap.size === 0 && groupMap.size === 0) {
+        console.log('[Message Renderer] 尝试从上下文中直接解析好友和群聊信息');
+        this.parseFriendDataFromContext(friendMap, groupMap);
       }
+
+      // 存储映射关系
+      this.friendNameToIdMap = friendMap;
+      this.groupNameToIdMap = groupMap;
+
+      if (window.DEBUG_MESSAGE_RENDERER) {
+        console.log(`[Message Renderer] 建立了 ${friendMap.size} 个好友映射和 ${groupMap.size} 个群聊映射`);
+      }
+      return { friendMap, groupMap };
     }
 
     /**
-     * 更新消息计数
+     * 🔥 新增：从上下文中直接解析好友和群聊数据
      */
-    updateMessageCount() {
-      this.lastMessageCount = this.getCurrentMessageCount();
-      console.log(`[Message App] 初始化消息计数: ${this.lastMessageCount}`);
-    }
-
-    /**
-     * 处理消息接收事件
-     */
-    async onMessageReceived(messageId) {
+    parseFriendDataFromContext(friendMap, groupMap) {
       try {
-        if (window.DEBUG_MESSAGE_APP) {
-          console.log(`[Message App] 🎯 接收到消息事件，ID: ${messageId}`);
-        }
-
-        // 检查消息数量变化
-        const currentMessageCount = this.getCurrentMessageCount();
-
-        if (currentMessageCount <= this.lastMessageCount) {
+        // 检查SillyTavern是否可用
+        // @ts-ignore
+        if (!window.SillyTavern || !window.SillyTavern.getContext) {
+          console.warn('[Message Renderer] SillyTavern上下文不可用');
           return;
         }
 
-        console.log(`[Message App] ✅ 新消息: ${this.lastMessageCount} → ${currentMessageCount}`);
-        this.lastMessageCount = currentMessageCount;
-
-        // 延迟2秒后触发渲染
-        this.scheduleDelayedRender('接收到消息');
-      } catch (error) {
-        console.error('[Message App] 处理消息接收事件失败:', error);
-      }
-    }
-
-    // 处理SillyTavern消息事件
-    handleSillyTavernMessage(eventType, messageId) {
-      if (!this.isAutoRenderEnabled) {
-        return;
-      }
-
-      // 防抖处理 - 对群聊消息使用更短的冷却时间
-      const now = Date.now();
-      const cooldownTime = this.isGroupMessageEvent(eventType, messageId)
-        ? Math.min(this.renderCooldown, 500)
-        : this.renderCooldown;
-
-      if (now - this.lastRenderTime < cooldownTime) {
-        return;
-      }
-
-      this.lastRenderTime = now;
-
-      console.log(`[Message App] 处理SillyTavern消息事件: ${eventType}, messageId: ${messageId}`);
-
-      // 获取最新的聊天数据
-      const chatData = this.getSillyTavernChatData();
-      if (!chatData) {
-        console.warn('[Message App] 无法获取SillyTavern聊天数据');
-        return;
-      }
-
-      // 检查是否包含群聊消息
-      const hasGroupMessage = this.checkForGroupMessagesInChatData(chatData);
-      if (hasGroupMessage) {
-        console.log('[Message App] 🔄 检测到群聊消息，强制触发实时渲染');
-        // 对群聊消息使用强制全量渲染，确保实时更新
-        this.forceGroupChatRender();
-      }
-
-      // 更新内部状态
-      this.lastMessageCount = chatData.messages.length;
-      this.lastMessageId = chatData.lastMessageId;
-
-      // 根据渲染模式选择处理方式
-      if (this.useIncrementalRender && this.incrementalRenderer && !hasGroupMessage) {
-        console.log('[Message App] 使用增量渲染处理SillyTavern事件');
-        this.handleIncrementalUpdate({
-          eventType,
-          messageId,
-          chatData,
-          timestamp: now,
-        });
-      } else {
-        console.log('[Message App] 使用全量渲染处理SillyTavern事件');
-        this.triggerAutoRender();
-      }
-
-      // 发送自定义事件
-      this.dispatchSillyTavernSyncEvent(eventType, messageId, chatData);
-    }
-
-    // 检查是否为群聊消息事件
-    isGroupMessageEvent(eventType, messageId) {
-      try {
-        const chatData = this.getSillyTavernChatData();
-        if (!chatData || !chatData.messages || chatData.messages.length === 0) {
-          return false;
+        // @ts-ignore
+        const context = window.SillyTavern.getContext();
+        if (!context || !context.chat || !Array.isArray(context.chat)) {
+          console.warn('[Message Renderer] 聊天数据不可用');
+          return;
         }
 
-        // 检查最近的消息是否包含群聊格式
-        const recentMessages = chatData.messages.slice(-3); // 检查最近3条消息
-        return recentMessages.some(message => {
+        // 定义正则表达式匹配动态提取的格式
+        const friendPattern = /\[好友id\|([^|]+)\|(\d+)\]/g;
+        const groupPattern = /\[群聊\|([^|]+)\|([^|]+)\|([^\]]+)\]/g;
+
+        context.chat.forEach(message => {
           if (message.mes && typeof message.mes === 'string') {
-            return message.mes.includes('[群聊消息|') || message.mes.includes('[我方群聊消息|');
-          }
-          return false;
-        });
-      } catch (error) {
-        console.error('[Message App] 检查群聊消息事件失败:', error);
-        return false;
-      }
-    }
-
-    // 检查聊天数据中是否包含群聊消息
-    checkForGroupMessagesInChatData(chatData) {
-      try {
-        if (!chatData || !chatData.messages || chatData.messages.length === 0) {
-          return false;
-        }
-
-        // 检查最新的几条消息
-        const recentMessages = chatData.messages.slice(-5);
-        const hasGroupMessages = recentMessages.some(message => {
-          if (message.mes && typeof message.mes === 'string') {
-            // 检查各种群聊消息格式
-            const groupPatterns = [
-              /\[群聊消息\|[^|]+\|[^|]+\|[^|]+\|[^\]]+\]/,
-              /\[我方群聊消息\|我\|[^|]+\|[^|]+\|[^\]]+\]/,
-              /\[群聊\|[^|]+\|[^|]+\|[^\]]+\]/,
-            ];
-
-            return groupPatterns.some(pattern => pattern.test(message.mes));
-          }
-          return false;
-        });
-
-        if (hasGroupMessages) {
-          console.log('[Message App] 📱 在聊天数据中检测到群聊消息');
-        }
-
-        return hasGroupMessages;
-      } catch (error) {
-        console.error('[Message App] 检查聊天数据中的群聊消息失败:', error);
-        return false;
-      }
-    }
-
-    // 强制群聊渲染
-    forceGroupChatRender() {
-      try {
-        console.log('[Message App] 🔄 执行强制群聊渲染...');
-
-        // 1. 清除任何缓存
-        if (this.incrementalRenderer) {
-          this.incrementalRenderer.clearCache();
-        }
-
-        // 2. 强制刷新好友渲染器
-        if (window.friendRenderer && typeof window.friendRenderer.refresh === 'function') {
-          window.friendRenderer.refresh();
-        }
-
-        // 3. 根据当前视图执行对应的强制渲染
-        if (this.currentView === 'list') {
-          // 强制刷新消息列表
-          setTimeout(() => {
-            this.forceRefreshMessageList();
-          }, 100);
-        } else if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          // 强制刷新消息详情
-          setTimeout(() => {
-            this.forceRefreshMessageDetail();
-          }, 100);
-        }
-
-        // 4. 重置冷却时间，允许快速更新
-        this.lastRenderTime = Date.now() - this.renderCooldown;
-
-        console.log('[Message App] ✅ 强制群聊渲染完成');
-      } catch (error) {
-        console.error('[Message App] 强制群聊渲染失败:', error);
-      }
-    }
-
-    // 强制刷新消息列表
-    forceRefreshMessageList() {
-      try {
-        console.log('[Message App] 🔄 强制刷新消息列表...');
-
-        const messageList = document.getElementById('message-list');
-        if (messageList && window.renderFriendsFromContext) {
-          // 添加加载提示
-          const loadingDiv = document.createElement('div');
-          loadingDiv.className = 'group-loading-hint';
-          loadingDiv.innerHTML = '🔄 更新群聊消息...';
-          loadingDiv.style.cssText = `
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    background: #2196F3;
-                    color: white;
-                    padding: 8px 12px;
-                    border-radius: 15px;
-                    font-size: 12px;
-                    z-index: 1000;
-                    animation: pulse 0.5s ease-in-out;
-                `;
-          messageList.appendChild(loadingDiv);
-
-          // 获取新的HTML内容
-          const newFriendsHtml = window.renderFriendsFromContext();
-          messageList.innerHTML = newFriendsHtml;
-
-          // 重新绑定事件
-          this.bindMessageListEvents();
-
-          // 移除加载提示
-          setTimeout(() => {
-            if (loadingDiv.parentNode) {
-              loadingDiv.remove();
-            }
-          }, 1000);
-
-          console.log('[Message App] ✅ 消息列表强制刷新完成');
-        }
-      } catch (error) {
-        console.error('[Message App] 强制刷新消息列表失败:', error);
-      }
-    }
-
-    // 强制刷新消息详情
-    forceRefreshMessageDetail() {
-      try {
-        console.log('[Message App] 🔄 强制刷新消息详情...');
-
-        if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          // 重新加载消息详情
-          this.loadMessageDetailAsync();
-          console.log('[Message App] ✅ 消息详情强制刷新完成');
-        }
-      } catch (error) {
-        console.error('[Message App] 强制刷新消息详情失败:', error);
-      }
-    }
-
-    // 处理聊天切换事件
-    handleChatChanged(chatId) {
-      console.log('[Message App] 聊天已切换:', chatId);
-
-      // 重置状态
-      this.lastMessageCount = 0;
-      this.lastMessageId = null;
-
-      // 如果使用增量渲染，清除缓存
-      if (this.incrementalRenderer) {
-        this.incrementalRenderer.clearCache();
-      }
-
-      // 触发界面更新
-      if (this.currentView === 'list') {
-        this.triggerAutoRender();
-      }
-    }
-
-    // 获取SillyTavern聊天数据（使用正确的API）
-    getSillyTavernChatData() {
-      try {
-        // 优先使用SillyTavern.getContext().chat
-        if (
-          typeof window !== 'undefined' &&
-          window.SillyTavern &&
-          typeof window.SillyTavern.getContext === 'function'
-        ) {
-          const context = window.SillyTavern.getContext();
-          if (context && context.chat && Array.isArray(context.chat)) {
-            const messages = context.chat;
-            const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-
-            return {
-              messages: messages,
-              messageCount: messages.length,
-              lastMessageId: lastMessage ? lastMessage.send_date || lastMessage.id || messages.length - 1 : null,
-              currentCharacter:
-                context.characters && context.this_chid !== undefined ? context.characters[context.this_chid] : null,
-              userName: context.name1 || 'User',
-              characterName: context.name2 || 'Assistant',
-            };
-          }
-        }
-
-        // 尝试从全局变量获取（备用方案）
-        const chat = window['chat'];
-        if (chat && Array.isArray(chat)) {
-          const messages = chat;
-          const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-
-          return {
-            messages: messages,
-            messageCount: messages.length,
-            lastMessageId: lastMessage ? lastMessage.send_date || lastMessage.id || messages.length - 1 : null,
-            currentCharacter:
-              window['characters'] && window['this_chid'] !== undefined
-                ? window['characters'][window['this_chid']]
-                : null,
-            userName: window['name1'] || 'User',
-            characterName: window['name2'] || 'Assistant',
-          };
-        }
-
-        return null;
-      } catch (error) {
-        console.error('[Message App] 获取SillyTavern聊天数据失败:', error);
-        return null;
-      }
-    }
-
-    // 发送SillyTavern同步事件
-    dispatchSillyTavernSyncEvent(eventType, messageId, chatData) {
-      try {
-        const event = new CustomEvent('messageAppSillyTavernSync', {
-          detail: {
-            eventType,
-            messageId,
-            chatData,
-            timestamp: Date.now(),
-            view: this.currentView,
-            renderMode: this.useIncrementalRender ? 'incremental' : 'full',
-          },
-        });
-        window.dispatchEvent(event);
-      } catch (error) {
-        console.error('[Message App] 发送SillyTavern同步事件失败:', error);
-      }
-    }
-
-    // 修复：延迟回退到轮询模式，给事件监听更多机会
-    fallbackToPolling() {
-      console.warn('[Message App] 事件监听失败，延迟启动轮询备选方案...');
-
-      // 延迟启动轮询，给事件系统更多时间初始化
-      setTimeout(() => {
-        // 再次尝试事件监听
-        this.retryCount = 0;
-        this.setupSillyTavernEventListeners();
-      }, 15000); // 15秒后再次尝试事件监听
-
-      // 如果确实需要轮询，也要延迟启动
-      setTimeout(() => {
-        if (!this.isEventListening) {
-          console.warn('[Message App] 最终启动轮询备选方案');
-          this.startSimplePolling();
-        }
-      }, 30000); // 30秒后如果事件监听仍未成功，才启动轮询
-    }
-
-    // 启动实时监控
-    startRealtimeMonitor() {
-      // 这个方法现在由setupSillyTavernEventListeners处理
-      console.log('[Message App] startRealtimeMonitor已被setupSillyTavernEventListeners替代');
-    }
-
-    // 简单轮询备选方案
-    startSimplePolling() {
-      console.log('[Message App] 启动简单轮询监控（备选方案）...');
-
-      setInterval(() => {
-        this.checkForNewMessages();
-      }, 2000); // 降低轮询频率，因为这只是备选方案
-    }
-
-    // 检查新消息（轮询方式）
-    checkForNewMessages() {
-      try {
-        const chatData = this.getSillyTavernChatData();
-        if (!chatData) {
-          return;
-        }
-
-        // 检查是否有新消息
-        if (
-          chatData.messageCount > this.lastMessageCount ||
-          (chatData.lastMessageId && chatData.lastMessageId !== this.lastMessageId)
-        ) {
-          console.log('[Message App] 轮询检测到新消息:', {
-            oldCount: this.lastMessageCount,
-            newCount: chatData.messageCount,
-            oldId: this.lastMessageId,
-            newId: chatData.lastMessageId,
-          });
-
-          // 更新记录
-          this.lastMessageCount = chatData.messageCount;
-          this.lastMessageId = chatData.lastMessageId;
-
-          // 触发处理
-          this.handleSillyTavernMessage('polling_detected', chatData.messageCount - 1);
-        }
-      } catch (error) {
-        console.error('[Message App] 轮询检查新消息失败:', error);
-      }
-    }
-
-    // 获取当前消息数量
-    getCurrentMessageCount() {
-      try {
-        if (chat && Array.isArray(chat)) {
-          return chat.length;
-        }
-
-        // 尝试从SillyTavern上下文获取
-        const sillyTavern = window['SillyTavern'];
-        if (sillyTavern && typeof sillyTavern.getContext === 'function') {
-          const context = sillyTavern.getContext();
-          if (context && context.chat) {
-            return context.chat.length;
-          }
-        }
-
-        return 0;
-      } catch (error) {
-        console.error('[Message App] 获取消息数量失败:', error);
-        return 0;
-      }
-    }
-
-    // 获取最后一条消息ID
-    getCurrentLastMessageId() {
-      try {
-        if (chat && Array.isArray(chat) && chat.length > 0) {
-          const lastMessage = chat[chat.length - 1];
-          return lastMessage.send_date || lastMessage.id || JSON.stringify(lastMessage).substring(0, 50);
-        }
-
-        // 尝试从SillyTavern上下文获取
-        const sillyTavern = window['SillyTavern'];
-        if (sillyTavern && typeof sillyTavern.getContext === 'function') {
-          const context = sillyTavern.getContext();
-          if (context && context.chat && context.chat.length > 0) {
-            const lastMessage = context.chat[context.chat.length - 1];
-            return lastMessage.send_date || lastMessage.id || JSON.stringify(lastMessage).substring(0, 50);
-          }
-        }
-
-        return null;
-      } catch (error) {
-        console.error('[Message App] 获取最后消息ID失败:', error);
-        return null;
-      }
-    }
-
-    // 处理上下文变化
-    handleContextChange() {
-      if (!this.isAutoRenderEnabled) {
-        return;
-      }
-
-      const now = Date.now();
-
-      // 检查渲染冷却时间
-      if (now - this.lastRenderTime < this.renderCooldown) {
-        return;
-      }
-
-      this.lastRenderTime = now;
-
-      console.log('[Message App] 上下文变化，触发自动渲染...');
-
-      // 根据渲染模式选择不同的处理方式
-      if (this.useIncrementalRender && this.incrementalRenderer) {
-        // 使用增量渲染（不会造成界面跳动）
-        console.log('[Message App] 使用增量渲染模式');
-        // 增量渲染器会自动处理新消息，这里只需要轻量级的界面更新
-        this.triggerLightweightUpdate();
-      } else {
-        // 使用传统全量渲染
-        console.log('[Message App] 使用全量渲染模式');
-        this.triggerAutoRender();
-      }
-    }
-
-    // 触发轻量级更新（不重新渲染，只更新状态）
-    triggerLightweightUpdate() {
-      try {
-        console.log('[Message App] 执行轻量级更新...');
-
-        // 1. 更新消息计数（不重新渲染列表）
-        if (this.currentView === 'list') {
-          this.updateMessageCountsOnly();
-        }
-
-        // 2. 如果在消息详情页面，检查是否有新消息需要追加
-        if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          this.checkForNewMessagesInCurrentChat();
-        }
-
-        // 3. 触发轻量级事件通知
-        this.dispatchLightweightRenderEvent();
-
-        console.log('[Message App] ✅ 轻量级更新完成');
-      } catch (error) {
-        console.error('[Message App] 轻量级更新失败:', error);
-      }
-    }
-
-    // 仅更新消息计数
-    updateMessageCountsOnly() {
-      try {
-        const messageItems = document.querySelectorAll('.message-item');
-
-        messageItems.forEach(item => {
-          // 更新未读计数样式
-          const unreadCount = item.querySelector('.unread-count');
-          if (unreadCount) {
-            // 添加"有新消息"的视觉提示
-            unreadCount.classList.add('has-new-message');
-
-            // 3秒后移除提示
-            setTimeout(() => {
-              unreadCount.classList.remove('has-new-message');
-            }, 3000);
-          }
-
-          // 更新时间显示为"刚刚"
-          const timeElement = item.querySelector('.time');
-          if (timeElement) {
-            timeElement.textContent = '刚刚';
-            timeElement.classList.add('just-updated');
-
-            // 5秒后恢复正常时间显示
-            setTimeout(() => {
-              timeElement.classList.remove('just-updated');
-              timeElement.textContent = new Date().toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-            }, 5000);
-          }
-        });
-
-        console.log('[Message App] ✅ 消息计数已更新');
-      } catch (error) {
-        console.error('[Message App] 更新消息计数失败:', error);
-      }
-    }
-
-    // 检查当前聊天的新消息
-    checkForNewMessagesInCurrentChat() {
-      try {
-        // 这里可以添加检查当前聊天是否有新消息的逻辑
-        // 如果有新消息，可以在聊天界面底部显示提示
-        const messageContainer = document.querySelector('.message-detail-content');
-        if (messageContainer) {
-          // 添加新消息提示
-          const newMessageHint = document.createElement('div');
-          newMessageHint.className = 'new-message-hint';
-          newMessageHint.innerHTML = '💬 有新消息';
-          newMessageHint.style.cssText = `
-                    position: absolute;
-                    bottom: 20px;
-                    right: 20px;
-                    background: #2196F3;
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    font-size: 12px;
-                    animation: fadeInOut 3s ease-in-out;
-                `;
-
-          messageContainer.appendChild(newMessageHint);
-
-          // 3秒后自动移除
-          setTimeout(() => {
-            if (newMessageHint.parentNode) {
-              newMessageHint.parentNode.removeChild(newMessageHint);
-            }
-          }, 3000);
-        }
-      } catch (error) {
-        console.error('[Message App] 检查新消息失败:', error);
-      }
-    }
-
-    // 派发轻量级渲染事件
-    dispatchLightweightRenderEvent() {
-      try {
-        const event = new CustomEvent('messageAppLightweightRender', {
-          detail: {
-            timestamp: Date.now(),
-            view: this.currentView,
-            mode: 'incremental',
-            friendId: this.currentFriendId,
-            selectedFriend: this.currentSelectedFriend,
-          },
-        });
-        window.dispatchEvent(event);
-      } catch (error) {
-        console.error('[Message App] 派发轻量级渲染事件失败:', error);
-      }
-    }
-
-    // 触发自动渲染
-    async triggerAutoRender() {
-      try {
-        // 1. 更新好友列表渲染
-        await this.updateFriendListRender();
-
-        // 2. 如果当前在消息列表页面，刷新列表
-        if (this.currentView === 'list') {
-          this.refreshMessageList();
-        }
-
-        // 3. 如果当前在消息详情页面，刷新详情
-        if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          this.refreshMessageDetail();
-        }
-
-        // 4. 触发自定义事件，通知其他组件
-        this.dispatchRenderEvent();
-
-        console.log('[Message App] ✅ 自动渲染完成');
-      } catch (error) {
-        console.error('[Message App] 自动渲染失败:', error);
-      }
-    }
-
-    // 更新好友列表渲染
-    async updateFriendListRender() {
-      try {
-        if (window.renderFriendsFromContext) {
-          // 更新好友渲染器的数据
-          if (this.friendRenderer && typeof this.friendRenderer.refresh === 'function') {
-            await this.friendRenderer.refresh();
-          }
-        }
-      } catch (error) {
-        console.error('[Message App] 更新好友列表渲染失败:', error);
-      }
-    }
-
-    // 刷新消息列表
-    refreshMessageList() {
-      try {
-        if (this.currentView === 'list') {
-          const messageList = document.getElementById('message-list');
-          if (messageList && window.renderFriendsFromContext) {
-            const newFriendsHtml = window.renderFriendsFromContext();
-            messageList.innerHTML = newFriendsHtml;
-
-            // 重新绑定事件
-            this.bindMessageListEvents();
-          }
-        }
-      } catch (error) {
-        console.error('[Message App] 刷新消息列表失败:', error);
-      }
-    }
-
-    // 刷新消息详情
-    refreshMessageDetail() {
-      try {
-        if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          // 重新加载消息详情
-          this.loadMessageDetailAsync();
-        }
-      } catch (error) {
-        console.error('[Message App] 刷新消息详情失败:', error);
-      }
-    }
-
-    // 绑定消息列表事件
-    bindMessageListEvents() {
-      const messageItems = document.querySelectorAll('.message-item');
-      messageItems.forEach(item => {
-        item.addEventListener('click', e => {
-          const target = e.currentTarget;
-          const friendId = target && target.getAttribute ? target.getAttribute('data-friend-id') : null;
-          if (friendId) {
-            this.selectFriend(friendId);
-          }
-        });
-      });
-    }
-
-    // 派发渲染事件
-    dispatchRenderEvent() {
-      try {
-        const event = new CustomEvent('messageAppRender', {
-          detail: {
-            timestamp: Date.now(),
-            view: this.currentView,
-            friendId: this.currentFriendId,
-            selectedFriend: this.currentSelectedFriend,
-          },
-        });
-        window.dispatchEvent(event);
-      } catch (error) {
-        console.error('[Message App] 派发渲染事件失败:', error);
-      }
-    }
-
-    // 启用/禁用自动渲染
-    setAutoRenderEnabled(enabled) {
-      this.isAutoRenderEnabled = enabled;
-      console.log(`[Message App] 自动渲染 ${enabled ? '启用' : '禁用'}`);
-    }
-
-    // 设置渲染冷却时间
-    setRenderCooldown(ms) {
-      this.renderCooldown = ms;
-      console.log(`[Message App] 渲染冷却时间设置为 ${ms}ms`);
-    }
-
-    // 停止实时监控
-    stopRealtimeMonitor() {
-      if (this.realtimeMonitor && typeof this.realtimeMonitor.stop === 'function') {
-        this.realtimeMonitor.stop();
-        console.log('[Message App] 实时监控已停止');
-      }
-    }
-
-    // 获取监控状态
-    getMonitorStatus() {
-      return {
-        isEnabled: this.isAutoRenderEnabled,
-        hasMonitor: !!this.realtimeMonitor,
-        isRunning: this.realtimeMonitor?.isRunning || false,
-        lastMessageCount: this.lastMessageCount,
-        lastMessageId: this.lastMessageId,
-        lastRenderTime: this.lastRenderTime,
-        renderCooldown: this.renderCooldown,
-        // 增量渲染状态
-        useIncrementalRender: this.useIncrementalRender,
-        hasIncrementalRenderer: !!this.incrementalRenderer,
-        incrementalStatus: this.incrementalRenderer?.getStatus() || null,
-        fullRenderMode: this.fullRenderMode,
-      };
-    }
-
-    // 切换渲染模式
-    toggleRenderMode() {
-      this.useIncrementalRender = !this.useIncrementalRender;
-      this.fullRenderMode = !this.useIncrementalRender;
-
-      if (this.useIncrementalRender) {
-        console.log('[Message App] 🔄 已切换到增量渲染模式（防跳动）');
-        this.renderCooldown = 3000; // 增加冷却时间
-      } else {
-        console.log('[Message App] 🔄 已切换到全量渲染模式（实时更新）');
-        this.renderCooldown = 1000; // 恢复原来的冷却时间
-      }
-
-      return this.useIncrementalRender;
-    }
-
-    // 启用增量渲染
-    enableIncrementalRender() {
-      this.useIncrementalRender = true;
-      this.fullRenderMode = false;
-      this.renderCooldown = 3000;
-
-      if (this.incrementalRenderer) {
-        this.incrementalRenderer.setEnabled(true);
-      }
-
-      console.log('[Message App] ✅ 增量渲染已启用');
-    }
-
-    // 禁用增量渲染
-    disableIncrementalRender() {
-      this.useIncrementalRender = false;
-      this.fullRenderMode = true;
-      this.renderCooldown = 1000;
-
-      if (this.incrementalRenderer) {
-        this.incrementalRenderer.setEnabled(false);
-      }
-
-      console.log('[Message App] ⚠️ 增量渲染已禁用，使用全量渲染');
-    }
-
-    // 强制全量渲染
-    forceFullRender() {
-      console.log('[Message App] 🔄 执行强制全量渲染...');
-
-      // 临时禁用增量渲染
-      const originalMode = this.useIncrementalRender;
-      this.useIncrementalRender = false;
-
-      // 执行全量渲染
-      this.triggerAutoRender();
-
-      // 恢复原来的模式
-      setTimeout(() => {
-        this.useIncrementalRender = originalMode;
-      }, 1000);
-    }
-
-    // 清除增量渲染缓存
-    clearIncrementalCache() {
-      if (this.incrementalRenderer) {
-        this.incrementalRenderer.clearCache();
-        console.log('[Message App] 🗑️ 增量渲染缓存已清除');
-      }
-    }
-
-    // 获取渲染性能统计
-    getRenderPerformanceStats() {
-      const stats = {
-        renderMode: this.useIncrementalRender ? 'incremental' : 'full',
-        renderCooldown: this.renderCooldown,
-        lastRenderTime: this.lastRenderTime,
-        renderCount: 0, // 可以添加计数器
-        incrementalStats: null,
-      };
-
-      if (this.incrementalRenderer) {
-        stats.incrementalStats = this.incrementalRenderer.getStatus();
-      }
-
-      return stats;
-    }
-
-    /**
-     * 延迟触发渲染（2秒后）
-     * 用于消息发送和接收后的自动刷新
-     */
-    scheduleDelayedRender(reason = '未知原因') {
-      // 清除之前的定时器
-      if (this.delayedRenderTimer) {
-        clearTimeout(this.delayedRenderTimer);
-      }
-
-      console.log(`[Message App] ⏰ 计划在${this.delayedRenderDelay / 1000}秒后渲染 (原因: ${reason})`);
-
-      // 设置新的延迟渲染定时器
-      this.delayedRenderTimer = setTimeout(async () => {
-        console.log(`[Message App] 🎯 执行延迟渲染 (原因: ${reason})`);
-        await this.triggerAutoRender();
-        this.delayedRenderTimer = null;
-      }, this.delayedRenderDelay);
-    }
-
-    /**
-     * 取消延迟渲染
-     */
-    cancelDelayedRender() {
-      if (this.delayedRenderTimer) {
-        clearTimeout(this.delayedRenderTimer);
-        this.delayedRenderTimer = null;
-        console.log('[Message App] ❌ 取消延迟渲染');
-      }
-    }
-
-    // 加载好友渲染器
-    async loadFriendRenderer() {
-      if (window.friendRenderer) {
-        this.friendRenderer = window.friendRenderer;
-        console.log('[Message App] 好友渲染器已加载');
-        return;
-      }
-
-      // 如果还没有加载，等待一下
-      setTimeout(() => {
-        // @ts-ignore - 好友渲染器类型声明
-        if (window.friendRenderer) {
-          // @ts-ignore - 好友渲染器类型声明
-          this.friendRenderer = window.friendRenderer;
-          console.log('[Message App] 好友渲染器延迟加载完成');
-        } else {
-          console.log('[Message App] 好友渲染器暂不可用');
-        }
-      }, 100);
-    }
-
-    // 初始化朋友圈功能
-    initFriendsCircle() {
-      try {
-        console.log('[Message App] 初始化朋友圈功能...');
-
-        // 如果已经初始化过，直接返回
-        if (this.friendsCircle && this.friendsCircleInitialized) {
-          console.log('[Message App] 朋友圈已初始化，跳过重复初始化');
-          return;
-        }
-
-        // 检查是否已有全局朋友圈实例
-        if (window.friendsCircle && !this.friendsCircle) {
-          console.log('[Message App] 使用现有的全局朋友圈实例');
-          this.friendsCircle = window.friendsCircle;
-          this.friendsCircleInitialized = true;
-          return;
-        }
-
-        // 检查朋友圈类是否已加载
-        if (typeof window.FriendsCircle === 'undefined') {
-          console.warn('[Message App] 朋友圈模块未加载，延迟初始化');
-          setTimeout(() => {
-            this.initFriendsCircle();
-          }, 1000);
-          return;
-        }
-
-        // 只有在没有实例时才创建新实例
-        if (!this.friendsCircle) {
-          console.log('[Message App] 创建新的朋友圈实例');
-          this.friendsCircle = new window.FriendsCircle();
-          this.friendsCircleInitialized = true;
-
-          // 导出到全局，供其他组件使用
-          window.friendsCircle = this.friendsCircle;
-
-          // 监听朋友圈更新事件（只绑定一次）
-          if (!this.friendsCircleEventBound) {
-            window.addEventListener('friendsCircleUpdate', event => {
-              this.handleFriendsCircleUpdate(event.detail);
+            // 移除thinking标签
+            const messageForMatching = this.removeThinkingTags ? this.removeThinkingTags(message.mes) : message.mes;
+
+            // 提取好友信息：[好友id|络络|555555]
+            const friendMatches = [...messageForMatching.matchAll(friendPattern)];
+            friendMatches.forEach(match => {
+              const friendName = match[1];
+              const friendId = match[2];
+              friendMap.set(friendName, friendId);
             });
-            this.friendsCircleEventBound = true;
-          }
-        }
 
-        console.log('[Message App] 朋友圈功能初始化完成');
-      } catch (error) {
-        console.error('[Message App] 朋友圈功能初始化失败:', error);
-      }
-    }
-
-    // 处理朋友圈更新事件
-    handleFriendsCircleUpdate(detail) {
-      try {
-        if (this.currentMainTab === 'circle' && this.currentView === 'list') {
-          // 如果当前在朋友圈页面，刷新界面
-          this.updateAppContent();
-        }
-      } catch (error) {
-        console.error('[Message App] 处理朋友圈更新失败:', error);
-      }
-    }
-
-    // 切换主要页面标签
-    async switchMainTab(tabName) {
-      console.log(`[Message App] 切换主要标签页: ${tabName}`);
-      this.currentMainTab = tabName;
-
-      if (tabName === 'circle') {
-        // 切换到朋友圈
-        await this.showFriendsCircle();
-      } else {
-        // 切换到好友列表
-        this.showMessageList();
-      }
-    }
-
-    // 显示好友列表页面
-    showMessageList() {
-      console.log('[Message App] 显示好友列表页面');
-      this.currentMainTab = 'friends';
-      this.currentView = 'list';
-
-      // 停用朋友圈功能
-      if (this.friendsCircle) {
-        this.friendsCircle.deactivate();
-      }
-
-      // 更新界面
-      this.updateAppContent();
-
-      // 通知主框架更新应用状态
-      if (window.mobilePhone) {
-        const messageState = {
-          app: 'messages',
-          view: 'messageList',
-          title: '信息',
-          showBackButton: false,
-          showAddButton: true,
-          addButtonIcon: 'fas fa-plus',
-          addButtonAction: () => {
-            if (window.messageApp) {
-              window.messageApp.showAddFriend();
-            }
-          },
-        };
-        window.mobilePhone.currentAppState = messageState;
-        window.mobilePhone.updateAppHeader(messageState);
-      }
-    }
-
-    // 显示朋友圈页面
-    async showFriendsCircle() {
-      console.log('[Message App] 显示朋友圈页面');
-      this.currentMainTab = 'circle';
-      this.currentView = 'list';
-
-      // 确保朋友圈已初始化
-      if (!this.friendsCircle) {
-        console.log('[Message App] 朋友圈未初始化，尝试初始化...');
-
-        // 首先检查是否有全局实例
-        if (window.friendsCircle) {
-          console.log('[Message App] 使用现有的全局朋友圈实例');
-          this.friendsCircle = window.friendsCircle;
-        } else {
-          // 如果没有全局实例，才创建新的
-          this.initFriendsCircle();
-
-          // 等待朋友圈初始化完成
-          let retryCount = 0;
-          while (!this.friendsCircle && retryCount < 10) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            retryCount++;
-          }
-
-          if (!this.friendsCircle) {
-            console.error('[Message App] 朋友圈初始化失败');
-            this.updateAppContent();
-            return;
-          }
-        }
-      }
-
-      // 激活朋友圈功能
-      this.friendsCircle.activate();
-
-      // 等待朋友圈数据加载完成
-      try {
-        await this.friendsCircle.refreshFriendsCircle();
-      } catch (error) {
-        console.error('[Message App] 朋友圈数据加载失败:', error);
-      }
-
-      // 更新界面
-      this.updateAppContent();
-
-      // 通知主框架更新应用状态
-      if (window.mobilePhone) {
-        const circleState = {
-          app: 'messages',
-          view: 'friendsCircle',
-          title: '朋友圈',
-          showBackButton: false,
-          showAddButton: true,
-          addButtonIcon: 'fas fa-camera',
-          addButtonAction: () => {
-            if (window.friendsCircle) {
-              window.friendsCircle.showPublishModal();
-            }
-          },
-        };
-        window.mobilePhone.currentAppState = circleState;
-        window.mobilePhone.updateAppHeader(circleState);
-      }
-    }
-
-    // 获取应用内容
-    getAppContent() {
-      switch (this.currentView) {
-        case 'list':
-          if (this.currentMainTab === 'circle') {
-            return this.renderFriendsCircle();
-          } else {
-            return this.renderMessageList();
-          }
-        case 'addFriend':
-          return this.renderAddFriend();
-        case 'messageDetail':
-          return this.renderMessageDetail();
-        default:
-          return this.renderMessageList();
-      }
-    }
-
-    // 渲染朋友圈页面
-    renderFriendsCircle() {
-      if (!this.friendsCircle || !this.friendsCircle.renderer) {
-        return `
-          <div class="friends-circle-loading">
-            <div class="loading-spinner">
-              <i class="fas fa-spinner fa-spin"></i>
-            </div>
-            <div class="loading-text">朋友圈加载中...</div>
-          </div>
-          ${this.renderTabSwitcher()}
-        `;
-      }
-
-      const circleContent = this.friendsCircle.renderer.renderFriendsCirclePage();
-      return `
-        <div class="messages-app">
-          ${circleContent}
-          ${this.renderTabSwitcher()}
-        </div>
-      `;
-    }
-
-    // 渲染底部切换栏
-    renderTabSwitcher() {
-      return `
-        <div class="message-tab-switcher">
-          <button class="tab-btn ${this.currentMainTab === 'friends' ? 'active' : ''}"
-                  onclick="window.messageApp?.switchMainTab('friends')">
-            <i class="fas fa-user-friends"></i>
-            <span>好友</span>
-          </button>
-          <button class="tab-btn ${this.currentMainTab === 'circle' ? 'active' : ''}"
-                  onclick="window.messageApp?.switchMainTab('circle')">
-            <i class="fas fa-globe"></i>
-            <span>朋友圈</span>
-          </button>
-        </div>
-      `;
-    }
-
-    // 渲染消息列表
-    renderMessageList() {
-      // 使用好友渲染器从上下文中提取好友信息
-      let friendsHtml = '';
-
-      // @ts-ignore - 好友渲染器类型声明
-      if (window.renderFriendsFromContext) {
-        // @ts-ignore - 好友渲染器类型声明
-        friendsHtml = window.renderFriendsFromContext();
-      } else {
-        friendsHtml = `
-                <div class="empty-state">
-                    <div class="empty-icon">💬</div>
-                    <div class="empty-text">暂无好友</div>
-                    <div class="empty-hint">点击右上角"添加"按钮添加好友</div>
-                </div>
-            `;
-      }
-
-      setTimeout(() => this.applyModernLayout(), 50);
-      
-      return `
-            <div class="messages-app">
-                <div class="message-list" id="message-list">
-                    ${friendsHtml}
-                </div>
-                ${this.renderTabSwitcher()}
-            </div>
-        `;
-    }
-
-applyModernLayout() {
-    const listContainer = document.getElementById('message-list');
-    if (!listContainer) return;
-
-    const timeMap = {};
-    const orderMap = {};
-    
-    // --- 核心修复 1：定义数据来源 ---
-    // 尝试获取永久联系人（从你注入的系统里取，如果没有就给个空对象）
-    const permanentContacts = (typeof PERMANENT_CONTACTS !== 'undefined') ? PERMANENT_CONTACTS : {};
-    
-    // 尝试获取抓取到的好友数据
-    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                            ? window.friendRenderer.extractFriendsFromContext() : [];
-    
-    // 将抓取到的数据存入一个 Map 方便查找，同时处理报错隐患
-    const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
-    
-    // 1. 获取数据并建立初始权重
-    extractedFriends.forEach(f => {
-        orderMap[f.number] = f.messageIndex || 0;
-        if (f.lastMessageTime) {
-            timeMap[f.number] = f.lastMessageTime;
-        } else if (f.addTime) {
-            const d = new Date(f.addTime);
-            timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        } else {
-            timeMap[f.number] = "08:00";
-        }
-    });
-
-    // 2. 扫描 DOM 校准权重（这部分保留，用于实时更新排序）
-    const mesBlocks = document.querySelectorAll('.mes');
-    mesBlocks.forEach(block => {
-        const text = block.innerText;
-        const mesId = parseInt(block.getAttribute('mesid') || 0); 
-        const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-        const idMatch = text.match(/\|(\d+)\|/);
-        
-        if (idMatch) {
-            const id = idMatch[1];
-            if (timeMatch) timeMap[id] = timeMatch[1];
-            const isPeer = text.includes('[对方消息|');
-            const newWeight = isPeer ? (100000 + mesId) : mesId;
-            if (!orderMap[id] || newWeight > orderMap[id]) {
-                orderMap[id] = newWeight;
-            }
-        }
-    });
-
-    window.latestOrderMap = orderMap;
-
-    // 3. 执行排序
-    const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    items.sort((a, b) => {
-        const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
-        const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
-        return weightB - weightA;
-    });
-    
-    items.forEach(item => listContainer.appendChild(item));
-
-    // 4. 渲染时间戳和红点
-    items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        
-        // --- 核心修复 2：安全地获取数据 ---
-        // 依次从 抓取数据、永久联系人 中寻找配置
-        const dataFromContext = friendsDataMap.get(id);
-        const dataFromPermanent = permanentContacts[id];
-        
-        // 如果两个地方都找不到，给一个默认对象防止报错
-        const data = dataFromContext || dataFromPermanent || { number: id, name: "未知好友" };
-
-        const time = data.lastMessageTime || timeMap[id] || "08:00";
-        const latestOrder = data.messageIndex || orderMap[id] || 0;
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-
-        // --- 时间显示 ---
-        let timeSpan = item.querySelector('.custom-timestamp');
-        if (time) {
-            if (!timeSpan) {
-                timeSpan = document.createElement('span');
-                timeSpan.className = 'custom-timestamp';
-                item.appendChild(timeSpan);
-            }
-            timeSpan.innerText = time;
-        }
-
-        // --- 红点逻辑 ---
-        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-        
-        // 只要有新消息权重（latestOrder > lastReadOrder）就显示红点
-        if (latestOrder > lastReadOrder) {
-            let dot = document.createElement('div');
-            dot.className = 'unread-dot'; 
-            item.appendChild(dot);
-        }
-
-        // --- 绑定点击已读逻辑 ---
-        if (!item.dataset.layoutListener) {
-            item.dataset.layoutListener = "true";
-            item.addEventListener('click', () => {
-                localStorage.setItem(`lastRead_${id}`, latestOrder);
-                const d = item.querySelector('.unread-dot');
-                if (d) d.remove();
-                console.log(`[Message App] 已将好友 ${id} 标记为已读，权重: ${latestOrder}`);
-            });
-        }
-    });
-}
-    
-    // 渲染添加好友界面
-    renderAddFriend() {
-      return `
-            <div class="add-friend-app">
-                <!-- Tab导航 -->
-                <div class="tab-navigation">
-                    <button class="tab-btn ${this.currentTab === 'add' ? 'active' : ''}" data-tab="add">
-                        <span class="tab-icon"></span>
-                        <span>添加</span>
-                    </button>
-                    <button class="tab-btn ${this.currentTab === 'delete' ? 'active' : ''}" data-tab="delete">
-                        <span class="tab-icon"></span>
-                        <span>删除</span>
-                    </button>
-                    <button class="tab-btn ${this.currentTab === 'createGroup' ? 'active' : ''}" data-tab="createGroup">
-                        <span class="tab-icon"></span>
-                        <span>创群</span>
-                    </button>
-                    <button class="tab-btn ${this.currentTab === 'deleteGroup' ? 'active' : ''}" data-tab="deleteGroup">
-                        <span class="tab-icon"></span>
-                        <span>删群</span>
-                    </button>
-                </div>
-
-                <!-- Tab内容 -->
-                <div class="m-tab-content">
-                    ${this.renderCurrentTabContent()}
-                </div>
-            </div>
-        `;
-    }
-
-    // 渲染当前tab内容
-    renderCurrentTabContent() {
-      switch (this.currentTab) {
-        case 'add':
-          return this.renderAddFriendTab();
-        case 'delete':
-          return this.renderDeleteFriendTab();
-        case 'createGroup':
-          return this.renderCreateGroupTab();
-        case 'deleteGroup':
-          return this.renderDeleteGroupTab();
-        default:
-          return this.renderAddFriendTab();
-      }
-    }
-
-    // 渲染添加好友tab
-renderAddFriendTab() {
-      // 先从保险箱拿名单
-      let savedFriends = [];
-      try {
-        savedFriends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-      } catch(e) {}
-
-      // 生成管理列表的HTML（如果没有好友就不显示）
-      let managementHtml = '';
-      if (savedFriends.length > 0) {
-        managementHtml = `
-          <div class="permanent-management" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-            <div style="font-size: 12px; font-weight: bold; color: #666; margin-bottom: 8px;">永久名单管理 (删除后需刷新页面)</div>
-            ${savedFriends.map((f, index) => {
-              const match = f.match(/\[好友id\|([^|]*)\|(\d+)\]/);
-              const name = match ? match[1] : '未知';
-              return `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; background: rgba(0,0,0,0.03); padding: 4px 8px; border-radius: 4px;">
-                  <span style="font-size: 12px;">👤 ${name}</span>
-                  <button class="delete-permanent-btn" data-index="${index}" style="background: #ff4d4f; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-      }
-
-      return `
-            <div class="add-friend-form">
-                <div class="form-group">
-                    <label for="friend-name">好友名称</label>
-                    <input type="text" id="friend-name" class="form-input" placeholder="请输入好友名称">
-                </div>
-                <div class="form-group">
-                    <label for="friend-number">数字ID</label>
-                    <input type="number" id="friend-number" class="form-input" placeholder="请输入数字ID">
-                </div>
-                
-                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 5px 0 15px 0; padding: 5px; background: rgba(0,0,0,0.05); border-radius: 4px;">
-                    <input type="checkbox" id="make-permanent-checkbox" style="width: 18px; height: 18px; cursor: pointer; accent-color: #007bff; -webkit-appearance: checkbox !important; appearance: checkbox !important;">
-                    <label for="make-permanent-checkbox" style="cursor: pointer; font-size: 13px; color: #555; margin-bottom: 0;">同步到永久通讯录</label>
-                </div>
-
-                <button class="add-friend-submit" id="add-friend-submit">
-                    <span class="submit-icon">✅</span>
-                    <span>添加好友</span>
-                </button>
-                
-                ${managementHtml}
-            </div>
-            <div class="add-friend-tips">
-                <div class="tip-item">
-                    <span class="tip-icon">💡</span>
-                    <span>添加后，即使删除消息记录好友也会留下</span>
-                </div>
-            </div>
-        `;
-    }
-    
-    // 渲染删除好友tab
-    renderDeleteFriendTab() {
-      return `
-            <div class="delete-friend-content">
-                <div class="delete-friend-header">
-                    <div class="delete-info">
-                        <span class="delete-icon">⚠️</span>
-                        <span>选择要删除的好友</span>
-                    </div>
-                    <button class="refresh-friend-list" id="refresh-friend-list">
-                        <span class="refresh-icon">🔄</span>
-                        <span>刷新</span>
-                    </button>
-                </div>
-                <div class="delete-friend-list" id="delete-friend-list">
-                    ${this.renderDeleteFriendList()}
-                </div>
-                <div class="delete-friend-tips">
-                    <div class="tip-item">
-                        <span class="tip-icon">⚠️</span>
-                        <span>删除好友会移除所有相关消息记录</span>
-                    </div>
-                    <div class="tip-item">
-                        <span class="tip-icon">🔍</span>
-                        <span>从上下文中查找并删除所有匹配的好友信息</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // 渲染删除好友列表
-    renderDeleteFriendList() {
-      if (!window.friendRenderer) {
-        return `
-                <div class="loading-state">
-                    <div class="loading-icon">⏳</div>
-                    <div class="loading-text">正在加载好友列表...</div>
-                </div>
-            `;
-      }
-
-      try {
-        const allContacts = window.friendRenderer.extractFriendsFromContext();
-        // 只筛选出好友，过滤掉群聊
-        const friends = allContacts.filter(contact => !contact.isGroup);
-
-        if (friends.length === 0) {
-          return `
-                    <div class="empty-state">
-                        <div class="empty-icon">👥</div>
-                        <div class="empty-text">暂无好友</div>
-                        <div class="empty-hint">请先添加好友</div>
-                    </div>
-                `;
-        }
-
-        const friendsHTML = friends
-          .map(friend => {
-            const avatar = this.getRandomAvatar();
-            const timeStr = this.formatTime(friend.addTime);
-
-            return `
-                    <div class="delete-friend-item">
-                        <div class="friend-info">
-                            <div class="friend-avatar">${avatar}</div>
-                            <div class="friend-details">
-                                <div class="friend-name">${friend.name}</div>
-                                <div class="friend-id">ID: ${friend.number}</div>
-                                <div class="friend-time">添加时间: ${timeStr}</div>
-                            </div>
-                        </div>
-                        <button class="delete-friend-btn" data-friend-id="${friend.number}" data-friend-name="${friend.name}">
-                            <span class="delete-icon">❌</span>
-                            <span>删除</span>
-                        </button>
-                    </div>
-                `;
-          })
-          .join('');
-
-        return friendsHTML;
-      } catch (error) {
-        console.error('[Message App] 渲染删除好友列表失败:', error);
-        return `
-                <div class="error-state">
-                    <div class="error-icon">⚠️</div>
-                    <div class="error-text">加载好友列表失败</div>
-                    <div class="error-details">${error.message}</div>
-                </div>
-            `;
-      }
-    }
-
-    // 渲染创建群聊tab
-    renderCreateGroupTab() {
-      return `
-            <div class="create-group-form">
-                <div class="form-group">
-                    <label for="group-name">群聊名称</label>
-                    <input type="text" id="group-name" class="form-input" placeholder="请输入群聊名称">
-                </div>
-                <div class="form-group">
-                    <label for="group-id">群聊ID</label>
-                    <input type="number" id="group-id" class="form-input" placeholder="请输入群聊ID">
-                </div>
-                <div class="form-group">
-                    <label>选择群成员</label>
-                    <div class="friends-selection-container">
-                        <div class="friends-selection-header">
-                            <span>可选好友 (点击选择)</span>
-                            <button class="select-all-friends" id="select-all-friends">全选</button>
-                        </div>
-                        <div class="friends-selection-list" id="friends-selection-list">
-                            ${this.renderFriendsSelection()}
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>已选成员</label>
-                    <div class="selected-members" id="selected-members">
-                        <div class="selected-member default-member">
-                            <span class="member-name">我</span>
-                            <span class="member-type">(群主)</span>
-                        </div>
-                    </div>
-                </div>
-                <button class="create-group-submit" id="create-group-submit">
-                    <span class="submit-icon">✅</span>
-                    <span>创建群聊</span>
-                </button>
-            </div>
-            <div class="create-group-tips">
-                <div class="tip-item">
-                    <span class="tip-icon">💡</span>
-                    <span>创建群聊后，信息会自动编辑到最新楼层</span>
-                </div>
-                <div class="tip-item">
-                    <span class="tip-icon">📝</span>
-                    <span>格式：[群聊|群名|群ID|群成员]</span>
-                </div>
-            </div>
-        `;
-    }
-
-    // 渲染删除群聊tab
-    renderDeleteGroupTab() {
-      return `
-            <div class="delete-group-content">
-                <div class="delete-group-header">
-                    <div class="delete-info">
-                        <span class="delete-icon">⚠️</span>
-                        <span>选择要删除的群聊</span>
-                    </div>
-                    <button class="refresh-group-list" id="refresh-group-list">
-                        <span class="refresh-icon">🔄</span>
-                        <span>刷新</span>
-                    </button>
-                </div>
-                <div class="delete-group-list" id="delete-group-list">
-                    ${this.renderDeleteGroupList()}
-                </div>
-                <div class="delete-group-tips">
-                    <div class="tip-item">
-                        <span class="tip-icon">⚠️</span>
-                        <span>删除群聊会移除所有相关消息记录</span>
-                    </div>
-                    <div class="tip-item">
-                        <span class="tip-icon">🔍</span>
-                        <span>从上下文中查找并删除所有匹配的群聊信息</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // 渲染好友选择列表
-    renderFriendsSelection() {
-      try {
-        if (!window.friendRenderer) {
-          console.warn('[Message App] friendRenderer未加载，显示占位符');
-          return `
-                    <div class="loading-state">
-                        <div class="loading-icon">⏳</div>
-                        <div class="loading-text">正在加载好友列表...</div>
-                    </div>
-                `;
-        }
-
-        const friends = window.friendRenderer.extractFriendsFromContext();
-
-        if (!friends || friends.length === 0) {
-          return `
-                    <div class="empty-state">
-                        <div class="empty-icon">👥</div>
-                        <div class="empty-text">暂无好友</div>
-                        <div class="empty-hint">请先添加好友</div>
-                    </div>
-                `;
-        }
-
-        const friendsHTML = friends
-          .map(friend => {
-            try {
-              const avatar = this.getRandomAvatar();
-              const friendName = friend.name || '未知好友';
-              const friendNumber = friend.number || '未知';
-
-              return `
-                        <div class="friend-selection-item" data-friend-id="${friendNumber}" data-friend-name="${friendName}">
-                            <div class="friend-checkbox">
-                                <input type="checkbox" id="friend-${friendNumber}" class="friend-checkbox-input">
-                                <label for="friend-${friendNumber}" class="friend-checkbox-label"></label>
-                            </div>
-                            <div class="friend-info">
-                                <div class="friend-avatar">${avatar}</div>
-                                <div class="friend-details">
-                                    <div class="friend-name">${friendName}</div>
-                                    <div class="friend-id">ID: ${friendNumber}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-            } catch (itemError) {
-              console.error('[Message App] 渲染单个好友项失败:', itemError, friend);
-              return ''; // 跳过有问题的好友项
-            }
-          })
-          .filter(html => html)
-          .join(''); // 过滤掉空的html
-
-        return (
-          friendsHTML ||
-          `
-                <div class="error-state">
-                    <div class="error-icon">⚠️</div>
-                    <div class="error-text">好友列表渲染失败</div>
-                    <div class="error-hint">请刷新重试</div>
-                </div>
-            `
-        );
-      } catch (error) {
-        console.error('[Message App] 渲染好友选择列表失败:', error);
-        return `
-                <div class="error-state">
-                    <div class="error-icon">⚠️</div>
-                    <div class="error-text">加载好友列表失败</div>
-                    <div class="error-details">${error.message}</div>
-                </div>
-            `;
-      }
-    }
-
-    // 渲染删除群聊列表
-    renderDeleteGroupList() {
-      // 返回加载占位符，然后异步加载群聊数据
-      setTimeout(async () => {
-        await this.loadDeleteGroupListAsync();
-      }, 100);
-
-      return `
-            <div class="loading-state">
-                <div class="loading-icon">⏳</div>
-                <div class="loading-text">正在加载群聊列表...</div>
-            </div>
-        `;
-    }
-
-    // 异步加载删除群聊列表
-    async loadDeleteGroupListAsync() {
-      try {
-        // 获取群聊列表（从上下文中提取）
-        const groups = await this.extractGroupsFromContext();
-
-        const deleteGroupListContainer = document.querySelector('#delete-group-list');
-        if (!deleteGroupListContainer) {
-          return;
-        }
-
-        if (groups.length === 0) {
-          deleteGroupListContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">👥</div>
-                        <div class="empty-text">暂无群聊</div>
-                        <div class="empty-hint">请先创建群聊</div>
-                    </div>
-                `;
-          return;
-        }
-
-        const groupsHTML = groups
-          .map(group => {
-            const avatar = '👥';
-            const timeStr = this.formatTime(group.addTime);
-
-            return `
-                    <div class="delete-group-item">
-                        <div class="group-info">
-                            <div class="group-avatar">${avatar}</div>
-                            <div class="group-details">
-                                <div class="group-name">${group.name}</div>
-                                <div class="group-id">群ID: ${group.id}</div>
-                                <div class="group-members">成员: ${group.members}</div>
-                                <div class="group-time">创建时间: ${timeStr}</div>
-                            </div>
-                        </div>
-                        <button class="delete-group-btn" data-group-id="${group.id}" data-group-name="${group.name}">
-                            <span class="delete-icon">❌</span>
-                            <span>删除</span>
-                        </button>
-                    </div>
-                `;
-          })
-          .join('');
-
-        deleteGroupListContainer.innerHTML = groupsHTML;
-
-        // 重新绑定删除群聊事件
-        this.bindDeleteGroupEvents(document);
-      } catch (error) {
-        console.error('[Message App] 加载删除群聊列表失败:', error);
-        const deleteGroupListContainer = document.querySelector('#delete-group-list');
-        if (deleteGroupListContainer) {
-          deleteGroupListContainer.innerHTML = `
-                    <div class="error-state">
-                        <div class="error-icon">⚠️</div>
-                        <div class="error-text">加载群聊列表失败</div>
-                        <div class="error-details">${error.message}</div>
-                    </div>
-                `;
-        }
-      }
-    }
-
-    // 从上下文提取群聊信息
-    async extractGroupsFromContext() {
-      try {
-        if (!window.contextMonitor) {
-          console.warn('[Message App] 上下文监控器不可用');
-          return [];
-        }
-
-        // 获取聊天消息
-        const chatData = await window.contextMonitor.getCurrentChatMessages();
-        if (!chatData || !chatData.messages) {
-          console.warn('[Message App] 无法获取聊天消息');
-          return [];
-        }
-
-        const groups = [];
-        const groupRegex = /\[群聊\|([^|]+)\|([^|]+)\|([^\]]+)\]/g;
-
-        // 遍历所有消息，查找群聊信息
-        chatData.messages.forEach((message, messageIndex) => {
-          if (message.mes && typeof message.mes === 'string') {
-            let match;
-            while ((match = groupRegex.exec(message.mes)) !== null) {
-              const [fullMatch, groupName, groupId, members] = match;
-
-              // 检查是否已存在（避免重复）
-              if (!groups.find(g => g.id === groupId)) {
-                groups.push({
-                  name: groupName,
-                  id: groupId,
-                  members: members,
-                  addTime: message.send_date || Date.now(),
-                  messageIndex: messageIndex,
+            // 提取群聊信息：[群聊|一家人|123456|我、络络、江叙之]
+            const groupMatches = [...messageForMatching.matchAll(groupPattern)];
+            groupMatches.forEach(match => {
+              const groupName = match[1];
+              const groupId = match[2];
+              const membersList = match[3];
+
+              groupMap.set(groupName, groupId);
+
+              // 🔥 新增：解析群聊成员列表，为每个成员建立映射
+              if (membersList) {
+                const members = membersList
+                  .split(/[、,，]/)
+                  .map(name => name.trim())
+                  .filter(name => name);
+                members.forEach(memberName => {
+                  // 如果成员不在好友映射中，生成一个唯一ID
+                  if (!friendMap.has(memberName) && memberName !== '我') {
+                    const generatedId = this.generateUserIdFromName(memberName);
+                    friendMap.set(memberName, generatedId);
+                    console.log(`[Message Renderer] 为群聊成员 "${memberName}" 建立映射: ${generatedId}`);
+                  }
                 });
               }
-            }
-            // 重置正则表达式
-            groupRegex.lastIndex = 0;
+            });
           }
         });
-
-        console.log(`[Message App] 找到 ${groups.length} 个群聊`);
-        return groups;
       } catch (error) {
-        console.error('[Message App] 提取群聊信息失败:', error);
-        return [];
+        console.error('[Message Renderer] 解析好友数据时出错:', error);
       }
     }
 
-    // 格式化时间
-    formatTime(timestamp) {
+    /**
+     * 🔥 新增：根据发送者姓名获取对应的ID
+     */
+    getIdBySenderName(senderName, isGroupMessage) {
+      // 首先检查是否已建立映射
+      if (!this.friendNameToIdMap || !this.groupNameToIdMap) {
+        this.buildFriendNameToIdMapping();
+      }
+
+      if (isGroupMessage) {
+        // 对于群聊消息，尝试从群聊映射中查找
+        // 注意：群聊消息的发送者是群内成员，我们需要的是群ID
+        // 这里可能需要根据当前聊天上下文来确定群ID
+        return this.currentFriendId || '';
+      } else {
+        // 对于私聊消息，从好友映射中查找
+        return this.friendNameToIdMap.get(senderName) || '';
+      }
+    }
+
+    /**
+     * 🔥 新增：移除thinking标签的辅助方法（如果不存在的话）
+     */
+    removeThinkingTags(text) {
+      if (!text) return '';
+      // 移除 <thinking>...</thinking> 标签及其内容
+      return text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+    }
+
+    /**
+     * 🔥 新增：为用户姓名生成唯一ID
+     * 用于群聊中没有明确好友关系的成员
+     */
+    generateUserIdFromName(userName) {
+      if (!userName) return '';
+
+      // 方法1：使用简单哈希算法生成数字ID
+      let hash = this.simpleHash(userName);
+
+      // 确保ID是6位数字，添加固定前缀避免与真实ID冲突
+      let generatedId = '8' + (hash % 100000).toString().padStart(5, '0');
+
+      console.log(`[Message Renderer] 为用户 "${userName}" 生成ID: ${generatedId}`);
+
+      // 缓存生成的ID，确保同一用户总是得到相同的ID
+      if (!this.generatedUserIds) {
+        this.generatedUserIds = new Map();
+      }
+
+      if (this.generatedUserIds.has(userName)) {
+        return this.generatedUserIds.get(userName);
+      } else {
+        this.generatedUserIds.set(userName, generatedId);
+        return generatedId;
+      }
+    }
+
+    // 加载上下文监控器
+    loadContextMonitor() {
+      // @ts-ignore
+      if (window.ContextMonitor && window.contextMonitor) {
+        // @ts-ignore
+        this.contextMonitor = window.contextMonitor;
+        console.log('[Message Renderer] 上下文监控器已连接');
+        this.retryCount = 0; // 重置重试计数
+      } else if (this.retryCount < this.maxRetries) {
+        this.retryCount++;
+        console.warn(`[Message Renderer] 上下文监控器未找到，将延迟连接 (第${this.retryCount}次尝试)`);
+        setTimeout(() => {
+          this.loadContextMonitor();
+        }, 1000);
+      } else {
+        console.error('[Message Renderer] 上下文监控器连接失败，已达到最大重试次数');
+        // 创建空的上下文监控器以避免错误
+        this.createFallbackContextMonitor();
+      }
+    }
+
+    // 创建备用上下文监控器
+    createFallbackContextMonitor() {
+      console.warn('[Message Renderer] 使用备用上下文监控器');
+      this.contextMonitor = {
+        extractFromCurrentChat: async formatName => {
+          console.warn('[Message Renderer] 使用备用上下文监控器，返回空数据');
+          return {
+            formatName: formatName,
+            chatId: 'fallback',
+            totalMessages: 0,
+            extractedCount: 0,
+            extractions: [],
+            extractedAt: new Date(),
+          };
+        },
+      };
+    }
+
+    /**
+     * 提取指定好友的所有消息
+     * @param {string|string[]} friendId - 好友ID，可以是单个ID或ID数组
+     */
+    async extractMessagesForFriend(friendId) {
+      if (!this.contextMonitor) {
+        throw new Error('上下文监控器未加载');
+      }
+
+      try {
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log('[Message Renderer] 🔥 开始使用统一提取法，保持原始穿插顺序');
+        }
+
+        // 🔥 新增：在提取消息前建立好友映射
+        this.buildFriendNameToIdMapping();
+
+        // 🔥 核心修复：使用统一提取法，一次性提取所有消息
+        // 这样可以保持消息在原始文本中的穿插顺序
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log('[Message Renderer] 使用统一提取法（保持原始穿插顺序）');
+        }
+
+        // 使用universalMessage格式来提取所有消息
+        // 这个格式可以匹配所有类型的消息，保持原始顺序
+        const result = await this.contextMonitor.extractFromCurrentChat('universalMessage');
+
+        if (!result || !result.extractions) {
+          console.warn('[Message Renderer] 统一提取失败，尝试备用方法');
+          // 备用方法：使用分别提取法
+          return this.extractMessagesWithFallback(friendId);
+        }
+
+        let allExtractions = result.extractions;
+
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log(`[Message Renderer] 统一提取到 ${allExtractions.length} 条消息`);
+        }
+
+        // 修复：只在调试模式下显示详细消息顺序
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log('[Message Renderer] 原始提取顺序:');
+          allExtractions.forEach((msg, index) => {
+            console.log(`消息${index + 1}:`, {
+              content: msg.content?.substring(0, 30) + '...',
+              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              index: msg.index,
+              globalIndex: msg.globalIndex,
+              messageIndex: msg.messageIndex,
+              originalMessageIndex: msg.originalMessageIndex,
+            });
+          });
+        }
+
+        // 过滤出指定好友的消息（保持原始顺序）
+        let friendMessages = [];
+
+        allExtractions.forEach((msg, originalIndex) => {
+          // 处理不同格式的字段映射
+          let msgIdentifier;
+
+          if (msg.fullMatch && msg.fullMatch.startsWith('[群聊消息')) {
+            // 群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
+            // 对于universalMessage格式，character字段是群ID，number字段是发送者
+            if (msg.character && msg.number) {
+              // 这是universalMessage格式的结果
+              msgIdentifier = String(msg.character || ''); // 群ID
+              // 修复字段映射
+              msg.sender = msg.number; // 发送者
+              msg.number = msg.character; // 群ID
+            } else {
+              // 这是groupMessage格式的结果
+              msgIdentifier = String(msg.number || '');
+            }
+          } else if (msg.fullMatch && msg.fullMatch.startsWith('[我方群聊消息')) {
+            // 我方群聊消息格式：[我方群聊消息|我|群ID|消息类型|消息内容]
+            if (msg.character && msg.number) {
+              // 这是universalMessage格式的结果
+              msgIdentifier = String(msg.character || ''); // 群ID
+              // 修复字段映射
+              msg.sender = '我'; // 发送者
+              msg.number = msg.character; // 群ID
+            } else {
+              // 这是myGroupMessage格式的结果
+              msgIdentifier = String(msg.number || '');
+            }
+          } else {
+            // 普通消息
+            msgIdentifier = String(msg.number || '');
+          }
+
+          // 修复：只在调试模式下输出群聊消息调试信息
+          if (
+            window.DEBUG_MESSAGE_RENDERER &&
+            msg.fullMatch &&
+            (msg.fullMatch.startsWith('[群聊消息') || msg.fullMatch.startsWith('[我方群聊消息'))
+          ) {
+            console.log(`[Message Renderer] 群聊消息调试:`, {
+              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              number: msg.number,
+              sender: msg.sender,
+              msgIdentifier: msgIdentifier,
+              character: msg.character,
+            });
+          }
+
+          // 支持单个好友ID或好友ID数组
+          const targetIds = Array.isArray(friendId) ? friendId.map(String) : [String(friendId)];
+          const isMatch = targetIds.includes(msgIdentifier);
+
+          if (isMatch) {
+            // 修复：只在调试模式下输出匹配成功日志
+            if (window.DEBUG_MESSAGE_RENDERER) {
+              console.log(
+                `[Message Renderer] 匹配成功: ${msgIdentifier} 在 [${targetIds.join(', ')}] 中, 原始位置: ${
+                  msg.globalIndex
+                }, 消息: ${msg.fullMatch?.substring(0, 50)}...`,
+              );
+            }
+
+            // 为消息添加原始位置信息
+            msg.originalIndex = originalIndex;
+            friendMessages.push(msg);
+          }
+        });
+
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log('过滤后的好友消息数量:', friendMessages.length);
+          console.log(
+            '过滤后的消息顺序:',
+            friendMessages.map((msg, i) => ({
+              index: i,
+              globalIndex: msg.globalIndex,
+              content: msg.content?.substring(0, 20) + '...',
+              fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+            })),
+          );
+        }
+
+        // 🔥 修复：确保消息按全局索引排序，保持原始穿插顺序
+        friendMessages.sort((a, b) => {
+          // 🔥 优先使用 globalIndex（全局提取顺序）- 这是最重要的
+          // globalIndex 反映了消息在原始文本中的出现顺序
+          if (a.globalIndex !== undefined && b.globalIndex !== undefined) {
+            return a.globalIndex - b.globalIndex;
+          }
+
+          // 其次使用 messageIndex（消息索引）
+          if (a.messageIndex !== undefined && b.messageIndex !== undefined) {
+            return a.messageIndex - b.messageIndex;
+          }
+
+          // 再次使用 originalIndex（在 allExtractions 中的位置）
+          if (a.originalIndex !== undefined && b.originalIndex !== undefined) {
+            return a.originalIndex - b.originalIndex;
+          }
+
+          // 最后使用时间戳排序（如果有的话）
+          if (a.messageTimestamp && b.messageTimestamp) {
+            const timeA = new Date(a.messageTimestamp).getTime();
+            const timeB = new Date(b.messageTimestamp).getTime();
+            if (timeA !== timeB) {
+              return timeA - timeB;
+            }
+          }
+
+          return 0;
+        });
+        console.log('[Message Renderer] 按全局索引排序，确保原始穿插顺序正确');
+
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log(
+            '排序后的消息顺序:',
+            friendMessages.map((msg, i) => ({
+              index: i,
+              globalIndex: msg.globalIndex,
+              content: msg.content?.substring(0, 20) + '...',
+              fullMatch: msg.fullMatch?.substring(0, 40) + '...',
+            })),
+          );
+        }
+
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log('过滤并排序后的好友消息数量:', friendMessages.length);
+          console.log(
+            '排序后的消息详细信息:',
+            friendMessages.map((msg, index) => ({
+              排序位置: index,
+              globalIndex: msg.globalIndex,
+              content: msg.content?.substring(0, 30) + '...',
+              fullMatch: msg.fullMatch?.substring(0, 50) + '...',
+              isMyMessage: msg.fullMatch?.startsWith('[我方消息'),
+              isGroupMessage: msg.fullMatch?.startsWith('[群聊消息'),
+              // 🔥 添加name和extra信息，用于统一性检查
+              originalMessageName: msg.originalMessageName,
+              originalMessageExtra: msg.originalMessageExtra,
+              originalMessageIndex: msg.originalMessageIndex,
+              所有字段: Object.keys(msg),
+            })),
+          );
+        }
+
+        // 分别统计我方、对方和群聊消息
+        const myMessages = friendMessages.filter(msg => msg.fullMatch && msg.fullMatch.startsWith('[我方消息'));
+        const otherMessages = friendMessages.filter(msg => msg.fullMatch && msg.fullMatch.startsWith('[对方消息'));
+        const groupMessages = friendMessages.filter(
+          msg => msg.fullMatch && (msg.fullMatch.startsWith('[群聊消息') || msg.fullMatch.startsWith('[我方群聊消息')),
+        );
+
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log(
+            `[Message Renderer] 提取完成：我方消息 ${myMessages.length} 条，对方消息 ${otherMessages.length} 条，群聊消息 ${groupMessages.length} 条`,
+          );
+        }
+
+        return {
+          myMessages: myMessages,
+          otherMessages: otherMessages,
+          groupMessages: groupMessages,
+          allMessages: friendMessages,
+        };
+      } catch (error) {
+        console.error('[Message Renderer] 提取消息时发生错误:', error);
+        throw error;
+      }
+    }
+
+    /**
+     * 备用提取方法：使用分别提取法
+     */
+    async extractMessagesWithFallback(friendId) {
+      console.log('[Message Renderer] 使用备用分别提取法');
+
+      const extractionResults = [];
+      const extractionTasks = [
+        { name: 'myMessage', order: 1 },
+        { name: 'otherMessage', order: 2 },
+        { name: 'groupMessage', order: 3 },
+        { name: 'myGroupMessage', order: 4 },
+      ];
+
+      // 按顺序提取每种类型的消息
+      for (const task of extractionTasks) {
+        try {
+          const result = await this.contextMonitor.extractFromCurrentChat(task.name);
+          if (result && result.extractions) {
+            result.extractions.forEach((msg, index) => {
+              msg._extractionType = task.name;
+              msg._extractionOrder = task.order;
+              msg._typeIndex = index;
+              msg._estimatedPosition = msg.index || 0;
+              if (msg.globalIndex !== undefined) {
+                msg._globalIndex = msg.globalIndex;
+              }
+              extractionResults.push(msg);
+            });
+          }
+        } catch (e) {
+          console.warn(`[Message Renderer] 提取 ${task.name} 失败:`, e);
+        }
+      }
+
+      // 按index排序
+      extractionResults.sort((a, b) => {
+        const aIndex = a.index || 0;
+        const bIndex = b.index || 0;
+        return aIndex - bIndex;
+      });
+
+      // 过滤出指定好友的消息
+      let friendMessages = [];
+      extractionResults.forEach((msg, originalIndex) => {
+        let msgIdentifier;
+        if (msg.fullMatch && (msg.fullMatch.startsWith('[群聊消息') || msg.fullMatch.startsWith('[我方群聊消息'))) {
+          msgIdentifier = String(msg.number || '');
+        } else {
+          msgIdentifier = String(msg.number || '');
+        }
+
+        const targetIds = Array.isArray(friendId) ? friendId.map(String) : [String(friendId)];
+        const isMatch = targetIds.includes(msgIdentifier);
+
+        if (isMatch) {
+          msg.originalIndex = originalIndex;
+          friendMessages.push(msg);
+        }
+      });
+
+      // 按全局索引排序
+      friendMessages.sort((a, b) => {
+        if (a.globalIndex !== undefined && b.globalIndex !== undefined) {
+          return a.globalIndex - b.globalIndex;
+        }
+        if (a.messageIndex !== undefined && b.messageIndex !== undefined) {
+          return a.messageIndex - b.messageIndex;
+        }
+        if (a.originalIndex !== undefined && b.originalIndex !== undefined) {
+          return a.originalIndex - b.originalIndex;
+        }
+        return 0;
+      });
+
+      // 分别统计
+      const myMessages = friendMessages.filter(msg => msg.fullMatch && msg.fullMatch.startsWith('[我方消息'));
+      const otherMessages = friendMessages.filter(msg => msg.fullMatch && msg.fullMatch.startsWith('[对方消息'));
+      const groupMessages = friendMessages.filter(
+        msg => msg.fullMatch && (msg.fullMatch.startsWith('[群聊消息') || msg.fullMatch.startsWith('[我方群聊消息')),
+      );
+
+      return {
+        myMessages: myMessages,
+        otherMessages: otherMessages,
+        groupMessages: groupMessages,
+        allMessages: friendMessages,
+      };
+    }
+
+    /**
+     * 渲染消息详情页面 - 反向分页模式
+     */
+    async renderMessageDetail(friendId, friendName) {
+      if (window.DEBUG_MESSAGE_RENDERER) {
+        console.log(`[Message Renderer] 渲染消息详情 (反向分页模式): ${friendId}, ${friendName}`);
+      }
+
+      if (!this.contextMonitor) {
+        console.error('[Message Renderer] 上下文监控器未初始化');
+        return this.renderErrorMessageDetail(friendId, friendName, '上下文监控器未初始化');
+      }
+
+      try {
+        // 重置分页状态
+        this.resetPagination();
+
+        // 提取消息数据
+        const messageData = await this.extractMessagesForFriend(friendId);
+
+        if (!messageData || messageData.allMessages.length === 0) {
+          return this.renderEmptyMessageDetail(friendId, friendName);
+        }
+
+        const totalCount = messageData.allMessages.length;
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log(`[Message Renderer] 找到 ${totalCount} 条消息，启用反向分页模式`);
+        }
+
+        // 显示性能优化提示
+        if (totalCount > 100) {
+          this.showPerformanceIndicator(`反向分页已启用 (${totalCount}条消息)`, 3000);
+        }
+
+        // 初始化反向分页 - 从最新消息开始
+        this.initReversePagination(messageData.allMessages);
+
+        // 渲染最新的消息（最后一页）
+        const latestMessages = this.getLatestMessages();
+        if (window.DEBUG_MESSAGE_RENDERER) {
+          console.log(`[Message Renderer] 获取到 ${latestMessages.length} 条最新消息`);
+        }
+
+        // 修复：只在调试模式下显示最新消息的顺序
+        if (window.DEBUG_MESSAGE_RENDERER && latestMessages.length > 0) {
+          console.log('[Message Renderer] 最新消息顺序验证:');
+          console.log('第一条显示的消息:', latestMessages[0]?.content?.substring(0, 30) + '...');
+          console.log(
+            '最后一条显示的消息:',
+            latestMessages[latestMessages.length - 1]?.content?.substring(0, 30) + '...',
+          );
+          console.log('应该是最新的消息在底部');
+        }
+
+        const messagesHtml = this.renderMessagesBatch(latestMessages);
+
+        this._lastRenderedMessageKeys = latestMessages.map(m => this.getMessageKey(m));
+        this._lastRenderedMessageHashes = latestMessages.map(m => this.getMessageRenderHash(m));
+
+        return `
+                <div class="message-detail-app">
+                    <div class="message-detail-content" id="message-detail-content" data-background-id="${friendId}">
+                        <div class="messages-wrapper" id="messages-wrapper">
+                            ${this.renderLoadOlderButton()}
+                            <div class="messages-container" id="messages-container">
+                                ${messagesHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-detail-footer">
+                        <div class="message-stats">
+                            显示最新 ${latestMessages.length}/${totalCount} 条消息
+                            (我方: ${messageData.myMessages.length}, 对方: ${messageData.otherMessages.length}, 群聊: ${
+          messageData.groupMessages.length
+        })
+                        </div>
+                        <div class="message-send-area">
+                            <div class="send-input-container">
+                                <textarea id="message-send-input" placeholder="发送消息..." maxlength="1000"></textarea>
+                                <div class="send-tools">
+                                    <button class="send-tool-btn" id="send-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
+                                    <button class="send-tool-btn" id="send-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
+                                    <button class="send-tool-btn" id="send-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
+                                    <button class="send-tool-btn" id="send-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
+                                </div>
+                            </div>
+                            <button class="send-message-btn" id="send-message-btn"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+      } catch (error) {
+        console.error('[Message Renderer] 渲染消息详情失败:', error);
+        return this.renderErrorMessageDetail(friendId, friendName, error.message);
+      }
+    }
+
+    /**
+     * 重置分页状态
+     */
+    resetPagination() {
+      this.pagination = {
+        pageSize: 50,
+        currentPage: 0,
+        totalPages: 0,
+        loadedMessages: [],
+        isLoading: false,
+      };
+      this.virtualScrolling.startIndex = 0;
+      this.virtualScrolling.endIndex = this.virtualScrolling.visibleCount;
+    }
+
+    /**
+     * 初始化分页
+     */
+    initPagination(allMessages) {
+      this.pagination.totalPages = Math.ceil(allMessages.length / this.pagination.pageSize);
+      this.pagination.loadedMessages = [...allMessages]; // 复制消息数组
+      console.log(`[Message Renderer] 分页初始化: ${allMessages.length} 条消息, ${this.pagination.totalPages} 页`);
+    }
+
+    /**
+     * 初始化反向分页 - 从最新消息开始
+     */
+    initReversePagination(allMessages) {
+      this.pagination.totalPages = Math.ceil(allMessages.length / this.pagination.pageSize);
+      this.pagination.loadedMessages = [...allMessages]; // 复制消息数组
+      // 从最后一页开始（最新消息）
+      this.pagination.currentPage = this.pagination.totalPages - 1;
+      this.pagination.loadedPages = 1; // 已加载页数
+      if (window.DEBUG_MESSAGE_RENDERER) {
+        console.log(
+          `[Message Renderer] 反向分页初始化: ${allMessages.length} 条消息, ${this.pagination.totalPages} 页, 从第${
+            this.pagination.currentPage + 1
+          }页开始`,
+        );
+      }
+
+      // 修复：只在调试模式下显示消息时间顺序验证
+      if (window.DEBUG_MESSAGE_RENDERER && allMessages.length > 0) {
+        console.log('[Message Renderer] 消息时间顺序验证:');
+        console.log('第一条消息:', allMessages[0]?.content?.substring(0, 30) + '...');
+        console.log('最后一条消息:', allMessages[allMessages.length - 1]?.content?.substring(0, 30) + '...');
+      }
+    }
+
+    /**
+     * 获取指定页的消息
+     */
+    getPageMessages(pageIndex) {
+      const startIndex = pageIndex * this.pagination.pageSize;
+      const endIndex = Math.min(startIndex + this.pagination.pageSize, this.pagination.loadedMessages.length);
+      return this.pagination.loadedMessages.slice(startIndex, endIndex);
+    }
+
+    /**
+     * 获取最新的消息（反向分页使用）
+     */
+    getLatestMessages() {
+      const totalMessages = this.pagination.loadedMessages.length;
+      const startIndex = Math.max(0, totalMessages - this.pagination.pageSize);
+      const latestMessages = this.pagination.loadedMessages.slice(startIndex);
+
+      if (window.DEBUG_MESSAGE_RENDERER) {
+        console.log(
+          `[Message Renderer] 获取最新消息: 总数${totalMessages}, 起始索引${startIndex}, 获取${latestMessages.length}条`,
+        );
+        console.log(
+          '[Message Renderer] 最新消息内容:',
+          latestMessages.map((msg, i) => ({
+            index: i,
+            content: msg.content?.substring(0, 30) + '...',
+            isLatest: i === latestMessages.length - 1,
+          })),
+        );
+      }
+
+      return latestMessages;
+    }
+
+    /**
+     * 获取历史消息（反向分页使用）
+     */
+    getOlderMessages() {
+      const totalMessages = this.pagination.loadedMessages.length;
+      const loadedPages = this.pagination.loadedPages || 1;
+      const pageSize = this.pagination.pageSize;
+
+      // 计算要加载的历史消息范围
+      const endIndex = totalMessages - loadedPages * pageSize;
+      const startIndex = Math.max(0, endIndex - pageSize);
+
+      const olderMessages = this.pagination.loadedMessages.slice(startIndex, endIndex);
+
+      console.log(
+        `[Message Renderer] 获取历史消息: 总数${totalMessages}, 范围${startIndex}-${endIndex}, 获取${olderMessages.length}条`,
+      );
+      console.log(
+        '[Message Renderer] 历史消息内容:',
+        olderMessages.map((msg, i) => ({
+          index: i,
+          content: msg.content?.substring(0, 30) + '...',
+          isOldest: i === 0,
+        })),
+      );
+
+      return olderMessages;
+    }
+
+    /**
+     * 批量渲染消息 - 优化DOM操作
+     */
+        /**
+     * 批量渲染消息 - 保留缓存，尽量少的 DOM 操作
+     */
+    renderMessagesBatch(messages) {
+      // 使用缓存
+      const cacheKey = this.generateCacheKey(messages);
+      if (this.renderCache.has(cacheKey)) {
+        return this.renderCache.get(cacheKey);
+      }
+
+      // 保持原有顺序（messages 已经按时间排序）
+      const htmlArray = [];
+      for (let i = 0; i < messages.length; i++) {
+        htmlArray.push(this.renderSingleMessage(messages[i]));
+      }
+      const result = htmlArray.join('');
+
+      // 写入缓存并限制大小
+      this.renderCache.set(cacheKey, result);
+      if (this.renderCache.size > 50) {
+        const firstKey = this.renderCache.keys().next().value;
+        this.renderCache.delete(firstKey);
+      }
+      return result;
+    }
+
+    // 生成用于比对的消息唯一key（尽量稳定）
+    getMessageKey(message) {
+      if (!message) return 'null';
+      if (message.id !== undefined && message.id !== null) return `id:${message.id}`;
+      if (message.messageIndex !== undefined && message.messageIndex !== null) return `mi:${message.messageIndex}`;
+      if (message.globalIndex !== undefined && message.globalIndex !== null) return `gi:${message.globalIndex}`;
+      if (message.textPosition !== undefined && message.textPosition !== null) return `tp:${message.textPosition}`;
+      if (message.contextOrder !== undefined && message.contextOrder !== null) return `co:${message.contextOrder}`;
+      if (message.fullMatch) return `fm:${this.simpleHash(String(message.fullMatch))}`;
+      const raw = [message.messageType || '', message.sender || '', message.number || '', message.msgType || ''].join('|');
+      return `h:${this.simpleHash(raw)}`;
+    }
+
+    // 生成用于检测同一条消息内容是否变化的渲染签名（hash）
+    getMessageRenderHash(message) {
+      try {
+        const raw = [
+          message.messageType || '',
+          message.sender || '',
+          message.number || '',
+          message.msgType || '',
+          message.content || '',
+          message.detailedContent || '',
+          message.extra ? JSON.stringify(message.extra) : ''
+        ].join('|');
+        return String(this.simpleHash(raw));
+      } catch (e) {
+        return String(Date.now());
+      }
+    }
+
+    // 基于前缀/后缀相同的增量更新（常见仅尾部变化）
+    incrementalUpdateMessages(container, newMessages) {
+      if (!container) return;
+      const oldLen = Array.isArray(this._lastRenderedMessageKeys) ? this._lastRenderedMessageKeys.length : 0;
+      const newKeys = (newMessages || []).map(m => this.getMessageKey(m));
+      const newHashes = (newMessages || []).map(m => this.getMessageRenderHash(m));
+
+      // 如果容器现有子节点数量与上次记录不一致（例如老版本渲染或加载过历史消息），直接整页重绘
+      const childrenLen = container.children ? container.children.length : 0;
+      if (oldLen !== childrenLen) {
+        container.innerHTML = this.renderMessagesBatch(newMessages);
+        this._lastRenderedMessageKeys = newKeys;
+        this._lastRenderedMessageHashes = newHashes;
+        this.initLazyLoadingForNewMessages();
+        return;
+      }
+
+      // 最长公共前缀（键+内容不变）
+      let prefix = 0;
+      const minLen = Math.min(oldLen, newKeys.length);
+      while (
+        prefix < minLen &&
+        this._lastRenderedMessageKeys[prefix] === newKeys[prefix] &&
+        this._lastRenderedMessageHashes[prefix] === newHashes[prefix]
+      ) {
+        prefix++;
+      }
+
+      // 完全一致，无需更新
+      if (prefix === oldLen && prefix === newKeys.length) return;
+
+      // 同样计算公共后缀
+      let suffix = 0;
+      while (
+        suffix < (oldLen - prefix) &&
+        suffix < (newKeys.length - prefix) &&
+        this._lastRenderedMessageKeys[oldLen - 1 - suffix] === newKeys[newKeys.length - 1 - suffix] &&
+        this._lastRenderedMessageHashes[oldLen - 1 - suffix] === newHashes[newHashes.length - 1 - suffix]
+      ) {
+        suffix++;
+      }
+
+      const mustRemove = oldLen - prefix - suffix; // 需要替换的旧节点数量
+      const mustInsert = newKeys.length - prefix - suffix; // 需要插入的新节点数量
+
+      // 删除中间需要替换的旧节点（从 prefix 到 oldLen - suffix - 1）
+      for (let r = 0; r < mustRemove; r++) {
+        const nodeToRemove = container.children[prefix];
+        if (nodeToRemove) container.removeChild(nodeToRemove);
+      }
+
+      // 插入新节点：在后缀首节点之前插入（如果存在），否则追加到末尾
+      const anchorNode = suffix > 0 ? container.children[prefix] : null;
+      if (mustInsert > 0) {
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = this.renderMessagesBatch(newMessages.slice(prefix, prefix + mustInsert));
+        while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
+        if (anchorNode) {
+          container.insertBefore(fragment, anchorNode);
+        } else {
+          container.appendChild(fragment);
+        }
+      }
+
+      // 更新缓存并补挂懒加载
+      this._lastRenderedMessageKeys = newKeys;
+      this._lastRenderedMessageHashes = newHashes;
+      this.initLazyLoadingForNewMessages();
+
+    // 生成用于比对的消息唯一key（尽量稳定）
+    }
+        generateCacheKey(messages) {
+      if (!messages || messages.length === 0) return 'empty';
+      const first = messages[0] || {};
+      const last = messages[messages.length - 1] || {};
+      const idPart = `${messages.length}_${first.messageIndex || 0}_${last.messageIndex || 0}`;
+      // 加入内容指纹，避免同长度/同索引但内容变化时命中旧缓存
+      const sig = this.simpleHash(
+        messages
+          .map(m => `${this.getMessageKey(m)}:${this.getMessageRenderHash(m)}`)
+          .join('|')
+      );
+      return `${idPart}_${sig}`;
+    }
+
+    /**
+     * 渲染加载更多按钮（向下加载新消息）
+     */
+    renderLoadMoreButton() {
+      if (this.pagination.currentPage >= this.pagination.totalPages - 1) {
+        return ''; // 没有更多消息
+      }
+
+      return `
+            <div class="load-more-container" style="text-align: center; padding: 20px;">
+                <button id="load-more-messages-btn"
+                        class="load-more-btn"
+                        style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 20px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.3s ease;">
+                    加载更多消息 (${this.pagination.currentPage + 1}/${this.pagination.totalPages})
+                </button>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染加载历史消息按钮（向上加载老消息）
+     */
+    renderLoadOlderButton() {
+      // 计算剩余可加载的页数
+      const remainingPages = this.pagination.totalPages - (this.pagination.loadedPages || 1);
+
+      if (remainingPages <= 0) {
+        return ''; // 没有更多历史消息
+      }
+
+      return `
+            <div class="load-older-container" style="text-align: center; padding: 20px; background: linear-gradient(180deg, #f8f9fa 0%, rgba(248, 249, 250, 0.8) 50%, transparent 100%);">
+                <button id="load-older-messages-btn"
+                        class="load-older-btn"
+                        style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 20px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    📜 加载历史消息 (还有${remainingPages}页)
+                </button>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染单条消息
+     */
+    renderSingleMessage(message) {
+      // 判断消息类型
+      const isMine = message.fullMatch && message.fullMatch.startsWith('[我方消息');
+      const isGroupMessage =
+        message.fullMatch &&
+        (message.fullMatch.startsWith('[群聊消息') || message.fullMatch.startsWith('[我方群聊消息'));
+      const isMyGroupMessage = message.fullMatch && message.fullMatch.startsWith('[我方群聊消息');
+
+      let messageClass = '';
+      let senderName = '';
+
+      if (isGroupMessage) {
+        if (isMyGroupMessage) {
+          // 我方群聊消息
+          messageClass = 'message-sent group-message';
+          senderName = '我';
+        } else {
+          // 其他群聊消息：判断是否是我发送的
+          // 现在sender字段已经正确映射了发送者
+          const senderInMessage = message.sender || '';
+          const isMyGroupMessage = senderInMessage === '我';
+
+          messageClass = isMyGroupMessage ? 'message-sent group-message' : 'message-received group-message';
+          senderName = senderInMessage;
+        }
+      } else {
+        // 普通私聊消息
+        messageClass = isMine ? 'message-sent' : 'message-received';
+        senderName = message.character || '';
+      }
+
+      // 提取字段值
+      // 🔥 修复：统一使用 message.number 字段，它在字段映射过程中已经正确设置
+      // 对于群聊消息，number 字段包含群ID
+      // 对于普通消息，number 字段包含好友ID
+      let friendId = message.number || '';
+      const messageType = message.messageType || '';
+      const content = message.content || '';
+
+      // 🔥 新增：尝试通过发送者姓名获取更精确的ID
+      if (!friendId && senderName) {
+        // 确保映射已建立
+        if (this.friendNameToIdMap.size === 0 && this.groupNameToIdMap.size === 0) {
+          this.buildFriendNameToIdMapping();
+        }
+
+        // 对于所有消息（包括群聊），都尝试获取发送者的个人ID
+        const mappedId = this.friendNameToIdMap.get(senderName);
+        if (mappedId) {
+          friendId = mappedId;
+          console.log(`[Message Renderer] 通过姓名 "${senderName}" 映射到个人ID: ${friendId}`);
+        } else if (isGroupMessage) {
+          // 如果是群聊消息但找不到发送者的个人ID，则使用群ID作为备用
+          friendId = this.currentFriendId || '';
+          console.log(`[Message Renderer] 群聊消息找不到 "${senderName}" 的个人ID，使用群ID: ${friendId}`);
+        }
+      }
+
+      // 🔥 新增：对于群聊消息，优先使用发送者的个人ID而不是群ID
+      if (isGroupMessage && senderName && senderName !== '我') {
+        // 确保映射已建立
+        if (this.friendNameToIdMap.size === 0 && this.groupNameToIdMap.size === 0) {
+          this.buildFriendNameToIdMapping();
+        }
+
+        const senderPersonalId = this.friendNameToIdMap.get(senderName);
+        if (senderPersonalId) {
+          friendId = senderPersonalId;
+          if (window.DEBUG_MESSAGE_RENDERER) {
+            console.log(`[Message Renderer] 群聊消息使用发送者 "${senderName}" 的个人ID: ${friendId}`);
+          }
+        } else {
+          // 如果找不到发送者的个人ID，生成一个基于姓名的唯一ID
+          friendId = this.generateUserIdFromName(senderName);
+          console.log(`[Message Renderer] 为群聊成员 "${senderName}" 生成唯一ID: ${friendId}`);
+        }
+      }
+
+      // 🌟 特殊处理：图片消息（新增）
+      if (
+        messageType === '图片' ||
+        content.includes('[图片:') ||
+        (message.detailedContent && message.detailedContent.includes('<img'))
+      ) {
+        const imageContent = message.detailedContent || content;
+
+        // 为接收的图片消息创建特殊布局
+        if (!isMine && !isMyGroupMessage) {
+          return `
+                <div class="message-detail ${messageClass}" title="图片消息" data-friend-id="${friendId}">
+                    <span class="message-sender">${senderName}</span>
+                    <div class="message-body">
+                        <div class="message-avatar" id="message-avatar-${friendId}">
+                            ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                        </div>
+                        <div class="message-content">
+                        <div class="message-meta">
+                            <span class="message-type">图片</span>
+                            ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                        </div>
+                            <div class="image-message-content">
+                                ${imageContent}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 发送的图片消息保持原有布局
+        return `
+                <div class="message-detail ${messageClass}" title="图片消息" data-friend-id="${friendId}">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+                    <div class="message-content">
+                    <div class="message-meta">
+                        <span class="message-sender">${senderName}</span>
+                        <span class="message-type">图片</span>
+                        ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                    </div>
+                        <div class="image-message-content">
+                            ${imageContent}
+                        </div>
+                    </div>
+                </div>
+            `;
+      }
+
+      // 🌟 新增：特殊处理附件消息（包括图片附件）
+      if (messageType === '附件' && content) {
+        let processedContent = content;
+
+        // 检查是否是图片附件，如果是，解析并渲染为img标签
+        if (content.includes('图片:') || message.fullMatch?.includes('附件|图片:')) {
+          // 🌟 修改：优先使用extra.image中的真实路径
+          console.log(`[Message Renderer] 🔍 处理图片附件消息:`, {
+            content,
+            fullMatch: message.fullMatch,
+            extra: message.extra,
+          });
+
+          let imageUrl = null;
+
+          // 🌟 方法1：优先使用原始消息的extra.image中的真实路径（最可靠）
+          if (message.originalMessageExtra && message.originalMessageExtra.image) {
+            imageUrl = message.originalMessageExtra.image;
+            console.log(`[Message Renderer] ✅ 使用originalMessageExtra.image中的真实路径:`, imageUrl);
+          } else if (message.extra && message.extra.image) {
+            imageUrl = message.extra.image;
+            console.log(`[Message Renderer] ✅ 使用extra.image中的真实路径:`, imageUrl);
+          } else {
+            // 🌟 方法2：解析消息格式获取文件名，然后构建URL
+            const imageRegex = /图片:\s*([^|\]]+)/;
+            const match = content.match(imageRegex) || (message.fullMatch && message.fullMatch.match(imageRegex));
+
+            if (match) {
+              const fileName = match[1].trim();
+              console.log(`[Message Renderer] 🔍 从消息解析到图片文件名:`, fileName);
+
+              // 获取好友名称（优先从消息中获取，否则使用当前好友名）
+              let friendName = senderName;
+              if (message.fullMatch) {
+                const friendMatch = message.fullMatch.match(/\[我方消息\|([^|]+)\|/);
+                if (friendMatch) {
+                  friendName = friendMatch[1];
+                }
+              }
+
+              // 构建图片URL
+              if (window.attachmentSender && typeof window.attachmentSender.buildImageUrl === 'function') {
+                imageUrl = window.attachmentSender.buildImageUrl(friendName, fileName);
+              } else {
+                // 备用方案：使用相对路径，与SillyTavern保持一致
+                imageUrl = `${fileName}`;
+              }
+
+              console.log(`[Message Renderer] 🔍 构建的图片URL:`, imageUrl);
+            }
+          }
+
+          if (imageUrl) {
+            // 提取文件名用于显示（从路径中获取）
+            const displayFileName = imageUrl.split('/').pop() || 'image.png';
+
+            // 创建img标签替换原内容 - 使用响应式设计
+            processedContent = `<img src="${imageUrl}" alt="${displayFileName}" class="attachment-image" style="width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 4px; cursor: pointer; object-fit: contain;" onclick="this.style.transform=this.style.transform?'':'scale(2)'; setTimeout(()=>this.style.transform='', 3000);" title="点击放大查看: ${displayFileName}" loading="lazy">`;
+
+            console.log(`[Message Renderer] ✅ 已生成图片标签:`, {
+              imageUrl,
+              displayFileName,
+              processedContent: processedContent.substring(0, 100) + '...',
+            });
+          } else {
+            console.warn(`[Message Renderer] ⚠️ 无法获取图片URL，保持原内容`);
+          }
+        }
+
+        // 为接收的附件消息创建特殊布局
+        if (!isMine && !isMyGroupMessage) {
+          return `
+                <div class="message-detail ${messageClass}" title="附件消息" data-friend-id="${friendId}">
+                    <span class="message-sender">${senderName}</span>
+                    <div class="message-body">
+                        <div class="message-avatar" id="message-avatar-${friendId}">
+                            ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                        </div>
+                        <div class="message-content">
+                        <div class="message-meta">
+                            <span class="message-type">附件</span>
+                            ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                        </div>
+                            <div class="attachment-message-content">
+                                ${processedContent}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 发送的附件消息保持原有布局
+        return `
+                <div class="message-detail ${messageClass}" title="附件消息" data-friend-id="${friendId}">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+                    <div class="message-content">
+                    <div class="message-meta">
+                        <span class="message-sender">${senderName}</span>
+                        <span class="message-type">附件</span>
+                        ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                    </div>
+                        <div class="attachment-message-content">
+                            ${processedContent}
+                        </div>
+                    </div>
+                </div>
+            `;
+      }
+
+      // 🌟 特殊处理：表情包消息
+      if (messageType === '表情包' && content) {
+        // 为接收的表情包消息创建特殊布局
+        if (!isMine && !isMyGroupMessage) {
+          return `
+                <div class="message-detail ${messageClass}" title="表情包" data-friend-id="${friendId}">
+                    <span class="message-sender">${senderName}</span>
+                    <div class="message-body">
+                        <div class="message-avatar" id="message-avatar-${friendId}">
+                            ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                        </div>
+                        <div class="message-content">
+                        <div class="message-meta">
+                            <span class="message-type">${messageType}</span>
+                            ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                        </div>
+                            <img src="${content}"
+                                 data-filename="${content}"
+                                 alt="${content}"
+                                 class="qq-sticker-image lazy-load"
+                                 style="max-width: 150px; max-height: 150px; border-radius: 8px; margin: 4px; cursor: pointer; background: #f0f0f0;"
+                                 onclick="this.style.transform='scale(1.5)'; setTimeout(() => this.style.transform='scale(1)', 2000);"
+                                 title="${content}"
+                                 loading="lazy">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 发送的表情包消息保持原有布局
+        return `
+                <div class="message-detail ${messageClass}" title="表情包" data-friend-id="${friendId}">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+
+                    <div class="message-content">
+                    <div class="message-meta">
+                        <span class="message-sender">${senderName}</span>
+                        <span class="message-type">${messageType}</span>
+                        ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                    </div>
+                        <img src="${content}"
+                             data-filename="${content}"
+                             alt="${content}"
+                             class="qq-sticker-image lazy-load"
+                             style="max-width: 150px; max-height: 150px; border-radius: 8px; margin: 4px; cursor: pointer; background: #f0f0f0;"
+                             onclick="this.style.transform='scale(1.5)'; setTimeout(() => this.style.transform='scale(1)', 2000);"
+                             title="${content}"
+                             loading="lazy">
+                    </div>
+                </div>
+            `;
+      }
+
+      // 为接收的消息创建特殊布局，将sender移到头像上方
+      if (!isMine && !isMyGroupMessage) {
+        return `
+            <div class="message-detail ${messageClass}" title="${messageType}" data-friend-id="${friendId}">
+                <span class="message-sender">${senderName}</span>
+                <div class="message-body">
+                    <div class="message-avatar" id="message-avatar-${friendId}">
+                        ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-meta">
+                            <span class="message-type">${messageType}</span>
+                            ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                        </div>
+                        <div class="message-text">${content}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+      }
+
+      // 发送的消息保持原有布局
+      return `
+            <div class="message-detail ${messageClass}" title="${messageType}" data-friend-id="${friendId}">
+                <div class="message-avatar" id="message-avatar-${friendId}">
+                    ${this.getMessageAvatar(isMine || isMyGroupMessage, senderName)}
+                </div>
+                <div class="message-content">
+
+                    <div class="message-meta">
+                        <span class="message-sender">${senderName}</span>
+                        <span class="message-type">${messageType}</span>
+                        ${isGroupMessage ? '<span class="group-badge">群聊</span>' : ''}
+                    </div>
+                    <div class="message-text">${content}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 获取消息头像
+     */
+    getMessageAvatar(isMine, character) {
+      if (isMine) {
+        return ''; // 我方固定头像
+      } else {
+        // 对方头像可以根据角色名生成
+        const avatars = ['', '', '', '', '', '', '', '', '', '', '', '', ''];
+        const index = (character.length + character.charCodeAt(0)) % avatars.length;
+        return avatars[index];
+      }
+    }
+
+    /**
+     * 格式化消息时间
+     */
+    formatMessageTime(timestamp) {
+      if (!timestamp) return '未知时间';
+
       const date = new Date(timestamp);
       const now = new Date();
       const diffMs = now - date;
@@ -2468,158 +1490,145 @@ renderAddFriendTab() {
         return date.toLocaleDateString('zh-CN', {
           month: 'short',
           day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
         });
       }
     }
 
-// 绑定事件
-  bindEvents() {
-    const appContent = document.getElementById('app-content');
-    if (!appContent) return;
-
-    // 绑定返回按钮事件
-    const backButton = document.getElementById('back-button');
-    if (backButton) {
-      backButton.removeEventListener('click', this.handleBackButtonClick);
-      this.handleBackButtonClick = () => {
-        const currentApp = window.mobilePhone?.currentAppState?.app;
-        if (currentApp !== 'messages') {
-          console.log('[Message App] 当前不在消息应用中，跳过返回按钮处理');
-          return;
-        }
-        console.log('[Message App] 返回按钮被点击');
-        this.showMessageList();
-      };
-      backButton.addEventListener('click', this.handleBackButtonClick);
+    /**
+     * 渲染空消息页面
+     */
+    renderEmptyMessageDetail(friendId, friendName) {
+      return `
+            <div class="message-detail-app">
+                <div class="message-detail-content" id="message-detail-content" data-background-id="${friendId}">
+                    <div class="empty-messages">
+                        <div class="empty-icon">💬</div>
+                        <div class="empty-text">暂无消息记录</div>
+                        <div class="empty-hint">开始发送消息来建立聊天记录</div>
+                    </div>
+                </div>
+                <div class="message-detail-footer">
+                    <div class="message-stats">
+                        共 0 条消息 (我方: 0, 对方: 0, 群聊: 0)
+                    </div>
+                    <div class="message-send-area">
+                        <div class="send-input-container">
+                            <textarea id="message-send-input" placeholder="发送消息..." maxlength="1000"></textarea>
+                            <div class="send-tools">
+                                <button class="send-tool-btn" id="send-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
+                                <button class="send-tool-btn" id="send-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
+                                <button class="send-tool-btn" id="send-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
+                                <button class="send-tool-btn" id="send-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
+                            </div>
+                        </div>
+                        <button class="send-message-btn" id="send-message-btn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
-    // 添加好友按钮 (进入添加界面)
-    const addFriendBtn = appContent.querySelector('#add-friend-btn');
-    if (addFriendBtn) {
-      addFriendBtn.addEventListener('click', () => {
-        this.showAddFriend();
-      });
+    /**
+     * 渲染错误页面
+     */
+    renderErrorMessageDetail(friendId, friendName, errorMessage) {
+      return `
+            <div class="message-detail-app">
+                <div class="message-detail-content" id="message-detail-content" data-background-id="${friendId}">
+                    <div class="error-messages">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-text">加载消息失败</div>
+                        <div class="error-details">${errorMessage}</div>
+                        <button class="retry-btn" onclick="window.messageRenderer.renderMessageDetail('${friendId}', '${friendName}')">
+                            重试
+                        </button>
+                    </div>
+                </div>
+                <div class="message-detail-footer">
+                    <div class="message-stats">
+                        加载失败，但您仍可以发送消息
+                    </div>
+                    <div class="message-send-area">
+                        <div class="send-input-container">
+                            <textarea id="message-send-input" placeholder="发送消息..." maxlength="1000"></textarea>
+                            <div class="send-tools">
+                                <button class="send-tool-btn" id="send-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
+                                <button class="send-tool-btn" id="send-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
+                                <button class="send-tool-btn" id="send-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
+                                <button class="send-tool-btn" id="send-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
+                            </div>
+                        </div>
+                        <button class="send-message-btn" id="send-message-btn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
-    // Tab切换按钮
-    const tabBtns = appContent.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const tabName = e.currentTarget.getAttribute('data-tab');
-        if (tabName) {
-          console.log(`[Message App] Tab切换: ${tabName}`);
-          this.switchTab(tabName);
-        }
-      });
-    });
+    /**
+     * 绑定消息详情页面的事件
+     */
+    bindMessageDetailEvents() {
+      const appContent = document.getElementById('app-content');
+      if (!appContent) return;
 
-    // ==========================================
-    // ✨ 新增：永久通讯录逻辑 (提交与删除)
-    // ==========================================
-    const submitBtn = appContent.querySelector('#add-friend-submit');
-    const permanentCheckbox = appContent.querySelector('#make-permanent-checkbox');
+      // 返回按钮
+      const backBtn = appContent.querySelector('#back-to-message-list');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          // 触发返回到消息列表
+          if (window.messageApp) {
+            window.messageApp.showMessageList();
+          }
+        });
+      }
 
-    if (permanentCheckbox) {
-      permanentCheckbox.onchange = () => {
-        console.log('🔘 永久同步勾选状态:', permanentCheckbox.checked);
-      };
-    }
-
-    if (submitBtn) {
-      submitBtn.onclick = () => {
-        if (permanentCheckbox && permanentCheckbox.checked) {
-          const fName = appContent.querySelector('#friend-name')?.value;
-          const fId = appContent.querySelector('#friend-number')?.value;
-          if (fName && fId) {
+      // 刷新按钮
+      const refreshBtn = appContent.querySelector('#refresh-messages-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+          if (this.currentFriendId) {
             try {
-              const friendInfo = `[好友id|${fName}|${fId}]`;
-              let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-              if (!friends.includes(friendInfo)) {
-                friends.push(friendInfo);
-                localStorage.setItem('permanent_friends', JSON.stringify(friends));
-                console.log('%c✨ 写入永久通讯录成功!', 'color: #00ff00; font-weight: bold;');
-              }
-            } catch (e) {
-              console.error('写入保险箱失败:', e);
+              refreshBtn.innerHTML = '<span>⏳</span>';
+              refreshBtn.disabled = true;
+
+              // 重新渲染当前好友的消息
+              const friendName = this.getCurrentFriendName();
+              const newContent = await this.renderMessageDetail(this.currentFriendId, friendName);
+              appContent.innerHTML = newContent;
+              this.bindMessageDetailEvents();
+            } catch (error) {
+              console.error('[Message Renderer] 刷新消息失败:', error);
             }
           }
-        }
-        // 执行原有的添加逻辑
-        this.addFriend();
-      };
+        });
+      }
+
+      // 绑定加载历史消息事件
+      this.bindLoadOlderEvent();
+
+      // 初始化懒加载
+      this.initLazyLoading();
+
+      // 消息详情内容区域滚动到底部（显示最新消息）
+      const messageDetailContent = appContent.querySelector('.message-detail-content');
+      if (messageDetailContent) {
+        setTimeout(() => {
+          messageDetailContent.scrollTop = messageDetailContent.scrollHeight;
+          console.log('[Message Renderer] 已滚动到底部显示最新消息');
+        }, 100);
+      }
+
+      // 绑定发送相关事件
+      this.bindSendEvents();
     }
 
-    const deletePermBtns = appContent.querySelectorAll('.delete-permanent-btn');
-    deletePermBtns.forEach(btn => {
-      btn.onclick = (e) => {
-        e.preventDefault();
-        const index = btn.getAttribute('data-index');
-        try {
-          let friends = JSON.parse(localStorage.getItem('permanent_friends') || "[]");
-          friends.splice(index, 1);
-          localStorage.setItem('permanent_friends', JSON.stringify(friends));
-          alert('已移除该永久好友！');
-          const addTabBtn = document.querySelector('.tab-item[data-tab="add"]');
-          if (addTabBtn) addTabBtn.click();
-        } catch (err) {
-          console.error('删除永久好友出错:', err);
-        }
-      };
-    });
-    // ==========================================
-
-    // 刷新好友列表按钮
-    const refreshBtn = appContent.querySelector('#refresh-friend-list');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => {
-        this.refreshDeleteFriendList();
-      });
-    }
-
-    // 删除好友按钮 (原生逻辑)
-    const deleteFriendBtns = appContent.querySelectorAll('.delete-friend-btn');
-    deleteFriendBtns.forEach(btn => {
-      btn.addEventListener('click', e => {
-        const target = e.currentTarget;
-        const friendId = target.getAttribute('data-friend-id');
-        const friendName = target.getAttribute('data-friend-name');
-        if (friendId && friendName) {
-          this.deleteFriend(friendId, friendName);
-        }
-      });
-    });
-
-    // 创建群聊相关事件
-    this.bindCreateGroupEvents(appContent);
-
-    // 删除群聊相关事件
-    this.bindDeleteGroupEvents(appContent);
-
-    // 好友列表点击事件
-    const messageItems = appContent.querySelectorAll('.message-item');
-    messageItems.forEach(item => {
-      item.addEventListener('click', e => {
-        const target = e.currentTarget;
-        const friendId = target && target.getAttribute ? target.getAttribute('data-friend-id') : null;
-        if (friendId) {
-          this.selectFriend(friendId);
-        }
-      });
-    });
-
-    // 绑定发送相关事件
-    this.bindSendEvents();
-
-    // 绑定消息详情页面的发送事件
-    this.bindDetailSendEvents();
-  }
-
-    // 绑定发送相关事件
+    /**
+     * 绑定发送相关事件
+     */
     bindSendEvents() {
-      if (this.currentView !== 'list') return;
-
       const appContent = document.getElementById('app-content');
       if (!appContent) return;
 
@@ -2633,64 +1642,86 @@ renderAddFriendTab() {
 
       // 确保MessageSender已加载
       if (!window.messageSender) {
-        console.warn('[Message App] MessageSender未加载，延迟绑定事件');
+        console.warn('[Message Renderer] MessageSender未加载，延迟绑定事件');
         setTimeout(() => this.bindSendEvents(), 1000);
         return;
+      }
+
+      // 设置当前聊天对象
+      if (this.currentFriendId) {
+        const friendName = this.getCurrentFriendName();
+        // @ts-ignore
+        window.messageSender.setCurrentChat(this.currentFriendId, friendName, false);
       }
 
       // 输入框事件
       if (sendInput) {
         // 自动调整高度
         sendInput.addEventListener('input', () => {
+          // @ts-ignore
           window.messageSender.adjustTextareaHeight(sendInput);
-          this.updateCharCount(sendInput);
         });
 
         // 回车发送
         sendInput.addEventListener('keydown', e => {
+          // @ts-ignore
           window.messageSender.handleEnterSend(e, sendInput);
+        });
+
+        // 字数统计
+        sendInput.addEventListener('input', () => {
+          this.updateCharCount(sendInput);
         });
       }
 
       // 发送按钮事件
       if (sendButton) {
         sendButton.addEventListener('click', async () => {
-          if (sendInput && this.currentSelectedFriend) {
-            const message = sendInput.value.trim();
+          if (sendInput) {
+            // @ts-ignore
+            const message = sendInput.value ? sendInput.value.trim() : '';
             if (message) {
+              // @ts-ignore
               const success = await window.messageSender.sendMessage(message);
               if (success) {
-                sendInput.value = '';
+                // @ts-ignore
+                if (sendInput.value !== undefined) {
+                  // @ts-ignore
+                  sendInput.value = '';
+                }
+                // @ts-ignore
                 window.messageSender.adjustTextareaHeight(sendInput);
                 this.updateCharCount(sendInput);
-
-                // 发送成功后延迟2秒触发渲染
-                this.scheduleDelayedRender('发送消息');
+                // 发送成功后刷新消息列表
+                setTimeout(() => this.refreshCurrentMessages(), 1000);
               }
             }
           }
         });
       }
 
-      // 特殊功能按钮事件
+      // 表情按钮事件
       if (emojiBtn) {
         emojiBtn.addEventListener('click', () => {
           this.showEmojiPanel();
         });
       }
 
+      // 表情包按钮事件
       if (stickerBtn) {
         stickerBtn.addEventListener('click', () => {
           this.showStickerPanel();
         });
       }
 
+      // 语音按钮事件
       if (voiceBtn) {
         voiceBtn.addEventListener('click', () => {
           this.showVoicePanel();
         });
       }
 
+      // 红包按钮事件
       if (redpackBtn) {
         redpackBtn.addEventListener('click', () => {
           this.showRedpackPanel();
@@ -2698,160 +1729,9 @@ renderAddFriendTab() {
       }
     }
 
-    // 绑定消息详情页面的发送事件
-    bindDetailSendEvents() {
-      if (this.currentView !== 'messageDetail') return;
-
-      const appContent = document.getElementById('app-content');
-      if (!appContent) return;
-
-      // 获取消息详情页面的发送相关元素
-      const detailInput = appContent.querySelector('#message-detail-input');
-      const detailSendBtn = appContent.querySelector('#detail-send-btn');
-      const detailToolToggleBtn = appContent.querySelector('#detail-tool-toggle-btn');
-      const detailEmojiBtn = appContent.querySelector('#detail-emoji-btn');
-      const detailStickerBtn = appContent.querySelector('#detail-sticker-btn');
-      const detailVoiceBtn = appContent.querySelector('#detail-voice-btn');
-      const detailRedpackBtn = appContent.querySelector('#detail-redpack-btn');
-      const detailAttachmentBtn = appContent.querySelector('#detail-attachment-btn');
-
-      // 确保MessageSender已加载
-      if (!window.messageSender) {
-        console.warn('[Message App] MessageSender未加载，延迟绑定详情页面事件');
-        setTimeout(() => this.bindDetailSendEvents(), 1000);
-        return;
-      }
-
-      // 设置当前聊天对象
-      if (this.currentFriendId) {
-        // 根据currentSelectedFriend或从DOM判断是否为群聊
-        const isGroup = this.isCurrentChatGroup();
-        window.messageSender.setCurrentChat(this.currentFriendId, this.currentFriendName, isGroup);
-      }
-
-      // 输入框事件
-      if (detailInput) {
-        // 自动调整高度
-        detailInput.addEventListener('input', () => {
-          window.messageSender.adjustTextareaHeight(detailInput);
-          this.updateCharCount(detailInput);
-        });
-
-        // 回车发送
-        detailInput.addEventListener('keydown', e => {
-          window.messageSender.handleEnterSend(e, detailInput);
-        });
-      }
-
-      // 发送按钮事件
-      if (detailSendBtn) {
-        detailSendBtn.addEventListener('click', async () => {
-          if (detailInput && this.currentFriendId) {
-            const message = detailInput.value.trim();
-            if (message) {
-              const success = await window.messageSender.sendMessage(message);
-              if (success) {
-                detailInput.value = '';
-                window.messageSender.adjustTextareaHeight(detailInput);
-                this.updateCharCount(detailInput);
-
-                // 发送成功后延迟2秒触发渲染
-                this.scheduleDelayedRender('发送消息（详情页）');
-              }
-            }
-          }
-        });
-      }
-
-      // 工具切换按钮事件
-      if (detailToolToggleBtn) {
-        detailToolToggleBtn.addEventListener('click', () => {
-          this.toggleToolsFloatingPanel();
-        });
-      }
-
-      // 特殊功能按钮事件
-      if (detailEmojiBtn) {
-        detailEmojiBtn.addEventListener('click', () => {
-          this.showEmojiPanel();
-        });
-      }
-
-      if (detailStickerBtn) {
-        detailStickerBtn.addEventListener('click', () => {
-          this.showStickerPanel();
-        });
-      }
-
-      if (detailVoiceBtn) {
-        detailVoiceBtn.addEventListener('click', () => {
-          this.showVoicePanel();
-        });
-      }
-
-      if (detailRedpackBtn) {
-        detailRedpackBtn.addEventListener('click', () => {
-          this.showRedpackPanel();
-        });
-      }
-
-      if (detailAttachmentBtn) {
-        detailAttachmentBtn.addEventListener('click', () => {
-          console.log('[Message App] 🔍 附件按钮被点击');
-          this.showAttachmentPanel();
-        });
-      }
-    }
-
-    // 选择好友
-    selectFriend(friendId) {
-      try {
-        // 获取好友信息
-        let friendName = null;
-        let isGroup = false;
-
-        if (window.friendRenderer) {
-          const friend = window.friendRenderer.getFriendById(friendId);
-          friendName = friend ? friend.name : `好友 ${friendId}`;
-          isGroup = friend ? friend.isGroup : false;
-        } else {
-          friendName = `好友 ${friendId}`;
-        }
-
-        // 保存群聊状态
-        this.currentIsGroup = isGroup;
-
-        // 直接进入聊天详情页面
-        this.showMessageDetail(friendId, friendName);
-      } catch (error) {
-        console.error('[Message App] 选择好友失败:', error);
-      }
-    }
-
-    // 判断当前聊天是否为群聊
-    isCurrentChatGroup() {
-      // 优先使用保存的状态
-      if (this.currentIsGroup !== undefined) {
-        return this.currentIsGroup;
-      }
-
-      // 从DOM元素判断
-      const messageItem = document.querySelector(`[data-friend-id="${this.currentFriendId}"]`);
-      if (messageItem) {
-        const isGroupAttr = messageItem.getAttribute('data-is-group');
-        return isGroupAttr === 'true';
-      }
-
-      // 从friend renderer判断
-      if (window.friendRenderer) {
-        const friend = window.friendRenderer.getFriendById(this.currentFriendId);
-        return friend ? friend.isGroup : false;
-      }
-
-      return false;
-    }
-
-    // 更新字数统计
+    /**
+     * 更新字数统计
+     */
     updateCharCount(inputElement) {
       const appContent = document.getElementById('app-content');
       if (!appContent) return;
@@ -2882,7 +1762,9 @@ renderAddFriendTab() {
       }
     }
 
-    // 显示表情面板
+    /**
+     * 显示表情面板
+     */
     showEmojiPanel() {
       const emojis = [
         '😀',
@@ -3013,576 +1895,19 @@ renderAddFriendTab() {
       document.body.appendChild(panel);
 
       // 🔥 新增：记录表情包面板显示事件，用于调试
-      console.log(`[Message App] 表情包面板已显示，包含 ${stickerImages.length} 个表情包`);
+      console.log(`[Message Renderer] 表情包面板已显示，包含 ${stickerImages.length} 个表情包`);
       if (stickerImages.length > 0 && stickerImages[0].fullPath) {
-        console.log('[Message App] 使用世界书配置的表情包路径');
+        console.log('[Message Renderer] 使用世界书配置的表情包路径');
       } else {
-        console.log('[Message App] 使用默认表情包配置');
+        console.log('[Message Renderer] 使用默认表情包配置');
       }
     }
 
     /**
-     * 🔥 新增：从世界书读取表情包详情
-     * 查找名为"表情包详情"的世界书条目，解析前缀和后缀，生成完整的图片路径
+     * 显示表情包面板
      */
-    async getStickerImagesFromWorldInfo() {
-      console.log('[Message App] 开始从世界书读取表情包详情');
-
-      try {
-        // 获取所有世界书条目（包括角色绑定的和全局的）
-        const allEntries = await this.getAllWorldInfoEntries();
-
-        // 🔥 修复：查找所有包含"表情包详情"的条目
-        const stickerDetailEntries = [];
-
-        // 🔥 优先级1：查找注释包含"表情包详情"的条目
-        const commentEntries = allEntries.filter(entry => {
-          return entry.comment && entry.comment.includes('表情包详情');
-        });
-        stickerDetailEntries.push(...commentEntries);
-
-        // 🔥 优先级2：查找关键词包含"表情包详情"的条目（排除已添加的）
-        const keywordEntries = allEntries.filter(entry => {
-          if (stickerDetailEntries.includes(entry)) return false; // 避免重复
-          if (entry.key && Array.isArray(entry.key)) {
-            return entry.key.some(k => k.includes('表情包详情'));
-          }
-          return false;
-        });
-        stickerDetailEntries.push(...keywordEntries);
-
-        // 🔥 优先级3：查找内容以"表情包详情"开头的条目（排除已添加的）
-        const contentEntries = allEntries.filter(entry => {
-          if (stickerDetailEntries.includes(entry)) return false; // 避免重复
-          return entry.content && entry.content.trim().startsWith('表情包详情');
-        });
-        stickerDetailEntries.push(...contentEntries);
-
-        console.log(`[Message App] 找到 ${stickerDetailEntries.length} 个表情包详情条目:`);
-        stickerDetailEntries.forEach((entry, index) => {
-          console.log(`${index + 1}. "${entry.comment}" (来源: ${entry.world})`);
-        });
-
-        if (stickerDetailEntries.length === 0) {
-          console.warn('[Message App] 未找到"表情包详情"世界书条目，使用默认表情包列表');
-          console.log('[Message App] 搜索的条目总数:', allEntries.length);
-          console.log('[Message App] 条目示例:', allEntries.slice(0, 3).map(e => ({
-            comment: e.comment,
-            key: e.key,
-            content: e.content ? e.content.substring(0, 50) + '...' : ''
-          })));
-          return this.getDefaultStickerImages();
-        }
-
-        // 🔥 修改：解析所有表情包详情条目
-        const allStickerImages = [];
-
-        for (let i = 0; i < stickerDetailEntries.length; i++) {
-          const entry = stickerDetailEntries[i];
-          console.log(`[Message App] 解析第 ${i + 1} 个表情包详情条目: "${entry.comment}" (来源: ${entry.world})`);
-
-          try {
-            const stickerImages = this.parseStickerDetails(entry.content);
-            if (stickerImages.length > 0) {
-              // 为每个表情包添加来源信息
-              const imagesWithSource = stickerImages.map(img => ({
-                ...img,
-                source: entry.comment,
-                world: entry.world
-              }));
-              allStickerImages.push(...imagesWithSource);
-              console.log(`[Message App] 从"${entry.comment}"解析到 ${stickerImages.length} 个表情包`);
-            } else {
-              console.warn(`[Message App] 条目"${entry.comment}"解析失败，内容可能格式不正确`);
-            }
-          } catch (error) {
-            console.error(`[Message App] 解析条目"${entry.comment}"时出错:`, error);
-          }
-        }
-
-        if (allStickerImages.length === 0) {
-          console.warn('[Message App] 所有表情包详情条目解析失败，使用默认表情包列表');
-          return this.getDefaultStickerImages();
-        }
-
-        console.log(`[Message App] 成功从 ${stickerDetailEntries.length} 个条目解析到总共 ${allStickerImages.length} 个表情包`);
-        return allStickerImages;
-
-      } catch (error) {
-        console.error('[Message App] 读取世界书表情包详情时出错:', error);
-        return this.getDefaultStickerImages();
-      }
-    }
-
-    /**
-     * 🔥 新增：获取所有世界书条目
-     */
-    async getAllWorldInfoEntries() {
-      const allEntries = [];
-
-      try {
-        // 🔥 修复：使用正确的SillyTavern世界书API
-        // 1. 尝试使用SillyTavern的getSortedEntries函数（最佳方法）
-        if (typeof window.getSortedEntries === 'function') {
-          try {
-            const entries = await window.getSortedEntries();
-            allEntries.push(...entries);
-            console.log(`[Message App] 通过getSortedEntries获取到 ${entries.length} 个世界书条目`);
-            return allEntries; // 如果成功，直接返回
-          } catch (error) {
-            console.warn('[Message App] getSortedEntries调用失败:', error);
-          }
-        }
-
-        // 2. 备用方法：手动获取全局和角色世界书
-        console.log('[Message App] 使用备用方法获取世界书条目');
-
-        // 🔥 修复：获取全局世界书 - 从DOM元素读取
-        console.log('[Message App] 尝试获取全局世界书...');
-        console.log('[Message App] window.selected_world_info:', window.selected_world_info);
-        console.log('[Message App] window.world_names:', window.world_names);
-
-        // 🔥 新增：方法1 - 从DOM元素获取选中的世界书
-        const worldInfoSelect = document.getElementById('world_info');
-        if (worldInfoSelect) {
-          console.log('[Message App] 找到世界书选择器元素');
-
-          // 获取所有选中的选项
-          const selectedOptions = Array.from(worldInfoSelect.selectedOptions);
-          console.log(`[Message App] 找到 ${selectedOptions.length} 个选中的世界书选项:`, selectedOptions.map(opt => opt.text));
-
-          for (const option of selectedOptions) {
-            const worldName = option.text;
-            const worldIndex = option.value;
-
-            try {
-              console.log(`[Message App] 正在加载全局世界书: ${worldName} (索引: ${worldIndex})`);
-              const worldData = await this.loadWorldInfoByName(worldName);
-              if (worldData && worldData.entries) {
-                const entries = Object.values(worldData.entries).map(entry => ({
-                  ...entry,
-                  world: worldName
-                }));
-                allEntries.push(...entries);
-                console.log(`[Message App] 从全局世界书"${worldName}"获取到 ${entries.length} 个条目`);
-              } else {
-                console.warn(`[Message App] 全局世界书"${worldName}"没有条目或加载失败`);
-              }
-            } catch (error) {
-              console.warn(`[Message App] 加载全局世界书"${worldName}"失败:`, error);
-            }
-          }
-        } else {
-          console.log('[Message App] 未找到世界书选择器元素 #world_info');
-        }
-
-        // 方法2：从 selected_world_info 变量获取（备用）
-        if (allEntries.length === 0 && typeof window.selected_world_info !== 'undefined' && Array.isArray(window.selected_world_info) && window.selected_world_info.length > 0) {
-          console.log(`[Message App] 备用方法：从变量获取 ${window.selected_world_info.length} 个全局世界书:`, window.selected_world_info);
-
-          for (const worldName of window.selected_world_info) {
-            try {
-              console.log(`[Message App] 正在加载全局世界书: ${worldName}`);
-              const worldData = await this.loadWorldInfoByName(worldName);
-              if (worldData && worldData.entries) {
-                const entries = Object.values(worldData.entries).map(entry => ({
-                  ...entry,
-                  world: worldName
-                }));
-                allEntries.push(...entries);
-                console.log(`[Message App] 从全局世界书"${worldName}"获取到 ${entries.length} 个条目`);
-              }
-            } catch (error) {
-              console.warn(`[Message App] 加载全局世界书"${worldName}"失败:`, error);
-            }
-          }
-        }
-
-        // 方法3：从 world_info.globalSelect 获取（备用）
-        if (allEntries.length === 0 && typeof window.world_info !== 'undefined' && window.world_info.globalSelect) {
-          console.log('[Message App] 备用方法：从 world_info.globalSelect 获取:', window.world_info.globalSelect);
-
-          for (const worldName of window.world_info.globalSelect) {
-            try {
-              const worldData = await this.loadWorldInfoByName(worldName);
-              if (worldData && worldData.entries) {
-                const entries = Object.values(worldData.entries).map(entry => ({
-                  ...entry,
-                  world: worldName
-                }));
-                allEntries.push(...entries);
-                console.log(`[Message App] 从world_info.globalSelect世界书"${worldName}"获取到 ${entries.length} 个条目`);
-              }
-            } catch (error) {
-              console.warn(`[Message App] 从world_info.globalSelect加载世界书"${worldName}"失败:`, error);
-            }
-          }
-        }
-
-        // 获取角色绑定的世界书
-        try {
-          const characterEntries = await this.getCharacterWorldInfoEntries();
-          allEntries.push(...characterEntries);
-        } catch (error) {
-          console.warn('[Message App] 获取角色世界书失败:', error);
-        }
-
-      } catch (error) {
-        console.error('[Message App] 获取世界书条目时出错:', error);
-      }
-
-      console.log(`[Message App] 总共获取到 ${allEntries.length} 个世界书条目`);
-
-      // 🔥 新增：为调试提供详细信息
-      if (allEntries.length > 0) {
-        console.log('[Message App] 世界书条目预览:', allEntries.slice(0, 3).map(entry => ({
-          comment: entry.comment,
-          key: Array.isArray(entry.key) ? entry.key.join(', ') : entry.key,
-          contentPreview: entry.content ? entry.content.substring(0, 50) + '...' : '无内容',
-          world: entry.world || '未知来源'
-        })));
-      }
-
-      return allEntries;
-    }
-
-    /**
-     * 🔥 新增：通过名称加载世界书数据
-     */
-    async loadWorldInfoByName(worldName) {
-      try {
-        // 🔥 修复：优先使用SillyTavern的loadWorldInfo函数
-        if (typeof window.loadWorldInfo === 'function') {
-          console.log(`[Message App] 使用loadWorldInfo函数加载世界书: ${worldName}`);
-          return await window.loadWorldInfo(worldName);
-        }
-
-        // 备用方法：直接调用API（需要正确的请求头）
-        console.log(`[Message App] 使用API加载世界书: ${worldName}`);
-
-        // 获取正确的请求头
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-
-        // 如果有getRequestHeaders函数，使用它
-        if (typeof window.getRequestHeaders === 'function') {
-          Object.assign(headers, window.getRequestHeaders());
-        }
-
-        const response = await fetch('/api/worldinfo/get', {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({ name: worldName }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[Message App] 成功加载世界书 "${worldName}":`, data);
-          return data;
-        } else {
-          console.error(`[Message App] 加载世界书 "${worldName}" 失败: ${response.status} ${response.statusText}`);
-        }
-
-      } catch (error) {
-        console.error(`[Message App] 加载世界书 "${worldName}" 时出错:`, error);
-      }
-
-      return null;
-    }
-
-    /**
-     * 🔥 新增：获取角色绑定的世界书条目
-     */
-    async getCharacterWorldInfoEntries() {
-      const entries = [];
-
-      try {
-        // 🔥 修复：使用正确的SillyTavern全局变量获取角色信息
-        let character = null;
-        let characterId = null;
-
-        // 方法1：通过SillyTavern.getContext()获取
-        if (window.SillyTavern && typeof window.SillyTavern.getContext === 'function') {
-          const context = window.SillyTavern.getContext();
-          if (context && context.characters && context.characterId !== undefined) {
-            character = context.characters[context.characterId];
-            characterId = context.characterId;
-          }
-        }
-
-        // 方法2：通过全局变量获取
-        if (!character && typeof window.characters !== 'undefined' && typeof window.this_chid !== 'undefined') {
-          character = window.characters[window.this_chid];
-          characterId = window.this_chid;
-        }
-
-        if (!character) {
-          console.log('[Message App] 无法获取当前角色信息');
-          return entries;
-        }
-
-        console.log(`[Message App] 找到当前角色: ${character.name} (ID: ${characterId})`);
-
-        // 获取角色绑定的主要世界书
-        const worldName = character.data?.extensions?.world;
-        if (worldName) {
-          console.log(`[Message App] 角色绑定的主要世界书: ${worldName}`);
-          const worldData = await this.loadWorldInfoByName(worldName);
-          if (worldData && worldData.entries) {
-            const worldEntries = Object.values(worldData.entries).map(entry => ({
-              ...entry,
-              world: worldName
-            }));
-            entries.push(...worldEntries);
-            console.log(`[Message App] 从角色主要世界书获取到 ${worldEntries.length} 个条目`);
-          }
-        }
-
-        // 🔥 新增：获取角色的额外世界书
-        if (typeof window.world_info !== 'undefined' && window.world_info.charLore) {
-          // 获取角色文件名
-          const fileName = character.avatar || `${character.name}.png`;
-          const extraCharLore = window.world_info.charLore.find(e => e.name === fileName);
-
-          if (extraCharLore && Array.isArray(extraCharLore.extraBooks)) {
-            console.log(`[Message App] 角色额外世界书: ${extraCharLore.extraBooks.join(', ')}`);
-
-            for (const extraWorldName of extraCharLore.extraBooks) {
-              try {
-                const worldData = await this.loadWorldInfoByName(extraWorldName);
-                if (worldData && worldData.entries) {
-                  const worldEntries = Object.values(worldData.entries).map(entry => ({
-                    ...entry,
-                    world: extraWorldName
-                  }));
-                  entries.push(...worldEntries);
-                  console.log(`[Message App] 从角色额外世界书"${extraWorldName}"获取到 ${worldEntries.length} 个条目`);
-                }
-              } catch (error) {
-                console.warn(`[Message App] 加载角色额外世界书"${extraWorldName}"失败:`, error);
-              }
-            }
-          }
-        }
-
-      } catch (error) {
-        console.error('[Message App] 获取角色世界书条目时出错:', error);
-      }
-
-      return entries;
-    }
-
-    /**
-     * 🔥 新增：解析表情包详情内容
-     * 支持多种格式：
-     * 1. 前缀|后缀|文件名1,文件名2,文件名3
-     * 2. JSON格式：{"prefix": "前缀", "suffix": "后缀", "files": ["文件名1", "文件名2"]}
-     * 3. 简单列表：文件名1,文件名2,文件名3（使用默认前缀后缀）
-     */
-    parseStickerDetails(content) {
-      const stickerImages = [];
-
-      try {
-        console.log('[Message App] 解析表情包详情内容:', content);
-
-        // 尝试JSON格式解析
-        if (content.trim().startsWith('{')) {
-          const jsonData = JSON.parse(content);
-          const prefix = jsonData.prefix || '';
-          const suffix = jsonData.suffix || '';
-          const files = jsonData.files || [];
-
-          for (const filename of files) {
-            const fullPath = prefix + filename + suffix;
-            // 🔥 修复：生成正确的备用路径
-            const fallbackPath = `/scripts/extensions/third-party/mobile/images/${filename}`;
-
-            stickerImages.push({
-              filename: filename,
-              fullPath: fullPath,
-              displayName: filename,
-              fallbackPath: fallbackPath,
-              prefix: prefix,
-              suffix: suffix
-            });
-          }
-
-          console.log(`[Message App] JSON格式解析成功，获取到 ${stickerImages.length} 个表情包`);
-          return stickerImages;
-        }
-
-        // 尝试管道分隔格式：前缀|后缀|文件名1,文件名2,文件名3
-        if (content.includes('|')) {
-          const parts = content.split('|');
-          if (parts.length >= 3) {
-            const prefix = parts[0].trim();
-            const suffix = parts[1].trim();
-            const filesStr = parts[2].trim();
-
-            const files = filesStr.split(',').map(f => f.trim()).filter(f => f);
-
-            for (const filename of files) {
-              const fullPath = prefix + filename + suffix;
-              // 🔥 修复：生成正确的备用路径
-              const fallbackPath = `/scripts/extensions/third-party/mobile/images/${filename}`;
-
-              stickerImages.push({
-                filename: filename,
-                fullPath: fullPath,
-                displayName: filename,
-                fallbackPath: fallbackPath,
-                prefix: prefix,
-                suffix: suffix
-              });
-            }
-
-            console.log(`[Message App] 管道格式解析成功，前缀: "${prefix}", 后缀: "${suffix}", 获取到 ${stickerImages.length} 个表情包`);
-            return stickerImages;
-          }
-        }
-
-        // 尝试简单逗号分隔格式
-        if (content.includes(',')) {
-          const files = content.split(',').map(f => f.trim()).filter(f => f);
-          const defaultPrefix = '/scripts/extensions/third-party/mobile/images/';
-          const defaultSuffix = '';
-
-          for (const filename of files) {
-            const fullPath = defaultPrefix + filename + defaultSuffix;
-            stickerImages.push({
-              filename: filename,
-              fullPath: fullPath,
-              displayName: filename
-            });
-          }
-
-          console.log(`[Message App] 简单格式解析成功，使用默认前缀，获取到 ${stickerImages.length} 个表情包`);
-          return stickerImages;
-        }
-
-        // 尝试单行格式（每行一个文件名）
-        const lines = content.split('\n').map(line => line.trim()).filter(line => line);
-        if (lines.length > 0) {
-          const defaultPrefix = '/scripts/extensions/third-party/mobile/images/';
-          const defaultSuffix = '';
-
-          for (const filename of lines) {
-            const fullPath = defaultPrefix + filename + defaultSuffix;
-            stickerImages.push({
-              filename: filename,
-              fullPath: fullPath,
-              displayName: filename
-            });
-          }
-
-          console.log(`[Message App] 行分隔格式解析成功，获取到 ${stickerImages.length} 个表情包`);
-          return stickerImages;
-        }
-
-      } catch (error) {
-        console.error('[Message App] 解析表情包详情时出错:', error);
-      }
-
-      console.warn('[Message App] 无法解析表情包详情内容，返回空列表');
-      return stickerImages;
-    }
-
-    /**
-     * 🔥 新增：获取默认表情包列表
-     */
-    getDefaultStickerImages() {
-      const defaultFiles = [
-        'zjlr8e.jpg',
-        'emzckz.jpg',
-        'ivtswg.jpg',
-        'lgply8.jpg',
-        'au4ay5.jpg',
-        'qasebg.jpg',
-        '5kqdkh.jpg',
-        '8kvr4u.jpg',
-        'aotnxp.jpg',
-        'xigzwa.jpg',
-        'y7px4h.jpg',
-        'z2sxmv.jpg',
-        's10h5m.jpg',
-        'hoghwb.jpg',
-        'kin0oj.jpg',
-        'l9nqv0.jpg',
-        'kv2ubl.gif',
-        '6eyt6n.jpg',
-      ];
-
-      const defaultPrefix = '/scripts/extensions/third-party/mobile/images/';
-      const defaultSuffix = '';
-
-      return defaultFiles.map(filename => ({
-        filename: filename,
-        fullPath: defaultPrefix + filename + defaultSuffix,
-        displayName: filename
-      }));
-    }
-
-    /**
-     * 🔥 新增：测试表情包配置功能
-     * 可以在浏览器控制台调用 window.messageApp.testStickerConfig() 来测试
-     */
-    async testStickerConfig() {
-      console.log('=== Message App 表情包配置测试开始 ===');
-
-      try {
-        // 测试获取世界书条目
-        const allEntries = await this.getAllWorldInfoEntries();
-        console.log(`✓ 成功获取 ${allEntries.length} 个世界书条目`);
-
-        // 测试查找表情包详情条目
-        const stickerDetailEntry = allEntries.find(entry => {
-          if (entry.comment && entry.comment.includes('表情包详情')) return true;
-          if (entry.key && Array.isArray(entry.key)) {
-            if (entry.key.some(k => k.includes('表情包详情'))) return true;
-          }
-          if (entry.content && entry.content.trim().startsWith('表情包详情')) return true;
-          return false;
-        });
-
-        if (stickerDetailEntry) {
-          console.log('✓ 找到表情包详情条目:', {
-            comment: stickerDetailEntry.comment,
-            key: stickerDetailEntry.key,
-            world: stickerDetailEntry.world
-          });
-
-          // 测试解析表情包详情
-          const stickerImages = this.parseStickerDetails(stickerDetailEntry.content);
-          console.log(`✓ 成功解析 ${stickerImages.length} 个表情包:`);
-          stickerImages.forEach((sticker, index) => {
-            console.log(`  ${index + 1}. ${sticker.displayName} -> ${sticker.fullPath}`);
-          });
-
-          if (stickerImages.length > 0) {
-            console.log('✅ Message App 表情包配置测试通过！');
-            return { success: true, count: stickerImages.length, stickers: stickerImages };
-          } else {
-            console.log('❌ 表情包解析失败，内容格式可能不正确');
-            return { success: false, error: '解析失败' };
-          }
-        } else {
-          console.log('❌ 未找到表情包详情条目');
-          console.log('💡 请确保世界书中有一个条目的注释包含"表情包详情"或关键词包含"sticker"');
-          return { success: false, error: '未找到配置条目' };
-        }
-
-      } catch (error) {
-        console.error('❌ Message App 表情包配置测试失败:', error);
-        return { success: false, error: error.message };
-      } finally {
-        console.log('=== Message App 表情包配置测试结束 ===');
-      }
-    }
-
-    // 显示表情包面板
     async showStickerPanel() {
-      console.log('[Message App] 显示表情包面板');
+      console.log('[Message Renderer] 显示表情包面板');
 
       // 检查是否已存在表情包面板
       const existingPanel = document.getElementById('sticker-input-panel');
@@ -3606,7 +1931,7 @@ renderAddFriendTab() {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
                     <h3 style="margin: 0; color: #333; font-size: 18px;">😄 选择表情包</h3>
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <button id="refresh-sticker-btn" onclick="window.messageApp.refreshStickerConfig()"
+                        <button id="refresh-sticker-btn" onclick="window.messageRenderer.refreshStickerConfig()"
                                 style="background: #667eea; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;"
                                 title="从世界书重新加载表情包配置">
                             <i class="fas fa-sync-alt"></i> 刷新
@@ -3616,7 +1941,7 @@ renderAddFriendTab() {
                     </div>
                 </div>
 
-                <div class="sticker-grid-container" style="display: flex; flex-wrap: wrap;  gap: 0; max-height: 300px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 12px;">
+                <div class="sticker-grid-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; max-height: 300px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 12px;">
                     ${stickerGrid}
                 </div>
 
@@ -3641,7 +1966,9 @@ renderAddFriendTab() {
       });
     }
 
-    // 显示语音面板
+    /**
+     * 显示语音面板
+     */
     showVoicePanel() {
       // 检查是否已存在语音面板
       const existingPanel = document.getElementById('voice-input-panel');
@@ -3783,23 +2110,29 @@ renderAddFriendTab() {
       // 获取当前聊天对象的ID和群聊状态
       let targetId = null;
       let isGroup = false;
+      let groupName = '';
 
-      // 尝试从当前应用状态获取好友ID和群聊状态
-      if (this.currentFriendId) {
-        targetId = this.currentFriendId;
-        isGroup = this.isGroup || false;
-      }
-
-      // 如果没有获取到，尝试从 MessageSender 获取
-      if (!targetId && window.messageSender && window.messageSender.currentFriendId) {
+      // 尝试从 MessageSender 获取当前好友ID和群聊状态
+      if (window.messageSender && window.messageSender.currentFriendId) {
         targetId = window.messageSender.currentFriendId;
         isGroup = window.messageSender.isGroup || false;
+        groupName = window.messageSender.currentFriendName || '';
+      }
+
+      // 如果没有获取到，尝试从其他地方获取
+      if (!targetId) {
+        // 从 MessageApp 获取
+        if (window.messageApp && window.messageApp.currentFriendId) {
+          targetId = window.messageApp.currentFriendId;
+          isGroup = window.messageApp.isGroup || false;
+          groupName = window.messageApp.currentFriendName || '';
+        }
       }
 
       // 如果还是没有，使用默认值
       if (!targetId) {
         targetId = '223456'; // 默认好友ID
-        console.warn('[Message App] 未能获取当前好友ID，使用默认值:', targetId);
+        console.warn('[Message Renderer] 未能获取当前好友ID，使用默认值:', targetId);
       }
 
       // 生成语音消息格式 - 区分群聊和私聊
@@ -3854,17 +2187,17 @@ renderAddFriendTab() {
 
           if (stickerData && stickerData.fullPath) {
             fullPath = stickerData.fullPath;
-            console.log(`[Message App] 从缓存获取表情包路径: ${filename} -> ${fullPath}`);
+            console.log(`[Message Renderer] 从缓存获取表情包路径: ${filename} -> ${fullPath}`);
           } else {
             fullPath = filename;
-            console.log(`[Message App] 未找到表情包配置，使用原文件名: ${filename}`);
+            console.log(`[Message Renderer] 未找到表情包配置，使用原文件名: ${filename}`);
           }
         } catch (error) {
-          console.warn('[Message App] 获取表情包完整路径失败，使用原文件名:', error);
+          console.warn('[Message Renderer] 获取表情包完整路径失败，使用原文件名:', error);
           fullPath = filename;
         }
       } else {
-        console.log(`[Message App] 使用传入的完整路径: ${filename} -> ${fullPath}`);
+        console.log(`[Message Renderer] 使用传入的完整路径: ${filename} -> ${fullPath}`);
       }
 
       // 获取当前的输入框
@@ -3886,23 +2219,29 @@ renderAddFriendTab() {
       // 获取当前聊天对象的ID和群聊状态
       let targetId = null;
       let isGroup = false;
+      let groupName = '';
 
-      // 尝试从当前应用状态获取好友ID和群聊状态
-      if (this.currentFriendId) {
-        targetId = this.currentFriendId;
-        isGroup = this.isGroup || false;
-      }
-
-      // 如果没有获取到，尝试从 MessageSender 获取
-      if (!targetId && window.messageSender && window.messageSender.currentFriendId) {
+      // 尝试从 MessageSender 获取当前好友ID和群聊状态
+      if (window.messageSender && window.messageSender.currentFriendId) {
         targetId = window.messageSender.currentFriendId;
         isGroup = window.messageSender.isGroup || false;
+        groupName = window.messageSender.currentFriendName || '';
+      }
+
+      // 如果没有获取到，尝试从其他地方获取
+      if (!targetId) {
+        // 从 MessageApp 获取
+        if (window.messageApp && window.messageApp.currentFriendId) {
+          targetId = window.messageApp.currentFriendId;
+          isGroup = window.messageApp.isGroup || false;
+          groupName = window.messageApp.currentFriendName || '';
+        }
       }
 
       // 如果还是没有，使用默认值
       if (!targetId) {
         targetId = '223456'; // 默认好友ID
-        console.warn('[Message App] 未能获取当前好友ID，使用默认值:', targetId);
+        console.warn('[Message Renderer] 未能获取当前好友ID，使用默认值:', targetId);
       }
 
       // 🔥 修改：生成表情包消息格式 - 使用完整路径
@@ -3913,7 +2252,7 @@ renderAddFriendTab() {
         stickerMessage = `[我方消息|我|${targetId}|表情包|${fullPath}]`;
       }
 
-      console.log(`[Message App] 生成表情包消息: ${filename} -> ${fullPath}`);
+      console.log(`[Message Renderer] 生成表情包消息: ${filename} -> ${fullPath}`);
 
       // 插入到输入框
       const currentValue = targetInput.value || '';
@@ -3940,159 +2279,587 @@ renderAddFriendTab() {
     }
 
     /**
-     * 🔥 新增：获取缓存的表情包配置
+     * 🔥 新增：从世界书读取表情包详情
+     * 查找名为"表情包详情"的世界书条目，解析前缀和后缀，生成完整的图片路径
      */
-    getCachedStickerImages() {
-      try {
-        // 从localStorage读取缓存
-        const cached = localStorage.getItem('stickerConfig_cache');
-        if (cached) {
-          const cacheData = JSON.parse(cached);
-          const now = Date.now();
+    async getStickerImagesFromWorldInfo() {
+      console.log('[Message Renderer] 开始从世界书读取表情包详情');
 
-          // 检查缓存是否过期（默认30分钟）
-          if (cacheData.timestamp && (now - cacheData.timestamp) < 30 * 60 * 1000) {
-            console.log(`[Message App] 使用缓存的表情包配置，包含 ${cacheData.data.length} 个表情包`);
-            return cacheData.data;
-          } else {
-            console.log('[Message App] 表情包缓存已过期');
-            localStorage.removeItem('stickerConfig_cache');
+      try {
+        // 获取所有世界书条目（包括角色绑定的和全局的）
+        const allEntries = await this.getAllWorldInfoEntries();
+
+        // 🔥 修复：查找所有包含"表情包详情"的条目
+        const stickerDetailEntries = [];
+
+        // 🔥 优先级1：查找注释包含"表情包详情"的条目
+        const commentEntries = allEntries.filter(entry => {
+          return entry.comment && entry.comment.includes('表情包详情');
+        });
+        stickerDetailEntries.push(...commentEntries);
+
+        // 🔥 优先级2：查找关键词包含"表情包详情"的条目（排除已添加的）
+        const keywordEntries = allEntries.filter(entry => {
+          if (stickerDetailEntries.includes(entry)) return false; // 避免重复
+          if (entry.key && Array.isArray(entry.key)) {
+            return entry.key.some(k => k.includes('表情包详情'));
+          }
+          return false;
+        });
+        stickerDetailEntries.push(...keywordEntries);
+
+        // 🔥 优先级3：查找内容以"表情包详情"开头的条目（排除已添加的）
+        const contentEntries = allEntries.filter(entry => {
+          if (stickerDetailEntries.includes(entry)) return false; // 避免重复
+          return entry.content && entry.content.trim().startsWith('表情包详情');
+        });
+        stickerDetailEntries.push(...contentEntries);
+
+        console.log(`[Message Renderer] 找到 ${stickerDetailEntries.length} 个表情包详情条目:`);
+        stickerDetailEntries.forEach((entry, index) => {
+          console.log(`${index + 1}. "${entry.comment}" (来源: ${entry.world})`);
+        });
+
+        if (stickerDetailEntries.length === 0) {
+          console.warn('[Message Renderer] 未找到"表情包详情"世界书条目，使用默认表情包列表');
+          console.log('[Message Renderer] 搜索的条目总数:', allEntries.length);
+          console.log('[Message Renderer] 条目示例:', allEntries.slice(0, 3).map(e => ({
+            comment: e.comment,
+            key: e.key,
+            content: e.content ? e.content.substring(0, 50) + '...' : ''
+          })));
+          return this.getDefaultStickerImages();
+        }
+
+        // 🔥 修改：解析所有表情包详情条目
+        const allStickerImages = [];
+
+        for (let i = 0; i < stickerDetailEntries.length; i++) {
+          const entry = stickerDetailEntries[i];
+          console.log(`[Message Renderer] 解析第 ${i + 1} 个表情包详情条目: "${entry.comment}" (来源: ${entry.world})`);
+
+          try {
+            const stickerImages = this.parseStickerDetails(entry.content);
+            if (stickerImages.length > 0) {
+              // 为每个表情包添加来源信息
+              const imagesWithSource = stickerImages.map(img => ({
+                ...img,
+                source: entry.comment,
+                world: entry.world
+              }));
+              allStickerImages.push(...imagesWithSource);
+              console.log(`[Message Renderer] 从"${entry.comment}"解析到 ${stickerImages.length} 个表情包`);
+            } else {
+              console.warn(`[Message Renderer] 条目"${entry.comment}"解析失败，内容可能格式不正确`);
+            }
+          } catch (error) {
+            console.error(`[Message Renderer] 解析条目"${entry.comment}"时出错:`, error);
           }
         }
-      } catch (error) {
-        console.warn('[Message App] 读取表情包缓存失败:', error);
-        localStorage.removeItem('stickerConfig_cache');
-      }
 
-      // 没有有效缓存，返回默认配置
-      console.log('[Message App] 没有缓存，使用默认表情包配置');
-      return this.getDefaultStickerImages();
-    }
-
-    /**
-     * 🔥 新增：缓存表情包配置到localStorage
-     */
-    cacheStickerImages(stickerImages) {
-      try {
-        const cacheData = {
-          data: stickerImages,
-          timestamp: Date.now()
-        };
-        localStorage.setItem('stickerConfig_cache', JSON.stringify(cacheData));
-        console.log(`[Message App] 表情包配置已缓存，包含 ${stickerImages.length} 个表情包`);
-      } catch (error) {
-        console.warn('[Message App] 缓存表情包配置失败:', error);
-      }
-    }
-
-    /**
-     * 🔥 新增：刷新表情包配置（从世界书重新读取）
-     */
-    async refreshStickerConfig() {
-      console.log('[Message App] 开始刷新表情包配置...');
-
-      // 显示加载状态
-      const refreshBtn = document.getElementById('refresh-sticker-btn');
-      const originalText = refreshBtn ? refreshBtn.innerHTML : '';
-      if (refreshBtn) {
-        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
-        refreshBtn.disabled = true;
-      }
-
-      try {
-        // 清除缓存
-        localStorage.removeItem('stickerConfig_cache');
-
-        // 从世界书重新读取
-        const stickerImages = await this.getStickerImagesFromWorldInfo();
-
-        // 缓存新配置
-        this.cacheStickerImages(stickerImages);
-
-        // 更新面板内容
-        this.updateStickerPanel(stickerImages);
-
-        // 显示成功提示
-        this.showToast('表情包配置已刷新', 'success');
-
-      } catch (error) {
-        console.error('[Message App] 刷新表情包配置失败:', error);
-        this.showToast('刷新失败，请检查世界书配置', 'error');
-      } finally {
-        // 恢复按钮状态
-        if (refreshBtn) {
-          refreshBtn.innerHTML = originalText;
-          refreshBtn.disabled = false;
+        if (allStickerImages.length === 0) {
+          console.warn('[Message Renderer] 所有表情包详情条目解析失败，使用默认表情包列表');
+          return this.getDefaultStickerImages();
         }
+
+        console.log(`[Message Renderer] 成功从 ${stickerDetailEntries.length} 个条目解析到总共 ${allStickerImages.length} 个表情包`);
+        return allStickerImages;
+
+      } catch (error) {
+        console.error('[Message Renderer] 读取世界书表情包详情时出错:', error);
+        return this.getDefaultStickerImages();
       }
     }
 
     /**
-     * 🔥 新增：更新表情包面板内容
+     * 🔥 新增：获取所有世界书条目
      */
-    updateStickerPanel(stickerImages) {
-      const panel = document.getElementById('sticker-input-panel');
-      if (!panel) return;
+    async getAllWorldInfoEntries() {
+      const allEntries = [];
 
-      // 生成新的表情包网格
-      const stickerGrid = this.generateStickerGrid(stickerImages);
+      try {
+        // 🔥 修复：使用正确的SillyTavern世界书API
+        // 1. 尝试使用SillyTavern的getSortedEntries函数（最佳方法）
+        if (typeof window.getSortedEntries === 'function') {
+          try {
+            const entries = await window.getSortedEntries();
+            allEntries.push(...entries);
+            console.log(`[Message Renderer] 通过getSortedEntries获取到 ${entries.length} 个世界书条目`);
+            return allEntries; // 如果成功，直接返回
+          } catch (error) {
+            console.warn('[Message Renderer] getSortedEntries调用失败:', error);
+          }
+        }
 
-      // 更新网格容器
-      const gridContainer = panel.querySelector('.sticker-grid-container');
-      if (gridContainer) {
-        gridContainer.innerHTML = stickerGrid;
+        // 2. 备用方法：手动获取全局和角色世界书
+        console.log('[Message Renderer] 使用备用方法获取世界书条目');
+
+        // 🔥 修复：获取全局世界书 - 从DOM元素读取
+        console.log('[Message Renderer] 尝试获取全局世界书...');
+        console.log('[Message Renderer] window.selected_world_info:', window.selected_world_info);
+        console.log('[Message Renderer] window.world_names:', window.world_names);
+
+        // 🔥 新增：方法1 - 从DOM元素获取选中的世界书
+        const worldInfoSelect = document.getElementById('world_info');
+        if (worldInfoSelect) {
+          console.log('[Message Renderer] 找到世界书选择器元素');
+
+          // 获取所有选中的选项
+          const selectedOptions = Array.from(worldInfoSelect.selectedOptions);
+          console.log(`[Message Renderer] 找到 ${selectedOptions.length} 个选中的世界书选项:`, selectedOptions.map(opt => opt.text));
+
+          for (const option of selectedOptions) {
+            const worldName = option.text;
+            const worldIndex = option.value;
+
+            try {
+              console.log(`[Message Renderer] 正在加载全局世界书: ${worldName} (索引: ${worldIndex})`);
+              const worldData = await this.loadWorldInfoByName(worldName);
+              if (worldData && worldData.entries) {
+                const entries = Object.values(worldData.entries).map(entry => ({
+                  ...entry,
+                  world: worldName
+                }));
+                allEntries.push(...entries);
+                console.log(`[Message Renderer] 从全局世界书"${worldName}"获取到 ${entries.length} 个条目`);
+              } else {
+                console.warn(`[Message Renderer] 全局世界书"${worldName}"没有条目或加载失败`);
+              }
+            } catch (error) {
+              console.warn(`[Message Renderer] 加载全局世界书"${worldName}"失败:`, error);
+            }
+          }
+        } else {
+          console.log('[Message Renderer] 未找到世界书选择器元素 #world_info');
+        }
+
+        // 方法2：从 selected_world_info 变量获取（备用）
+        if (allEntries.length === 0 && typeof window.selected_world_info !== 'undefined' && Array.isArray(window.selected_world_info) && window.selected_world_info.length > 0) {
+          console.log(`[Message Renderer] 备用方法：从变量获取 ${window.selected_world_info.length} 个全局世界书:`, window.selected_world_info);
+
+          for (const worldName of window.selected_world_info) {
+            try {
+              console.log(`[Message Renderer] 正在加载全局世界书: ${worldName}`);
+              const worldData = await this.loadWorldInfoByName(worldName);
+              if (worldData && worldData.entries) {
+                const entries = Object.values(worldData.entries).map(entry => ({
+                  ...entry,
+                  world: worldName
+                }));
+                allEntries.push(...entries);
+                console.log(`[Message Renderer] 从全局世界书"${worldName}"获取到 ${entries.length} 个条目`);
+              }
+            } catch (error) {
+              console.warn(`[Message Renderer] 加载全局世界书"${worldName}"失败:`, error);
+            }
+          }
+        }
+
+        // 方法3：从 world_info.globalSelect 获取（备用）
+        if (allEntries.length === 0 && typeof window.world_info !== 'undefined' && window.world_info.globalSelect) {
+          console.log('[Message Renderer] 备用方法：从 world_info.globalSelect 获取:', window.world_info.globalSelect);
+
+          for (const worldName of window.world_info.globalSelect) {
+            try {
+              const worldData = await this.loadWorldInfoByName(worldName);
+              if (worldData && worldData.entries) {
+                const entries = Object.values(worldData.entries).map(entry => ({
+                  ...entry,
+                  world: worldName
+                }));
+                allEntries.push(...entries);
+                console.log(`[Message Renderer] 从world_info.globalSelect世界书"${worldName}"获取到 ${entries.length} 个条目`);
+              }
+            } catch (error) {
+              console.warn(`[Message Renderer] 从world_info.globalSelect加载世界书"${worldName}"失败:`, error);
+            }
+          }
+        }
+
+        // 获取角色绑定的世界书
+        try {
+          const characterEntries = await this.getCharacterWorldInfoEntries();
+          allEntries.push(...characterEntries);
+        } catch (error) {
+          console.warn('[Message Renderer] 获取角色世界书失败:', error);
+        }
+
+      } catch (error) {
+        console.error('[Message Renderer] 获取世界书条目时出错:', error);
       }
 
-      // 更新状态提示
-      const statusElement = panel.querySelector('.sticker-status');
-      if (statusElement) {
-        const statusText = stickerImages.length > 0 && stickerImages[0].fullPath && stickerImages[0].fullPath !== stickerImages[0].filename ?
-          '✓ 使用世界书配置' : '使用默认配置';
-        statusElement.innerHTML = `<small style="color: #999;">${statusText}</small>`;
+      console.log(`[Message Renderer] 总共获取到 ${allEntries.length} 个世界书条目`);
+
+      // 🔥 新增：为调试提供详细信息
+      if (allEntries.length > 0) {
+        console.log('[Message Renderer] 世界书条目预览:', allEntries.slice(0, 3).map(entry => ({
+          comment: entry.comment,
+          key: Array.isArray(entry.key) ? entry.key.join(', ') : entry.key,
+          contentPreview: entry.content ? entry.content.substring(0, 50) + '...' : '无内容',
+          world: entry.world || '未知来源'
+        })));
       }
 
-      console.log(`[Message App] 表情包面板已更新，包含 ${stickerImages.length} 个表情包`);
+      return allEntries;
     }
 
     /**
-     * 🔥 新增：生成表情包网格HTML
+     * 🔥 新增：通过名称加载世界书数据
      */
-    generateStickerGrid(stickerImages) {
-      return stickerImages
-        .map(
-          stickerData => {
-            // 🔥 修复：为备用路径使用世界书配置的前缀，而不是硬编码路径
-            let fallbackPath;
-            if (stickerData.fallbackPath) {
-              // 如果已经有备用路径，直接使用
-              fallbackPath = stickerData.fallbackPath;
-            } else if (stickerData.prefix && stickerData.suffix !== undefined) {
-              // 如果有世界书配置的前缀和后缀，使用它们构建备用路径
-              fallbackPath = stickerData.prefix + (stickerData.filename || stickerData) + stickerData.suffix;
-            } else {
-              // 最后才使用默认路径
-              fallbackPath = `/scripts/extensions/third-party/mobile/images/${stickerData.filename || stickerData}`;
+    async loadWorldInfoByName(worldName) {
+      try {
+        // 🔥 修复：优先使用SillyTavern的loadWorldInfo函数
+        if (typeof window.loadWorldInfo === 'function') {
+          console.log(`[Message Renderer] 使用loadWorldInfo函数加载世界书: ${worldName}`);
+          return await window.loadWorldInfo(worldName);
+        }
+
+        // 备用方法：直接调用API（需要正确的请求头）
+        console.log(`[Message Renderer] 使用API加载世界书: ${worldName}`);
+
+        // 获取正确的请求头
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+
+        // 如果有getRequestHeaders函数，使用它
+        if (typeof window.getRequestHeaders === 'function') {
+          Object.assign(headers, window.getRequestHeaders());
+        }
+
+        const response = await fetch('/api/worldinfo/get', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({ name: worldName }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[Message Renderer] 成功加载世界书 "${worldName}":`, data);
+          return data;
+        } else {
+          console.error(`[Message Renderer] 加载世界书 "${worldName}" 失败: ${response.status} ${response.statusText}`);
+        }
+
+      } catch (error) {
+        console.error(`[Message Renderer] 加载世界书 "${worldName}" 时出错:`, error);
+      }
+
+      return null;
+    }
+
+    /**
+     * 🔥 新增：获取角色绑定的世界书条目
+     */
+    async getCharacterWorldInfoEntries() {
+      const entries = [];
+
+      try {
+        // 🔥 修复：使用正确的SillyTavern全局变量获取角色信息
+        let character = null;
+        let characterId = null;
+
+        // 方法1：通过SillyTavern.getContext()获取
+        if (window.SillyTavern && typeof window.SillyTavern.getContext === 'function') {
+          const context = window.SillyTavern.getContext();
+          if (context && context.characters && context.characterId !== undefined) {
+            character = context.characters[context.characterId];
+            characterId = context.characterId;
+          }
+        }
+
+        // 方法2：通过全局变量获取
+        if (!character && typeof window.characters !== 'undefined' && typeof window.this_chid !== 'undefined') {
+          character = window.characters[window.this_chid];
+          characterId = window.this_chid;
+        }
+
+        if (!character) {
+          console.log('[Message Renderer] 无法获取当前角色信息');
+          return entries;
+        }
+
+        console.log(`[Message Renderer] 找到当前角色: ${character.name} (ID: ${characterId})`);
+
+        // 获取角色绑定的主要世界书
+        const worldName = character.data?.extensions?.world;
+        if (worldName) {
+          console.log(`[Message Renderer] 角色绑定的主要世界书: ${worldName}`);
+          const worldData = await this.loadWorldInfoByName(worldName);
+          if (worldData && worldData.entries) {
+            const worldEntries = Object.values(worldData.entries).map(entry => ({
+              ...entry,
+              world: worldName
+            }));
+            entries.push(...worldEntries);
+            console.log(`[Message Renderer] 从角色主要世界书获取到 ${worldEntries.length} 个条目`);
+          }
+        }
+
+        // 🔥 新增：获取角色的额外世界书
+        if (typeof window.world_info !== 'undefined' && window.world_info.charLore) {
+          // 获取角色文件名
+          const fileName = character.avatar || `${character.name}.png`;
+          const extraCharLore = window.world_info.charLore.find(e => e.name === fileName);
+
+          if (extraCharLore && Array.isArray(extraCharLore.extraBooks)) {
+            console.log(`[Message Renderer] 角色额外世界书: ${extraCharLore.extraBooks.join(', ')}`);
+
+            for (const extraWorldName of extraCharLore.extraBooks) {
+              try {
+                const worldData = await this.loadWorldInfoByName(extraWorldName);
+                if (worldData && worldData.entries) {
+                  const worldEntries = Object.values(worldData.entries).map(entry => ({
+                    ...entry,
+                    world: extraWorldName
+                  }));
+                  entries.push(...worldEntries);
+                  console.log(`[Message Renderer] 从角色额外世界书"${extraWorldName}"获取到 ${worldEntries.length} 个条目`);
+                }
+              } catch (error) {
+                console.warn(`[Message Renderer] 加载角色额外世界书"${extraWorldName}"失败:`, error);
+              }
+            }
+          }
+        }
+
+      } catch (error) {
+        console.error('[Message Renderer] 获取角色世界书条目时出错:', error);
+      }
+
+      return entries;
+    }
+
+    /**
+     * 🔥 新增：解析表情包详情内容
+     * 支持多种格式：
+     * 1. 前缀|后缀|文件名1,文件名2,文件名3
+     * 2. JSON格式：{"prefix": "前缀", "suffix": "后缀", "files": ["文件名1", "文件名2"]}
+     * 3. 简单列表：文件名1,文件名2,文件名3（使用默认前缀后缀）
+     */
+    parseStickerDetails(content) {
+      const stickerImages = [];
+
+      try {
+        console.log('[Message Renderer] 解析表情包详情内容:', content);
+
+        // 尝试JSON格式解析
+        if (content.trim().startsWith('{')) {
+          const jsonData = JSON.parse(content);
+          const prefix = jsonData.prefix || '';
+          const suffix = jsonData.suffix || '';
+          const files = jsonData.files || [];
+
+          for (const filename of files) {
+            const fullPath = prefix + filename + suffix;
+            // 🔥 修复：生成正确的备用路径
+            const fallbackPath = `data/default-user/extensions/mobile/images/${filename}`;
+
+            stickerImages.push({
+              filename: filename,
+              fullPath: fullPath,
+              displayName: filename,
+              fallbackPath: fallbackPath,
+              prefix: prefix,
+              suffix: suffix
+            });
+          }
+
+          console.log(`[Message Renderer] JSON格式解析成功，获取到 ${stickerImages.length} 个表情包`);
+          return stickerImages;
+        }
+
+        // 尝试管道分隔格式：前缀|后缀|文件名1,文件名2,文件名3
+        if (content.includes('|')) {
+          const parts = content.split('|');
+          if (parts.length >= 3) {
+            const prefix = parts[0].trim();
+            const suffix = parts[1].trim();
+            const filesStr = parts[2].trim();
+
+            const files = filesStr.split(',').map(f => f.trim()).filter(f => f);
+
+            for (const filename of files) {
+              const fullPath = prefix + filename + suffix;
+              // 🔥 修复：生成正确的备用路径
+              const fallbackPath = `data/default-user/extensions/mobile/images/${filename}`;
+
+              stickerImages.push({
+                filename: filename,
+                fullPath: fullPath,
+                displayName: filename,
+                fallbackPath: fallbackPath,
+                prefix: prefix,
+                suffix: suffix
+              });
             }
 
-            return `
-            <div class="sticker-item" onclick="window.messageApp.insertStickerMessage('${stickerData.filename || stickerData}', '${stickerData.fullPath || stickerData}')"
-                 style="cursor: pointer; padding: 4px; border: 2px solid transparent; border-radius: 8px; transition: all 0.3s ease;width:calc(25%);box-sizing:border-box"
-                 onmouseover="this.style.borderColor='#667eea'; this.style.transform='scale(1.1)'"
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='scale(1)'"
-                 title="${stickerData.displayName || stickerData}">
-                <img src="${stickerData.fullPath || stickerData}"
-                     alt="${stickerData.displayName || stickerData}"
-                     style="object-fit: cover; border-radius: 4px; display: block;"
-                     loading="lazy"
-                     >
-            </div>
-        `;
+            console.log(`[Message Renderer] 管道格式解析成功，前缀: "${prefix}", 后缀: "${suffix}", 获取到 ${stickerImages.length} 个表情包`);
+            return stickerImages;
           }
-        )
-        .join('');
+        }
+
+        // 尝试简单逗号分隔格式
+        if (content.includes(',')) {
+          const files = content.split(',').map(f => f.trim()).filter(f => f);
+          const defaultPrefix = 'data/default-user/extensions/mobile/images/';
+          const defaultSuffix = '';
+
+          for (const filename of files) {
+            const fullPath = defaultPrefix + filename + defaultSuffix;
+            stickerImages.push({
+              filename: filename,
+              fullPath: fullPath,
+              displayName: filename
+            });
+          }
+
+          console.log(`[Message Renderer] 简单格式解析成功，使用默认前缀，获取到 ${stickerImages.length} 个表情包`);
+          return stickerImages;
+        }
+
+        // 尝试单行格式（每行一个文件名）
+        const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+        if (lines.length > 0) {
+          const defaultPrefix = 'data/default-user/extensions/mobile/images/';
+          const defaultSuffix = '';
+
+          for (const filename of lines) {
+            const fullPath = defaultPrefix + filename + defaultSuffix;
+            stickerImages.push({
+              filename: filename,
+              fullPath: fullPath,
+              displayName: filename
+            });
+          }
+
+          console.log(`[Message Renderer] 行分隔格式解析成功，获取到 ${stickerImages.length} 个表情包`);
+          return stickerImages;
+        }
+
+      } catch (error) {
+        console.error('[Message Renderer] 解析表情包详情时出错:', error);
+      }
+
+      console.warn('[Message Renderer] 无法解析表情包详情内容，返回空列表');
+      return stickerImages;
     }
 
-    // 显示红包面板
+    // /**
+    //  * 🔥 新增：获取默认表情包列表
+    //  */
+    // getDefaultStickerImages() {
+    //   const defaultFiles = [
+    //     'zjlr8e.jpg',
+    //     'emzckz.jpg',
+    //     'ivtswg.jpg',
+    //     'lgply8.jpg',
+    //     'au4ay5.jpg',
+    //     'qasebg.jpg',
+    //     '5kqdkh.jpg',
+    //     '8kvr4u.jpg',
+    //     'aotnxp.jpg',
+    //     'xigzwa.jpg',
+    //     'y7px4h.jpg',
+    //     'z2sxmv.jpg',
+    //     's10h5m.jpg',
+    //     'hoghwb.jpg',
+    //     'kin0oj.jpg',
+    //     'l9nqv0.jpg',
+    //     'kv2ubl.gif',
+    //     '6eyt6n.jpg',
+    //   ];
+
+    //   const defaultPrefix = 'data/default-user/extensions/mobile/images/';
+    //   const defaultSuffix = '';
+
+    //   return defaultFiles.map(filename => ({
+    //     filename: filename,
+    //     fullPath: defaultPrefix + filename + defaultSuffix,
+    //     displayName: filename
+    //   }));
+    // }
+
+    /**
+     * 🔥 新增：测试表情包配置功能
+     * 可以在浏览器控制台调用 window.messageRenderer.testStickerConfig() 来测试
+     */
+    async testStickerConfig() {
+      console.log('=== 表情包配置测试开始 ===');
+
+      try {
+        // 测试获取世界书条目
+        const allEntries = await this.getAllWorldInfoEntries();
+        console.log(`✓ 成功获取 ${allEntries.length} 个世界书条目`);
+
+        // 测试查找表情包详情条目
+        const stickerDetailEntry = allEntries.find(entry => {
+          if (entry.comment && entry.comment.includes('表情包详情')) return true;
+          if (entry.key && Array.isArray(entry.key)) {
+            if (entry.key.some(k => k.includes('表情包详情'))) return true;
+          }
+          if (entry.content && entry.content.trim().startsWith('表情包详情')) return true;
+          return false;
+        });
+
+        if (stickerDetailEntry) {
+          console.log('✓ 找到表情包详情条目:', {
+            comment: stickerDetailEntry.comment,
+            key: stickerDetailEntry.key,
+            world: stickerDetailEntry.world
+          });
+
+          // 测试解析表情包详情
+          const stickerImages = this.parseStickerDetails(stickerDetailEntry.content);
+          console.log(`✓ 成功解析 ${stickerImages.length} 个表情包:`);
+          stickerImages.forEach((sticker, index) => {
+            console.log(`  ${index + 1}. ${sticker.displayName} -> ${sticker.fullPath}`);
+          });
+
+          if (stickerImages.length > 0) {
+            console.log('✅ 表情包配置测试通过！');
+            return { success: true, count: stickerImages.length, stickers: stickerImages };
+          } else {
+            console.log('❌ 表情包解析失败，内容格式可能不正确');
+            return { success: false, error: '解析失败' };
+          }
+        } else {
+          console.log('❌ 未找到表情包详情条目');
+          console.log('💡 请确保世界书中有一个条目的注释包含"表情包详情"或关键词包含"sticker"');
+          return { success: false, error: '未找到配置条目' };
+        }
+
+      } catch (error) {
+        console.error('❌ 表情包配置测试失败:', error);
+        return { success: false, error: error.message };
+      } finally {
+        console.log('=== 表情包配置测试结束 ===');
+      }
+    }
+
+    /**
+     * 显示提示消息
+     */
+    showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `send-status-toast ${type}`;
+      toast.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px;">
+                ${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}
+                ${type === 'success' ? '成功' : type === 'error' ? '错误' : '提示'}
+            </div>
+            <div style="font-size: 12px; opacity: 0.9;">
+                ${message}
+            </div>
+        `;
+
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    /**
+     * 显示红包面板
+     */
     showRedpackPanel() {
       // 检查是否已存在红包面板
       const existingPanel = document.getElementById('redpack-input-panel');
@@ -4281,23 +3048,29 @@ renderAddFriendTab() {
       // 获取当前聊天对象的ID和群聊状态
       let targetId = null;
       let isGroup = false;
+      let groupName = '';
 
-      // 尝试从当前应用状态获取好友ID和群聊状态
-      if (this.currentFriendId) {
-        targetId = this.currentFriendId;
-        isGroup = this.isGroup || false;
-      }
-
-      // 如果没有获取到，尝试从 MessageSender 获取
-      if (!targetId && window.messageSender && window.messageSender.currentFriendId) {
+      // 尝试从 MessageSender 获取当前好友ID和群聊状态
+      if (window.messageSender && window.messageSender.currentFriendId) {
         targetId = window.messageSender.currentFriendId;
         isGroup = window.messageSender.isGroup || false;
+        groupName = window.messageSender.currentFriendName || '';
+      }
+
+      // 如果没有获取到，尝试从其他地方获取
+      if (!targetId) {
+        // 从 MessageApp 获取
+        if (window.messageApp && window.messageApp.currentFriendId) {
+          targetId = window.messageApp.currentFriendId;
+          isGroup = window.messageApp.isGroup || false;
+          groupName = window.messageApp.currentFriendName || '';
+        }
       }
 
       // 如果还是没有，使用默认值
       if (!targetId) {
         targetId = '223456'; // 默认好友ID
-        console.warn('[Message App] 未能获取当前好友ID，使用默认值:', targetId);
+        console.warn('[Message Renderer] 未能获取当前好友ID，使用默认值:', targetId);
       }
 
       // 生成红包消息格式 - 区分群聊和私聊
@@ -4331,2490 +3104,773 @@ renderAddFriendTab() {
       console.log('红包消息已插入:', redpackMessage);
     }
 
-    // 显示附件面板
-    showAttachmentPanel() {
-      console.log('[Message App] 🔍 开始显示附件面板');
-
-      // 检查是否已存在附件面板
-      const existingPanel = document.getElementById('attachment-input-panel');
-      if (existingPanel) {
-        console.log('[Message App] 🔍 移除已存在的附件面板');
-        existingPanel.remove();
-      }
-
-      // 确保AttachmentSender已加载
-      console.log('[Message App] 🔍 检查AttachmentSender状态:', !!window.attachmentSender);
-      if (!window.attachmentSender) {
-        console.warn('[Message App] AttachmentSender未加载，尝试加载...');
-        this.loadAttachmentSender();
-        // 显示加载提示
-        this.showToast('正在加载附件功能...', 'info');
+    /**
+     * 加载更多消息（向下，实际上在反向分页中不常用）
+     */
+    async loadMoreMessages() {
+      if (this.pagination.isLoading || this.pagination.currentPage >= this.pagination.totalPages - 1) {
         return;
       }
 
-      // 设置当前聊天对象
-      console.log('[Message App] 🔍 当前聊天对象:', {
-        friendId: this.currentFriendId,
-        friendName: this.currentFriendName,
-        isGroup: this.isCurrentChatGroup(),
-      });
+      this.pagination.isLoading = true;
+      const loadMoreBtn = document.getElementById('load-more-messages-btn');
 
-      if (this.currentFriendId) {
-        const isGroup = this.isCurrentChatGroup();
-        window.attachmentSender.setCurrentChat(this.currentFriendId, this.currentFriendName, isGroup);
-        console.log('[Message App] 🔍 已设置AttachmentSender聊天对象');
-      } else {
-        console.warn('[Message App] ⚠️ 当前没有选择聊天对象');
+      if (loadMoreBtn) {
+        loadMoreBtn.textContent = '加载中...';
+        loadMoreBtn.disabled = true;
       }
 
-      // 创建附件输入面板
-      const panel = document.createElement('div');
-      panel.id = 'attachment-input-panel';
-      panel.className = 'special-panel';
-      panel.innerHTML = `
-            <div class="special-panel-content" style="max-width: 500px; width: 90%;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
-                    <h3 style="margin: 0; color: #333; font-size: 18px;">📁 发送附件</h3>
-                    <button onclick="this.parentElement.parentElement.parentElement.remove()"
-                            style="background: none; border: none; font-size: 20px; cursor: pointer; color: #999; padding: 5px;">✕</button>
-                </div>
+      try {
+        // 模拟加载延迟
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-                <div style="margin-bottom: 20px;">
-                    <div class="file-drop-zone" style="
-                        border: 2px dashed #ddd;
-                        border-radius: 8px;
-                        padding: 40px 20px;
-                        text-align: center;
-                        background: #fafafa;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                    ">
-                        <div style="font-size: 48px; margin-bottom: 10px;">📎</div>
-                        <div style="font-size: 16px; color: #666; margin-bottom: 10px;">点击选择文件或拖拽文件到此处</div>
-                        <div style="font-size: 12px; color: #999;">
-                            支持图片、文档、压缩包等文件类型<br>
-                            最大文件大小：10MB
-                        </div>
-                        <input type="file" id="attachment-file-input" multiple
-                               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z"
-                               style="display: none;">
-                    </div>
-                </div>
+        this.pagination.currentPage++;
+        const newMessages = this.getPageMessages(this.pagination.currentPage);
 
-                <div id="attachment-preview-area" style="margin-bottom: 20px; display: none;">
-                    <h4 style="margin: 0 0 10px 0; color: #555; font-size: 14px;">选中的文件：</h4>
-                    <div id="attachment-file-list" style="max-height: 200px; overflow-y: auto;"></div>
-                </div>
+        // 批量添加新消息到DOM
+        await this.appendMessagesToContainer(newMessages);
 
-                <div style="margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 10px 0; color: #555; font-size: 14px;">附加消息（可选）：</h4>
-                    <textarea id="attachment-message-input" placeholder="输入要一起发送的消息内容，支持换行发送多条消息..."
-                              style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-size: 14px; font-family: inherit; box-sizing: border-box;"
-                              maxlength="1000"></textarea>
-                    <div style="font-size: 12px; color: #999; margin-top: 5px;">
-                        提示：每行内容将作为单独的消息发送，最多1000字符
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="this.parentElement.parentElement.parentElement.remove()"
-                            style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 6px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.3s ease;">
-                        取消
-                    </button>
-                    <button id="attachment-send-confirm-btn" disabled
-                            style="padding: 10px 20px; border: none; border-radius: 6px; background: #6c757d; color: white; cursor: not-allowed; font-size: 14px; font-weight: 500; transition: all 0.3s ease;">
-                        发送附件
-                    </button>
-                </div>
-            </div>
-        `;
-
-      document.body.appendChild(panel);
-
-      // 绑定事件
-      this.bindAttachmentPanelEvents(panel);
+        // 更新加载更多按钮
+        this.updateLoadMoreButton();
+      } catch (error) {
+        console.error('[Message Renderer] 加载更多消息失败:', error);
+      } finally {
+        this.pagination.isLoading = false;
+      }
     }
 
-    // 绑定附件面板事件
-    bindAttachmentPanelEvents(panel) {
-      const fileInput = panel.querySelector('#attachment-file-input');
-      const dropZone = panel.querySelector('.file-drop-zone');
-      const previewArea = panel.querySelector('#attachment-preview-area');
-      const fileList = panel.querySelector('#attachment-file-list');
-      const sendBtn = panel.querySelector('#attachment-send-confirm-btn');
-
-      let selectedFiles = [];
-
-      // 文件选择事件
-      if (fileInput) {
-        fileInput.addEventListener('change', e => {
-          this.handleFileSelection(e.target.files, selectedFiles, fileList, previewArea, sendBtn);
-        });
+    /**
+     * 加载历史消息（向上滚动）
+     */
+    async loadOlderMessages() {
+      if (this.pagination.isLoading) {
+        return;
       }
 
-      // 拖拽区域事件
-      if (dropZone) {
-        dropZone.addEventListener('click', () => {
-          fileInput.click();
-        });
-
-        dropZone.addEventListener('dragover', e => {
-          e.preventDefault();
-          dropZone.style.borderColor = '#007bff';
-          dropZone.style.backgroundColor = '#f0f8ff';
-        });
-
-        dropZone.addEventListener('dragleave', e => {
-          e.preventDefault();
-          dropZone.style.borderColor = '#ddd';
-          dropZone.style.backgroundColor = '#fafafa';
-        });
-
-        dropZone.addEventListener('drop', e => {
-          e.preventDefault();
-          dropZone.style.borderColor = '#ddd';
-          dropZone.style.backgroundColor = '#fafafa';
-
-          const files = e.dataTransfer.files;
-          this.handleFileSelection(files, selectedFiles, fileList, previewArea, sendBtn);
-        });
+      // 检查是否还有历史消息可以加载
+      const remainingPages = this.pagination.totalPages - (this.pagination.loadedPages || 1);
+      if (remainingPages <= 0) {
+        return;
       }
 
-      // 发送按钮事件
-      if (sendBtn) {
-        sendBtn.addEventListener('click', async () => {
-          console.log('[Message App] 🔍 发送附件按钮被点击');
-          console.log('[Message App] 🔍 选中文件数量:', selectedFiles.length);
+      this.pagination.isLoading = true;
+      const loadOlderBtn = document.getElementById('load-older-messages-btn');
+      const messageDetailContent = document.querySelector('.message-detail-content');
+      const messagesContainer = document.getElementById('messages-container');
 
-          if (selectedFiles.length === 0) {
-            console.warn('[Message App] ⚠️ 没有选中的文件');
+      if (loadOlderBtn) {
+        loadOlderBtn.textContent = '⏳ 加载中...';
+        loadOlderBtn.disabled = true;
+      }
+
+      // 记录当前滚动位置和第一条消息
+      const oldScrollHeight = messageDetailContent ? messageDetailContent.scrollHeight : 0;
+      const firstMessage = messagesContainer ? messagesContainer.firstElementChild : null;
+
+      try {
+        // 模拟加载延迟
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // 🔥 修复：使用新的历史消息获取方法
+        const olderMessages = this.getOlderMessages();
+
+        if (olderMessages.length > 0) {
+          // 将历史消息添加到容器顶部
+          await this.prependMessagesToContainer(olderMessages);
+
+          // 增加已加载页数
+          this.pagination.loadedPages = (this.pagination.loadedPages || 1) + 1;
+
+          // 更新加载历史消息按钮
+          this.updateLoadOlderButton();
+
+          // 保持滚动位置（关键：防止跳动）
+          if (messageDetailContent && firstMessage) {
+            const newScrollHeight = messageDetailContent.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            messageDetailContent.scrollTop = scrollOffset;
+          }
+        } else {
+          console.log('[Message Renderer] 没有更多历史消息可加载');
+        }
+      } catch (error) {
+        console.error('[Message Renderer] 加载历史消息失败:', error);
+      } finally {
+        this.pagination.isLoading = false;
+      }
+    }
+
+    /**
+     * 将新消息添加到容器底部
+     */
+    async appendMessagesToContainer(newMessages) {
+      const container = document.getElementById('messages-container');
+      if (!container || newMessages.length === 0) return;
+
+      // 使用DocumentFragment优化DOM操作
+      const fragment = document.createDocumentFragment();
+      const tempDiv = document.createElement('div');
+
+      tempDiv.innerHTML = this.renderMessagesBatch(newMessages);
+
+      // 将新消息元素添加到fragment
+      while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+      }
+
+      // 一次性添加到DOM
+      container.appendChild(fragment);
+
+      // 为新添加的图片初始化懒加载
+      this.initLazyLoadingForNewMessages();
+
+      console.log(`[Message Renderer] 已添加 ${newMessages.length} 条新消息到底部`);
+    }
+
+    /**
+     * 将历史消息添加到容器顶部
+     */
+    async prependMessagesToContainer(olderMessages) {
+      const container = document.getElementById('messages-container');
+      if (!container || olderMessages.length === 0) return;
+
+      // 使用DocumentFragment优化DOM操作
+      const fragment = document.createDocumentFragment();
+      const tempDiv = document.createElement('div');
+
+      tempDiv.innerHTML = this.renderMessagesBatch(olderMessages);
+
+      // 将历史消息元素添加到fragment
+      while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+      }
+
+      // 一次性添加到DOM顶部
+      container.insertBefore(fragment, container.firstChild);
+
+      // 为新添加的图片初始化懒加载
+      this.initLazyLoadingForNewMessages();
+
+      console.log(`[Message Renderer] 已添加 ${olderMessages.length} 条历史消息到顶部`);
+    }
+
+    /**
+     * 更新加载更多按钮
+     */
+    updateLoadMoreButton() {
+      const loadMoreContainer = document.querySelector('.load-more-container');
+      if (!loadMoreContainer) return;
+
+      if (this.pagination.currentPage >= this.pagination.totalPages - 1) {
+        // 没有更多消息，移除按钮
+        loadMoreContainer.innerHTML = `
+                <div style="text-align: center; padding: 10px; color: #999; font-size: 12px;">
+                    已显示所有消息
+                </div>
+            `;
+      } else {
+        // 更新按钮文本
+        loadMoreContainer.innerHTML = `
+                <button id="load-more-messages-btn"
+                        class="load-more-btn"
+                        style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 20px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.3s ease;">
+                    加载更多消息 (${this.pagination.currentPage + 1}/${this.pagination.totalPages})
+                </button>
+            `;
+
+        // 重新绑定事件
+        this.bindLoadMoreEvent();
+      }
+    }
+
+    /**
+     * 更新加载历史消息按钮
+     */
+    updateLoadOlderButton() {
+      const loadOlderContainer = document.querySelector('.load-older-container');
+      if (!loadOlderContainer) return;
+
+      const remainingPages = this.pagination.totalPages - (this.pagination.loadedPages || 1);
+
+      if (remainingPages <= 0) {
+        // 没有更多历史消息，移除按钮
+        loadOlderContainer.innerHTML = `
+                <div style="text-align: center; padding: 10px; color: #999; font-size: 12px; background: linear-gradient(180deg, #f8f9fa 0%, rgba(248, 249, 250, 0.8) 50%, transparent 100%);">
+                    📚 已显示所有历史消息
+                </div>
+            `;
+      } else {
+        // 更新按钮文本
+        loadOlderContainer.innerHTML = `
+                <button id="load-older-messages-btn"
+                        class="load-older-btn"
+                        style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 20px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    📜 加载历史消息 (还有${remainingPages}页)
+                </button>
+            `;
+
+        // 重新绑定事件
+        this.bindLoadOlderEvent();
+      }
+    }
+
+    /**
+     * 绑定加载更多事件
+     */
+    bindLoadMoreEvent() {
+      const loadMoreBtn = document.getElementById('load-more-messages-btn');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+          this.loadMoreMessages();
+        });
+      }
+    }
+
+    /**
+     * 绑定加载历史消息事件
+     */
+    bindLoadOlderEvent() {
+      const loadOlderBtn = document.getElementById('load-older-messages-btn');
+      if (loadOlderBtn) {
+        loadOlderBtn.addEventListener('click', () => {
+          this.loadOlderMessages();
+        });
+      }
+    }
+
+    /**
+     * 初始化懒加载
+     */
+    initLazyLoading() {
+      // 创建 Intersection Observer 进行图片懒加载
+      if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver(
+          (entries, observer) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                const img = entry.target;
+                this.loadImage(img);
+                observer.unobserve(img);
+              }
+            });
+          },
+          {
+            rootMargin: '50px 0px', // 提前50px开始加载
+            threshold: 0.1,
+          },
+        );
+
+        // 观察所有懒加载图片
+        const lazyImages = document.querySelectorAll('.lazy-load');
+        lazyImages.forEach(img => {
+          imageObserver.observe(img);
+        });
+
+        // 保存observer以便后续使用
+        this.imageObserver = imageObserver;
+      } else {
+        // 降级处理：直接加载所有图片
+        const lazyImages = document.querySelectorAll('.lazy-load');
+        lazyImages.forEach(img => this.loadImage(img));
+      }
+    }
+
+    /**
+     * 🔥 修改：加载单张图片 - 支持表情包路径转换
+     */
+    async loadImage(img) {
+      let src = img.getAttribute('src');
+      const filename = img.getAttribute('data-filename');
+
+      if (!src) return;
+
+      // 🔥 新增：如果是表情包图片且只有文件名，尝试获取完整路径
+      if (filename && img.classList.contains('qq-sticker-image')) {
+        const fullPath = await this.getStickerFullPath(filename);
+        if (fullPath && fullPath !== filename) {
+          src = fullPath;
+          console.log(`[Message Renderer] 表情包路径转换: ${filename} -> ${src}`);
+        }
+      }
+
+      // 添加加载状态
+      img.classList.add('loading');
+
+      // 创建新图片对象进行预加载
+      const imageLoader = new Image();
+
+      imageLoader.onload = () => {
+        // 加载成功
+        img.src = src;
+        img.classList.remove('loading');
+        img.classList.add('loaded');
+        img.removeAttribute('src');
+      };
+
+      imageLoader.onerror = async () => {
+        // 🔥 修改：加载失败时，尝试使用世界书配置的备用路径
+        img.classList.remove('loading');
+        img.classList.add('error');
+
+        // 如果是表情包且有文件名，尝试使用世界书配置的路径作为备用
+        if (filename && img.classList.contains('qq-sticker-image')) {
+          const fallbackPath = await this.getStickerFallbackPath(filename);
+          if (fallbackPath && fallbackPath !== src) {
+            console.log(`[Message Renderer] 尝试表情包备用路径: ${fallbackPath}`);
+
+            const fallbackLoader = new Image();
+            fallbackLoader.onload = () => {
+              img.src = fallbackPath;
+              img.classList.remove('error');
+              img.classList.add('loaded');
+              console.log(`[Message Renderer] 表情包备用路径加载成功: ${fallbackPath}`);
+            };
+            fallbackLoader.onerror = () => {
+              // 最终失败
+              img.style.background = '#f8d7da';
+              img.alt = '图片加载失败';
+              console.warn(`[Message Renderer] 表情包所有路径都加载失败: ${filename}`);
+            };
+            fallbackLoader.src = fallbackPath;
             return;
           }
+        }
 
-          // 获取附加消息内容
-          const messageInput = panel.querySelector('#attachment-message-input');
-          const additionalMessages = messageInput ? messageInput.value.trim() : '';
-          console.log('[Message App] 🔍 附加消息内容:', additionalMessages);
+        // 默认错误处理
+        img.style.background = '#f8d7da';
+        img.alt = '图片加载失败';
+      };
 
-          sendBtn.disabled = true;
-          sendBtn.textContent = '发送中...';
-          sendBtn.style.background = '#6c757d';
+      imageLoader.src = src;
+    }
 
-          try {
-            console.log('[Message App] 🔍 开始处理文件选择...');
-            // 将附加消息传递给attachmentSender
-            const results = await window.attachmentSender.handleFileSelection(selectedFiles, additionalMessages);
-            console.log('[Message App] 🔍 文件处理结果:', results);
+    /**
+     * 🔥 新增：获取表情包完整路径
+     */
+    async getStickerFullPath(filename) {
+      try {
+        // 🔥 优化：使用缓存避免重复读取世界书
+        if (!this._stickerConfigCache) {
+          this._stickerConfigCache = await this.getStickerImagesFromWorldInfo();
+          // 设置缓存过期时间（30秒）
+          setTimeout(() => {
+            this._stickerConfigCache = null;
+          }, 30000);
+        }
 
-            // 检查结果
-            const successCount = results.filter(r => r.success).length;
-            const failCount = results.length - successCount;
+        const stickerImages = this._stickerConfigCache;
 
-            console.log('[Message App] 🔍 处理统计:', { successCount, failCount });
+        // 查找匹配的表情包
+        const stickerData = stickerImages.find(sticker =>
+          (sticker.filename === filename) ||
+          (typeof sticker === 'string' && sticker === filename)
+        );
 
-            if (successCount > 0) {
-              this.showToast(`成功发送 ${successCount} 个附件`, 'success');
-            }
+        if (stickerData && stickerData.fullPath) {
+          console.log(`[Message Renderer] 表情包路径映射: ${filename} -> ${stickerData.fullPath}`);
+          return stickerData.fullPath;
+        }
 
-            if (failCount > 0) {
-              const errors = results
-                .filter(r => !r.success)
-                .map(r => r.errors.join(', '))
-                .join('; ');
-              console.error('[Message App] ❌ 发送失败的错误:', errors);
-              this.showToast(`${failCount} 个附件发送失败: ${errors}`, 'error');
-            }
+        // 如果没找到配置，尝试使用默认前缀
+        const defaultPath = `data/default-user/extensions/mobile/images/${filename}`;
+        console.log(`[Message Renderer] 使用默认表情包路径: ${filename} -> ${defaultPath}`);
+        return defaultPath;
 
-            // 关闭面板
-            panel.remove();
-          } catch (error) {
-            console.error('[Message App] ❌ 发送附件失败:', error);
-            this.showToast('发送附件失败: ' + error.message, 'error');
+      } catch (error) {
+        console.warn('[Message Renderer] 获取表情包完整路径失败:', error);
+        return `data/default-user/extensions/mobile/images/${filename}`;
+      }
+    }
 
-            sendBtn.disabled = false;
-            sendBtn.textContent = '发送附件';
-            sendBtn.style.background = 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)';
+    /**
+     * 🔥 新增：获取表情包备用路径
+     */
+    async getStickerFallbackPath(filename) {
+      try {
+        // 🔥 优化：使用缓存避免重复读取世界书
+        if (!this._stickerConfigCache) {
+          this._stickerConfigCache = await this.getStickerImagesFromWorldInfo();
+          // 设置缓存过期时间（30秒）
+          setTimeout(() => {
+            this._stickerConfigCache = null;
+          }, 30000);
+        }
+
+        const stickerImages = this._stickerConfigCache;
+
+        // 查找匹配的表情包
+        const stickerData = stickerImages.find(sticker =>
+          (sticker.filename === filename) ||
+          (typeof sticker === 'string' && sticker === filename)
+        );
+
+        if (stickerData) {
+          // 🔥 关键修复：优先使用世界书配置的前缀+后缀作为备用路径
+          if (stickerData.prefix && stickerData.suffix !== undefined) {
+            const worldBookPath = stickerData.prefix + filename + stickerData.suffix;
+            console.log(`[Message Renderer] 使用世界书前缀作为备用路径: ${filename} -> ${worldBookPath}`);
+            return worldBookPath;
           }
+
+          // 如果有预设的备用路径
+          if (stickerData.fallbackPath) {
+            return stickerData.fallbackPath;
+          }
+        }
+
+        // 最后使用默认路径
+        const defaultPath = `data/default-user/extensions/mobile/images/${filename}`;
+        console.log(`[Message Renderer] 使用默认备用路径: ${filename} -> ${defaultPath}`);
+        return defaultPath;
+
+      } catch (error) {
+        console.warn('[Message Renderer] 获取表情包备用路径失败:', error);
+        return `data/default-user/extensions/mobile/images/${filename}`;
+      }
+    }
+
+    /**
+     * 🔥 新增：获取缓存的表情包配置
+     */
+    getCachedStickerImages() {
+      try {
+        // 从localStorage读取缓存
+        const cached = localStorage.getItem('stickerConfig_cache');
+        if (cached) {
+          const cacheData = JSON.parse(cached);
+          const now = Date.now();
+
+          // 检查缓存是否过期（默认30分钟）
+          if (cacheData.timestamp && (now - cacheData.timestamp) < 30 * 60 * 1000) {
+            console.log(`[Message Renderer] 使用缓存的表情包配置，包含 ${cacheData.data.length} 个表情包`);
+            return cacheData.data;
+          } else {
+            console.log('[Message Renderer] 表情包缓存已过期');
+            localStorage.removeItem('stickerConfig_cache');
+          }
+        }
+      } catch (error) {
+        console.warn('[Message Renderer] 读取表情包缓存失败:', error);
+        localStorage.removeItem('stickerConfig_cache');
+      }
+
+      // 没有有效缓存，返回默认配置
+      console.log('[Message Renderer] 没有缓存，使用默认表情包配置');
+      return this.getDefaultStickerImages();
+    }
+
+    /**
+     * 🔥 新增：缓存表情包配置到localStorage
+     */
+    cacheStickerImages(stickerImages) {
+      try {
+        const cacheData = {
+          data: stickerImages,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('stickerConfig_cache', JSON.stringify(cacheData));
+        console.log(`[Message Renderer] 表情包配置已缓存，包含 ${stickerImages.length} 个表情包`);
+      } catch (error) {
+        console.warn('[Message Renderer] 缓存表情包配置失败:', error);
+      }
+    }
+
+    /**
+     * 🔥 新增：刷新表情包配置（从世界书重新读取）
+     */
+    async refreshStickerConfig() {
+      console.log('[Message Renderer] 开始刷新表情包配置...');
+
+      // 显示加载状态
+      const refreshBtn = document.getElementById('refresh-sticker-btn');
+      const originalText = refreshBtn ? refreshBtn.innerHTML : '';
+      if (refreshBtn) {
+        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
+        refreshBtn.disabled = true;
+      }
+
+      try {
+        // 清除缓存
+        localStorage.removeItem('stickerConfig_cache');
+        this._stickerConfigCache = null; // 清除内存缓存
+
+        // 从世界书重新读取
+        const stickerImages = await this.getStickerImagesFromWorldInfo();
+
+        // 缓存新配置
+        this.cacheStickerImages(stickerImages);
+
+        // 更新面板内容
+        this.updateStickerPanel(stickerImages);
+
+        // 显示成功提示
+        this.showToast('表情包配置已刷新', 'success');
+
+      } catch (error) {
+        console.error('[Message Renderer] 刷新表情包配置失败:', error);
+        this.showToast('刷新失败，请检查世界书配置', 'error');
+      } finally {
+        // 恢复按钮状态
+        if (refreshBtn) {
+          refreshBtn.innerHTML = originalText;
+          refreshBtn.disabled = false;
+        }
+      }
+    }
+
+    /**
+     * 🔥 新增：更新表情包面板内容
+     */
+    updateStickerPanel(stickerImages) {
+      const panel = document.getElementById('sticker-input-panel');
+      if (!panel) return;
+
+      // 生成新的表情包网格
+      const stickerGrid = this.generateStickerGrid(stickerImages);
+
+      // 更新网格容器
+      const gridContainer = panel.querySelector('.sticker-grid-container');
+      if (gridContainer) {
+        gridContainer.innerHTML = stickerGrid;
+      }
+
+      // 更新状态提示
+      const statusElement = panel.querySelector('.sticker-status');
+      if (statusElement) {
+        const statusText = stickerImages.length > 0 && stickerImages[0].fullPath && stickerImages[0].fullPath !== stickerImages[0].filename ?
+          '✓ 使用世界书配置' : '使用默认配置';
+        statusElement.innerHTML = `<small style="color: #999;">${statusText}</small>`;
+      }
+
+      console.log(`[Message Renderer] 表情包面板已更新，包含 ${stickerImages.length} 个表情包`);
+    }
+
+    /**
+     * 🔥 新增：生成表情包网格HTML
+     */
+    generateStickerGrid(stickerImages) {
+      return stickerImages
+        .map(
+          stickerData => {
+            // 🔥 修复：为备用路径使用世界书配置的前缀，而不是硬编码路径
+            let fallbackPath;
+            if (stickerData.fallbackPath) {
+              // 如果已经有备用路径，直接使用
+              fallbackPath = stickerData.fallbackPath;
+            } else if (stickerData.prefix && stickerData.suffix !== undefined) {
+              // 如果有世界书配置的前缀和后缀，使用它们构建备用路径
+              fallbackPath = stickerData.prefix + (stickerData.filename || stickerData) + stickerData.suffix;
+            } else {
+              // 最后才使用默认路径
+              fallbackPath = `data/default-user/extensions/mobile/images/${stickerData.filename || stickerData}`;
+            }
+
+            return `
+            <div class="sticker-item" onclick="window.messageRenderer.insertStickerMessage('${stickerData.filename || stickerData}', '${stickerData.fullPath || stickerData}')"
+                 style="cursor: pointer; padding: 4px; border: 2px solid transparent; border-radius: 8px; transition: all 0.3s ease;width:25%"
+                 onmouseover="this.style.borderColor='#667eea'; this.style.transform='scale(1.1)'"
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='scale(1)'"
+                 title="${stickerData.displayName || stickerData}">
+                <img src="${stickerData.fullPath || stickerData}"
+                     alt="${stickerData.displayName || stickerData}"
+                     style="width: 48px; height: 48px; object-fit: cover; border-radius: 4px; display: block;"
+                     loading="lazy"
+                     >
+            </div>
+        `;
+          }
+        )
+        .join('');
+    }
+
+    /**
+     * 为新添加的消息初始化懒加载
+     */
+    initLazyLoadingForNewMessages() {
+      if (this.imageObserver) {
+        const newLazyImages = document.querySelectorAll('.lazy-load:not(.loaded):not(.loading):not(.error)');
+        newLazyImages.forEach(img => {
+          this.imageObserver.observe(img);
         });
       }
     }
 
-    // 加载附件发送器
-    loadAttachmentSender() {
-      if (window.attachmentSender) {
-        return;
-      }
-
-      // 检查脚本是否已经存在
-      const existingScript = document.querySelector('script[src*="attachment-sender.js"]');
-      if (existingScript) {
-        console.log('[Message App] 附件发送器脚本已存在');
-        return;
-      }
-
-      // 创建脚本标签
-      const script = document.createElement('script');
-      script.src = 'scripts/extensions/third-party/mobile/app/attachment-sender.js';
-      script.onload = () => {
-        console.log('[Message App] ✅ 附件发送器脚本加载完成');
-        // 不自动显示面板，只在用户点击时显示
-      };
-      script.onerror = error => {
-        console.error('[Message App] ❌ 附件发送器脚本加载失败:', error);
-        this.showToast('附件功能加载失败', 'error');
-      };
-
-      document.head.appendChild(script);
-    }
-
-    // 静默加载附件发送器（不显示面板）
-    loadAttachmentSenderSilently() {
-      if (window.attachmentSender) {
-        return;
-      }
-
-      // 检查脚本是否已经存在
-      const existingScript = document.querySelector('script[src*="attachment-sender.js"]');
-      if (existingScript) {
-        console.log('[Message App] 附件发送器脚本已存在');
-        return;
-      }
-
-      // 创建脚本标签
-      const script = document.createElement('script');
-      script.src = 'scripts/extensions/third-party/mobile/app/attachment-sender.js';
-      script.onload = () => {
-        console.log('[Message App] ✅ 附件发送器脚本静默加载完成');
-      };
-      script.onerror = error => {
-        console.error('[Message App] ❌ 附件发送器脚本加载失败:', error);
-      };
-
-      document.head.appendChild(script);
-    }
-
-    // 处理文件选择
-    handleFileSelection(files, selectedFiles, fileList, previewArea, sendBtn) {
-      // 清空之前的选择
-      selectedFiles.length = 0;
-
-      // 添加新选择的文件
-      for (const file of files) {
-        selectedFiles.push(file);
-      }
-
-      // 更新预览
-      this.updateFilePreview(selectedFiles, fileList, previewArea, sendBtn);
-    }
-
-    // 更新文件预览
-    updateFilePreview(selectedFiles, fileList, previewArea, sendBtn) {
-      if (selectedFiles.length === 0) {
-        previewArea.style.display = 'none';
-        sendBtn.disabled = true;
-        sendBtn.style.background = '#6c757d';
-        sendBtn.style.cursor = 'not-allowed';
-        return;
-      }
-
-      // 显示预览区域
-      previewArea.style.display = 'block';
-
-      // 清空文件列表
-      fileList.innerHTML = '';
-
-      // 为每个文件创建预览项
-      selectedFiles.forEach((file, index) => {
-        const preview = window.attachmentSender.createFilePreview(file);
-        const validation = window.attachmentSender.validateFile(file);
-
-        const fileItem = document.createElement('div');
-        fileItem.className = 'file-preview-item';
-        fileItem.style.cssText = `
-          display: flex;
-          align-items: center;
-          padding: 10px;
-          margin-bottom: 8px;
-          border: 1px solid ${validation.isValid ? '#ddd' : '#dc3545'};
-          border-radius: 6px;
-          background: ${validation.isValid ? '#fff' : '#fff5f5'};
-        `;
-
-        fileItem.innerHTML = `
-          <div style="font-size: 24px; margin-right: 12px;">${preview.icon}</div>
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 500; color: #333; margin-bottom: 2px; word-break: break-all;">
-              ${preview.fileName}
-            </div>
-            <div style="font-size: 12px; color: #666;">
-              ${preview.fileSize} • ${preview.category}
-            </div>
-            ${
-              !validation.isValid
-                ? `
-              <div style="font-size: 12px; color: #dc3545; margin-top: 4px;">
-                ${validation.errors.join(', ')}
-              </div>
-            `
-                : ''
-            }
-          </div>
-          <button onclick="this.parentElement.remove(); window.messageApp.removeFileFromSelection(${index})"
-                  style="background: none; border: none; color: #999; cursor: pointer; padding: 4px; font-size: 16px;">
-            ✕
-          </button>
-        `;
-
-        // 如果是图片，添加预览内容
-        if (preview.previewContent) {
-          const previewDiv = document.createElement('div');
-          previewDiv.innerHTML = preview.previewContent;
-          previewDiv.style.marginLeft = '36px';
-          fileItem.appendChild(previewDiv);
-        }
-
-        fileList.appendChild(fileItem);
-      });
-
-      // 检查是否有有效文件
-      const hasValidFiles = selectedFiles.some(file => window.attachmentSender.validateFile(file).isValid);
-
-      // 更新发送按钮状态
-      if (hasValidFiles) {
-        sendBtn.disabled = false;
-        sendBtn.style.background = 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)';
-        sendBtn.style.cursor = 'pointer';
-        sendBtn.textContent = `发送附件 (${selectedFiles.length})`;
-      } else {
-        sendBtn.disabled = true;
-        sendBtn.style.background = '#6c757d';
-        sendBtn.style.cursor = 'not-allowed';
-        sendBtn.textContent = '无有效文件';
-      }
-    }
-
-    // 从选择中移除文件
-    removeFileFromSelection(index) {
-      // 这个方法会在全局作用域中被调用，所以需要通过window.messageApp访问
-      // 实际的移除逻辑在updateFilePreview中处理
-    }
-
-    // 显示提示
-    showToast(message, type = 'info') {
-      const toast = document.createElement('div');
-      toast.className = `send-status-toast ${type}`;
-      toast.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 5px;">${message}</div>
-        `;
-
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2000);
-    }
-
-    // 显示添加好友界面
-    showAddFriend() {
-      this.currentView = 'addFriend';
-      this.currentTab = 'add'; // 默认显示添加tab
-
-      // 通知主框架更新应用状态
-      if (window.mobilePhone) {
-        const addFriendState = {
-          app: 'messages',
-          title: '添加好友',
-          view: 'addFriend',
-        };
-        window.mobilePhone.pushAppState(addFriendState);
-      }
-
-      this.updateAppContent();
-    }
-
-    // 显示消息列表
-    showMessageList() {
-      console.log('[Message App] 显示消息列表');
-
-      this.currentView = 'list'; // 修复：保持与getAppContent中的case一致
-      this.currentFriendId = null;
-      this.currentFriendName = null;
-      this.currentIsGroup = false; // 重置群聊状态
-
-      // 通知主框架更新应用状态（不推送新状态，而是直接更新当前状态）
-      if (window.mobilePhone) {
-        const listState = {
-          app: 'messages',
-          title: '信息',
-          view: 'messageList', // 主框架用这个值来区分状态
-        };
-        // 直接更新当前状态，不推送到栈中
-        window.mobilePhone.currentAppState = listState;
-        window.mobilePhone.updateAppHeader(listState);
-        console.log('[Message App] 更新状态到消息列表:', listState);
-      }
-
-      // 更新应用内容
-      this.updateAppContent();
-    }
-
-    // 切换标签页
-    switchTab(tabName) {
-      console.log(`[Message App] 切换标签页: ${tabName}`);
+    /**
+     * 刷新当前消息 - 性能优化版本
+     */
+    async refreshCurrentMessages() {
+      if (!this.currentFriendId) return;
 
       try {
-        // 正确的状态管理：currentView保持为'addFriend'，currentTab切换为具体的tab
-        this.currentTab = tabName; // 设置当前tab
-        // this.currentView保持为'addFriend'，不要修改
+        const appContent = document.getElementById('app-content');
+        if (!appContent) return;
 
-        // 通知主框架更新应用状态（如果需要的话）
-        if (window.mobilePhone && this.currentView === 'addFriend') {
-          let title = '添加好友';
-          if (tabName === 'delete') {
-            title = '删除好友';
-          } else if (tabName === 'createGroup') {
-            title = '创建群聊';
-          } else if (tabName === 'deleteGroup') {
-            title = '删除群聊';
+        // 提取最新消息
+        const messageData = await this.extractMessagesForFriend(this.currentFriendId);
+
+        // 重新初始化反向分页
+        this.initReversePagination(messageData.allMessages);
+
+        // 只更新消息容器，保留发送区域
+        const messagesContainer = appContent.querySelector('.messages-container');
+        if (messagesContainer && messageData.allMessages.length > 0) {
+          // 获取最新的消息（反向分页模式）
+          const latestMessages = this.getLatestMessages();
+          this.incrementalUpdateMessages(messagesContainer, latestMessages);
+
+          // 更新加载历史消息按钮
+          const loadOlderContainer = appContent.querySelector('.load-older-container');
+          if (loadOlderContainer) {
+            loadOlderContainer.innerHTML = this.renderLoadOlderButton();
+            this.bindLoadOlderEvent();
           }
 
-          // 更新当前状态的标题，但不改变view
-          if (window.mobilePhone.currentAppState) {
-            window.mobilePhone.currentAppState.title = title;
-            window.mobilePhone.updateAppHeader(window.mobilePhone.currentAppState);
-          }
-        }
-
-        // 确保DOM更新完成后再重新绑定事件
-        setTimeout(() => {
-          this.updateAppContent();
-          // 额外确保tab-navigation仍然存在并可见
-          this.ensureTabNavigationVisible();
-        }, 10);
-      } catch (error) {
-        console.error('[Message App] 切换标签页时出错:', error);
-        // 如果出错，尝试恢复到默认状态
-        this.currentTab = 'add';
-        this.updateAppContent();
-      }
-    }
-
-    // 确保tab-navigation可见的辅助方法
-    ensureTabNavigationVisible() {
-      try {
-        const tabNavigation = document.querySelector('.tab-navigation');
-        if (tabNavigation) {
-          // 确保tab-navigation可见
-          tabNavigation.style.display = 'flex';
-
-          // 确保当前tab的active状态正确
-          const allTabs = tabNavigation.querySelectorAll('.tab-btn');
-          allTabs.forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.getAttribute('data-tab') === this.currentTab) {
-              btn.classList.add('active');
-            }
-          });
-
-          console.log(`[Message App] Tab导航已确保可见，当前tab: ${this.currentTab}`);
-        } else {
-          console.warn('[Message App] Tab导航元素未找到，可能需要重新渲染');
-          // 如果tab-navigation不存在，强制重新渲染
+          // 滚动到底部显示最新消息
           setTimeout(() => {
-            this.updateAppContent();
+            const messageDetailContent = document.querySelector('.message-detail-content');
+            if (messageDetailContent) {
+              messageDetailContent.scrollTop = messageDetailContent.scrollHeight;
+              console.log('[Message Renderer] 已滚动到底部显示最新消息');
+            }
           }, 100);
         }
-      } catch (error) {
-        console.error('[Message App] 确保tab导航可见时出错:', error);
-      }
-    }
 
-    // 刷新删除好友列表
-    refreshDeleteFriendList() {
-      if (this.currentView === 'addFriend' && this.currentTab === 'delete') {
-        this.updateAppContent();
-      }
-    }
-
-    // 更新应用内容
-    updateAppContent() {
-      try {
-        const appContent = document.getElementById('app-content');
-        if (!appContent) {
-          console.error('[Message App] app-content元素不存在');
-          return;
-        }
-
-        // 保存当前的滚动位置（如果需要的话）
-        const currentScrollTop = appContent.scrollTop;
-
-        // 更新内容
-        const newContent = this.getAppContent();
-        if (!newContent) {
-          console.error('[Message App] getAppContent返回空内容');
-          return;
-        }
-
-        appContent.innerHTML = newContent;
-
-        // 如果是消息详情页面，立即应用好友专属背景
-        if (this.currentView === 'messageDetail' && this.currentFriendId) {
-          this.applyFriendSpecificBackground(this.currentFriendId);
-        }
-
-        // 确保内容更新完成后再绑定事件
-        setTimeout(() => {
-          try {
-            this.bindEvents();
-            console.log('[Message App] 事件绑定完成');
-          } catch (bindError) {
-            console.error('[Message App] 绑定事件时出错:', bindError);
-          }
-        }, 20);
-
-        // 恢复滚动位置（如果需要的话）
-        if (currentScrollTop > 0) {
-          setTimeout(() => {
-            appContent.scrollTop = currentScrollTop;
-          }, 50);
+        // 更新统计信息
+        const statsElement = appContent.querySelector('.message-stats');
+        if (statsElement) {
+          const totalCount = messageData.allMessages.length;
+          const latestMessages = this.getLatestMessages();
+          statsElement.textContent = `显示最新 ${latestMessages.length}/${totalCount} 条消息 (我方: ${messageData.myMessages.length}, 对方: ${messageData.otherMessages.length}, 群聊: ${messageData.groupMessages.length})`;
         }
       } catch (error) {
-        console.error('[Message App] 更新应用内容时出错:', error);
-        // 尝试显示错误状态
-        const appContent = document.getElementById('app-content');
-        if (appContent) {
-          appContent.innerHTML = `
-                    <div class="error-state">
-                        <div class="error-icon">⚠️</div>
-                        <div class="error-text">界面更新失败</div>
-                        <div class="error-details">${error.message}</div>
-                        <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">重新加载</button>
-                    </div>
-                `;
-        }
+        console.error('[Message Renderer] 刷新消息失败:', error);
       }
-    }
-
-    // 渲染消息详情页面
-    renderMessageDetail() {
-      console.log('[Message App] 渲染消息详情');
-
-      if (!this.currentFriendId) {
-        console.error('[Message App] 没有选中的好友');
-        return '<div class="error-message">没有选中的好友</div>';
-      }
-
-      if (window.renderMessageDetailForFriend) {
-        // 返回加载占位符，然后异步加载真实内容
-        setTimeout(() => {
-          this.loadMessageDetailAsync();
-        }, 100);
-
-        // 根据是否为群聊添加对应的CSS class
-        const isGroup = this.isCurrentChatGroup();
-        const appClass = isGroup ? 'message-detail-app group-chat' : 'message-detail-app';
-        const placeholder = isGroup ? '发送群聊消息...' : '发送消息...';
-
-        return `
-                <div class="${appClass}">
-                    <div class="message-detail-content">
-                        <div class="messages-loading">
-                            <div class="loading-spinner"></div>
-                            <span>正在加载消息...</span>
-                        </div>
-                    </div>
-                    <div class="message-detail-footer">
-                        <div class="message-send-area">
-                            <div class="send-input-container">
-                            <button class="send-tool-toggle-btn" id="detail-tool-toggle-btn" title="工具"><i class="fas fa-wrench"></i></button>
-                                <textarea id="message-detail-input" placeholder="${placeholder}" maxlength="1000"></textarea>
-                                <div class="send-tools" style="display: none;">
-                                    <button class="send-tool-btn" id="detail-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
-                                    <button class="send-tool-btn" id="detail-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
-                                    <button class="send-tool-btn" id="detail-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
-                                    <button class="send-tool-btn" id="detail-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
-                                    <button class="send-tool-btn" id="detail-attachment-btn" title="附件"><i class="fas fa-folder"></i></button>
-                                </div>
-
-                                <button class="send-message-btn" id="detail-send-btn"><i class="fas fa-paper-plane"></i></button>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            `;
-      } else {
-        return `
-                <div class="message-detail-app">
-                    <div class="message-detail-content">
-                        <div class="error-messages">
-                            <div class="error-icon">⚠️</div>
-                            <div class="error-text">消息渲染器未加载</div>
-                        </div>
-                    </div>
-                    <div class="message-detail-footer">
-                        <div class="message-send-area">
-                            <div class="send-input-container">
-                            <button class="send-tool-toggle-btn" id="detail-tool-toggle-btn" title="工具"><i class="fas fa-wrench"></i></button>
-                                <textarea id="message-detail-input" placeholder="发送消息..." maxlength="1000"></textarea>
-                                <div class="send-tools" style="display: none;">
-                                    <button class="send-tool-btn" id="detail-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
-                                    <button class="send-tool-btn" id="detail-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
-                                    <button class="send-tool-btn" id="detail-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
-                                    <button class="send-tool-btn" id="detail-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
-                                    <button class="send-tool-btn" id="detail-attachment-btn" title="附件"><i class="fas fa-folder"></i></button>
-                                </div>
-
-                                <button class="send-message-btn" id="detail-send-btn"><i class="fas fa-paper-plane"></i></button>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            `;
-      }
-    }
-
-    // 异步加载消息详情
-    async loadMessageDetailAsync() {
-      try {
-        if (!window.renderMessageDetailForFriend) {
-          throw new Error('消息渲染器未加载');
-        }
-
-        const content = await window.renderMessageDetailForFriend(this.currentFriendId, this.currentFriendName);
-
-        const appContent = document.getElementById('app-content');
-        if (appContent && this.currentView === 'messageDetail') {
-          // 创建临时容器来处理内容
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = content;
-
-          // 移除 message-detail-header
-          const header = tempDiv.querySelector('.message-detail-header');
-          if (header) {
-            header.remove();
-          }
-
-          // 处理发送区域 - 无论是否存在都要替换
-          let finalContent = tempDiv.innerHTML;
-
-          // 创建我们的新发送区域HTML
-          const newFooterHTML = `
-                    <div class="message-detail-footer">
-                        <div class="message-send-area">
-                            <div class="send-input-container">
-                            <button class="send-tool-toggle-btn" id="detail-tool-toggle-btn" title="工具"><i class="fas fa-wrench"></i></button>
-                                <textarea id="message-detail-input" placeholder="发送消息..." maxlength="1000"></textarea>
-                                <div class="send-tools" style="display: none;">
-                                    <button class="send-tool-btn" id="detail-emoji-btn" title="表情"><i class="fas fa-smile"></i></button>
-                                    <button class="send-tool-btn" id="detail-sticker-btn" title="表情包"><i class="fas fa-image"></i></button>
-                                    <button class="send-tool-btn" id="detail-voice-btn" title="语音"><i class="fas fa-microphone"></i></button>
-                                    <button class="send-tool-btn" id="detail-redpack-btn" title="红包"><i class="fas fa-gift"></i></button>
-                                    <button class="send-tool-btn" id="detail-attachment-btn" title="附件"><i class="fas fa-folder"></i></button>
-                                </div>
-
-                                <button class="send-message-btn" id="detail-send-btn"><i class="fas fa-paper-plane"></i></button>
-                            </div>
-                        </div>
-                    </div>`;
-
-          // 如果存在旧的发送区域，移除它
-          const existingFooter = tempDiv.querySelector('.message-detail-footer');
-          if (existingFooter) {
-            existingFooter.remove();
-            if (window.DEBUG_MESSAGE_APP) {
-              console.log('[Message App] 移除了现有的发送区域');
-            }
-          }
-
-          // 在主容器末尾添加新的发送区域
-          const mainContainer = tempDiv.querySelector('.message-detail-app, .message-detail-content');
-          if (mainContainer) {
-            mainContainer.insertAdjacentHTML('afterend', newFooterHTML);
-          } else {
-            // 如果没找到主容器，直接在最后添加
-            tempDiv.insertAdjacentHTML('beforeend', newFooterHTML);
-          }
-
-          finalContent = tempDiv.innerHTML;
-          appContent.innerHTML = finalContent;
-
-          if (window.DEBUG_MESSAGE_APP) {
-            console.log('[Message App] 已设置新的发送区域结构');
-          }
-
-          // 绑定新的事件
-          if (window.bindMessageDetailEvents) {
-            window.bindMessageDetailEvents();
-          }
-
-          // 绑定详情页面的发送事件
-          this.bindDetailSendEvents();
-        }
-      } catch (error) {
-        console.error('[Message App] 加载消息详情失败:', error);
-        const appContent = document.getElementById('app-content');
-        if (appContent && this.currentView === 'messageDetail') {
-          appContent.innerHTML = `
-                    <div class="message-detail-app">
-                        <div class="message-detail-content">
-                            <div class="error-messages">
-                                <div class="error-icon">⚠️</div>
-                                <div class="error-text">加载消息失败</div>
-                                <div class="error-details">${error.message}</div>
-                            </div>
-                        </div>
-                        <div class="message-detail-footer">
-                            <div class="message-send-area">
-                                <div class="send-input-container">
-                                <button class="send-tool-toggle-btn" id="detail-tool-toggle-btn" title="工具">🔧</button>
-                                    <textarea id="message-detail-input" placeholder="发送消息..." maxlength="1000"></textarea>
-                                    <div class="send-tools" style="display: none;">
-                                        <button class="send-tool-btn" id="detail-emoji-btn" title="表情">😊</button>
-                                        <button class="send-tool-btn" id="detail-sticker-btn" title="表情包">🎭</button>
-                                        <button class="send-tool-btn" id="detail-voice-btn" title="语音">🎤</button>
-                                        <button class="send-tool-btn" id="detail-redpack-btn" title="红包">🧧</button>
-                                        <button class="send-tool-btn" id="detail-attachment-btn" title="附件">📁</button>
-                                    </div>
-
-                                    <button class="send-message-btn" id="detail-send-btn">发送</button>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-                `;
-          this.bindEvents();
-          this.bindDetailSendEvents();
-        }
-      }
-    }
-
-    // 添加好友
-    async addFriend() {
-      const nameInput = document.getElementById('friend-name');
-      const numberInput = document.getElementById('friend-number');
-
-      if (!nameInput || !numberInput) {
-        this.showMessage('输入框未找到', 'error');
-        return;
-      }
-
-      const name = nameInput.value.trim();
-      const number = numberInput.value.trim();
-
-      if (!name || !number) {
-        this.showMessage('请填写所有字段', 'error');
-        return;
-      }
-
-      // 无需检查重复，因为不再使用本地存储
-      // 上下文编辑器会处理重复消息
-
-      // 调用上下文编辑器添加到最新楼层
-      try {
-        await this.addToContext(name, number);
-        this.showMessage('好友添加成功，已编辑到最新楼层！', 'success');
-
-        // 延迟返回列表
-        setTimeout(() => {
-          this.showMessageList();
-        }, 1500);
-      } catch (error) {
-        console.error('[Message App] 添加到上下文失败:', error);
-        this.showMessage('好友添加成功，但编辑到上下文失败', 'warning');
-      }
-    }
-
-    // 删除好友
-    async deleteFriend(friendId, friendName) {
-      // 确认删除
-      if (
-        !confirm(
-          `确定要删除好友 "${friendName}" (ID: ${friendId}) 吗？\n\n这会删除消息中的好友格式标记和相关的消息记录。`,
-        )
-      ) {
-        return;
-      }
-
-      try {
-        // 使用上下文监控器提取相关消息
-        if (!window.contextMonitor) {
-          throw new Error('上下文监控器未加载');
-        }
-
-        this.showMessage('正在查找相关消息...', 'info');
-
-        // 获取聊天消息
-        const chatData = await window.contextMonitor.getCurrentChatMessages();
-        if (!chatData || !chatData.messages) {
-          throw new Error('无法获取聊天消息');
-        }
-
-        // 查找包含该好友信息的消息
-        const messagesToProcess = [];
-
-        // 使用统一的正则表达式管理器
-        const contextMonitor =
-          window['contextMonitor'] || (window['ContextMonitor'] ? new window['ContextMonitor']() : null);
-        if (!contextMonitor) {
-          throw new Error('上下文监控器未初始化');
-        }
-
-        // 创建好友相关的匹配器
-        const friendMatchers = contextMonitor.createFriendMessageMatchers(friendId);
-        const friendNameMatcher = contextMonitor.createFriendNameMatcher(friendName);
-
-        // 创建好友格式标记的正则表达式
-        const friendFormatRegex = new RegExp(`\\[好友id\\|${friendName}\\|${friendId}\\]`, 'g');
-
-        chatData.messages.forEach((message, index) => {
-          if (message.mes && typeof message.mes === 'string') {
-            let messageModified = false;
-            let newMessageContent = message.mes;
-            let hasMyMessage = false;
-            let hasOtherMessage = false;
-
-            // 预处理：移除thinking标签包裹的内容进行检测
-            const messageForCheck = this.removeThinkingTags(message.mes);
-
-            // 检查是否包含好友格式标记（在移除thinking标签后的内容中）
-            if (friendFormatRegex.test(messageForCheck)) {
-              // 只移除不在thinking标签内的好友格式标记
-              newMessageContent = this.removePatternOutsideThinkingTags(message.mes, friendFormatRegex);
-              messageModified = newMessageContent !== message.mes;
-              if (messageModified) {
-                console.log(`[Message App] 消息 ${index} 包含好友格式标记，移除后内容: "${newMessageContent}"`);
-              }
-            }
-
-            // 检查是否包含我方消息或对方消息格式（也要排除thinking标签内的内容）
-            const messageForChatCheck = this.removeThinkingTags(message.mes);
-            hasMyMessage = friendMatchers.myMessage.test(messageForChatCheck);
-            hasOtherMessage = friendMatchers.otherMessage.test(messageForChatCheck);
-
-            console.log(`[Message App] 消息 ${index} 分析结果:`, {
-              hasFormatTag: messageModified,
-              hasMyMessage,
-              hasOtherMessage,
-              originalLength: message.mes.length,
-              newLength: newMessageContent.length,
-              preview: message.mes.substring(0, 50) + '...',
-            });
-
-            // 决定处理方式
-            if (hasMyMessage || hasOtherMessage) {
-              // 如果包含聊天记录格式，删除整条消息
-              messagesToProcess.push({
-                index: index,
-                id: message.id || index,
-                action: 'delete',
-                reason: '包含聊天记录格式',
-                originalContent: message.mes,
-                preview: message.mes.length > 50 ? message.mes.substring(0, 50) + '...' : message.mes,
-              });
-            } else if (messageModified) {
-              // 只是移除格式标记，不删除整条消息
-              messagesToProcess.push({
-                index: index,
-                id: message.id || index,
-                action: 'modify',
-                reason: '只移除好友格式标记',
-                originalContent: message.mes,
-                newContent: newMessageContent.trim(),
-                preview: message.mes.length > 50 ? message.mes.substring(0, 50) + '...' : message.mes,
-              });
-            }
-
-            // 重置正则表达式
-            friendFormatRegex.lastIndex = 0;
-            friendMatchers.myMessage.lastIndex = 0;
-            friendMatchers.otherMessage.lastIndex = 0;
-          }
-        });
-
-        if (messagesToProcess.length === 0) {
-          this.showMessage('未找到相关消息记录', 'warning');
-          return;
-        }
-
-        this.showMessage(`找到 ${messagesToProcess.length} 条相关消息，正在处理...`, 'info');
-
-        // 检查移动端上下文编辑器是否可用
-        if (!window.mobileContextEditor) {
-          throw new Error('移动端上下文编辑器未加载');
-        }
-
-        if (!window.mobileContextEditor.isSillyTavernReady()) {
-          throw new Error('SillyTavern未准备就绪');
-        }
-
-        // 从后往前处理，避免索引变化
-        const sortedMessages = messagesToProcess.sort((a, b) => b.index - a.index);
-        let processedCount = 0;
-
-        for (const msgInfo of sortedMessages) {
-          try {
-            console.log(`[Message App] 处理消息 ${msgInfo.index}:`, {
-              action: msgInfo.action,
-              reason: msgInfo.reason,
-              originalContent: msgInfo.originalContent?.substring(0, 100) + '...',
-              newContent: msgInfo.newContent?.substring(0, 100) + '...',
-            });
-
-            if (msgInfo.action === 'delete') {
-              // 删除整条消息（聊天记录）
-              console.log(`[Message App] 删除消息 ${msgInfo.index}: ${msgInfo.reason}`);
-              await window.mobileContextEditor.deleteMessage(msgInfo.index);
-              console.log(`[Message App] ✅ 已删除消息 ${msgInfo.index}`);
-            } else if (msgInfo.action === 'modify') {
-              // 修改消息内容（移除格式标记）
-              console.log(`[Message App] 修改消息 ${msgInfo.index}: ${msgInfo.reason}`);
-              if (msgInfo.newContent.length > 0) {
-                await window.mobileContextEditor.modifyMessage(msgInfo.index, msgInfo.newContent);
-                console.log(`[Message App] ✅ 已修改消息 ${msgInfo.index}, 新内容: "${msgInfo.newContent}"`);
-              } else {
-                // 如果移除格式标记后消息为空，则删除整条消息
-                console.log(`[Message App] 消息 ${msgInfo.index} 修改后为空，删除整条消息`);
-                await window.mobileContextEditor.deleteMessage(msgInfo.index);
-                console.log(`[Message App] ✅ 已删除空消息 ${msgInfo.index}`);
-              }
-            }
-            processedCount++;
-          } catch (error) {
-            console.error(`[Message App] ❌ 处理消息 ${msgInfo.index} 失败:`, error);
-          }
-        }
-
-        if (processedCount > 0) {
-          this.showMessage(`成功处理好友 "${friendName}" 相关的 ${processedCount} 条消息`, 'success');
-
-          // 刷新界面
-          setTimeout(() => {
-            this.refreshDeleteFriendList();
-          }, 1000);
-        } else {
-          this.showMessage('处理失败', 'error');
-        }
-      } catch (error) {
-        console.error('[Message App] 删除好友失败:', error);
-        this.showMessage(`删除好友失败: ${error.message}`, 'error');
-      }
-    }
-
-    // 添加到上下文
-    async addToContext(friendName, friendNumber) {
-      // 检查移动端上下文编辑器是否可用
-      if (!window.mobileContextEditor) {
-        throw new Error('移动端上下文编辑器未加载');
-      }
-
-      // 检查SillyTavern是否准备就绪
-      if (!window.mobileContextEditor.isSillyTavernReady()) {
-        throw new Error('SillyTavern未准备就绪');
-      }
-
-      // 格式化好友信息 - 使用固定的"好友id"文本
-      const friendInfo = `[好友id|${friendName}|${friendNumber}]`;
-
-      // 添加到最新楼层
-      try {
-        const messageIndex = await window.mobileContextEditor.addMessage(friendInfo, false, '系统');
-
-        console.log(`[Message App] 好友信息已添加到消息 ${messageIndex}: ${friendInfo}`);
-
-        // 自动保存已经在addMessage方法中完成
-
-        return messageIndex;
-      } catch (error) {
-        console.error('[Message App] 添加消息失败:', error);
-        throw error;
-      }
-    }
-
-    // 获取随机头像
-    getRandomAvatar() {
-      // 返回空字符串，不显示表情符号，只显示背景图片
-      return '';
-    }
-
-    // 🌟 新增：格式化文件大小
-    formatFileSizeHelper(bytes) {
-      if (bytes === 0) return '0 Bytes';
-
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    // 🌟 新增：处理新的图片消息
-    handleNewImageMessage(imageInfo) {
-      try {
-        console.log('[Message App] 🔍 处理新图片消息:', imageInfo);
-
-        // 检查是否为当前聊天对象的消息
-        if (imageInfo.chatTarget !== this.currentFriendId) {
-          console.log('[Message App] 🔍 图片消息不属于当前聊天对象，跳过');
-          return;
-        }
-
-        // 创建图片消息数据 - 明确标记为用户发送
-        const imageMessage = {
-          type: 'sent', // 用户发送的消息
-          subType: 'image', // 图片类型
-          isUser: true, // 明确标记为用户消息
-          senderType: 'user', // 发送者类型
-          friendName: imageInfo.chatName,
-          qqNumber: imageInfo.chatTarget,
-          content: '[图片]', // 简化内容显示
-          imagePath: imageInfo.imagePath,
-          fileName: imageInfo.fileName,
-          fileSize: imageInfo.fileSize,
-          fileType: imageInfo.fileType,
-          time: imageInfo.time,
-          timestamp: Date.now(),
-          isImage: true,
-          // 🌟 关键：生成简洁的HTML显示内容
-          detailedContent: this.generateSimpleImageHTML(imageInfo.imagePath, imageInfo.fileName),
-        };
-
-        console.log('[Message App] 🔍 创建的图片消息数据:', imageMessage);
-
-        // 添加到当前消息列表
-        this.addImageMessageToCurrentChat(imageMessage);
-
-        // 直接在界面中显示图片消息
-        this.displayImageMessageDirectly(imageInfo);
-
-        // 刷新界面显示
-        this.refreshMessageDisplay();
-      } catch (error) {
-        console.error('[Message App] ❌ 处理新图片消息失败:', error);
-      }
-    }
-
-    // 🌟 新增：生成图片HTML内容
-    generateImageHTML(imagePath, fileName) {
-      // 参考data-extractor.js的实现
-      return `<img src="${imagePath}" alt="${fileName}"
-        class="qq-image-message"
-        style="max-width: 200px; max-height: 200px; border-radius: 8px; margin: 4px; cursor: pointer; background: transparent;"
-        onclick="this.style.transform='scale(1.5)'; setTimeout(() => this.style.transform='scale(1)', 2000);"
-        title="${fileName}">`;
-    }
-
-    // 🌟 新增：生成简洁的图片HTML内容 - 用户发送的图片
-    generateSimpleImageHTML(imagePath, fileName) {
-      return `<img src="${imagePath}" alt="${fileName}"
-        class="user-sent-image"
-        style="
-          max-width: 200px;
-          max-height: 300px;
-          border-radius: 12px;
-          cursor: pointer;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-          object-fit: cover;
-        "
-        onclick="this.style.transform='scale(1.2)'; setTimeout(() => this.style.transform='scale(1)', 1500);"
-        title="点击放大">`;
-    }
-
-    // 🌟 新增：添加图片消息到当前聊天
-    addImageMessageToCurrentChat(imageMessage) {
-      try {
-        console.log('[Message App] 🔍 添加图片消息到聊天，当前好友ID:', this.currentFriendId);
-        console.log('[Message App] 🔍 friendsData存在:', !!this.friendsData);
-        console.log('[Message App] 🔍 friendsData类型:', typeof this.friendsData);
-
-        // 确保friendsData存在
-        if (!this.friendsData) {
-          console.warn('[Message App] ⚠️ friendsData不存在，初始化...');
-          this.friendsData = {};
-        }
-
-        // 确保当前好友数据存在
-        if (!this.friendsData[this.currentFriendId]) {
-          console.warn('[Message App] ⚠️ 当前好友数据不存在，创建...');
-          this.friendsData[this.currentFriendId] = {
-            friendId: this.currentFriendId,
-            friendName: this.currentFriendName || imageMessage.friendName,
-            messages: [],
-            lastMessage: '',
-            lastTime: '',
-          };
-        }
-
-        // 添加到消息列表
-        if (!this.friendsData[this.currentFriendId].messages) {
-          this.friendsData[this.currentFriendId].messages = [];
-        }
-
-        this.friendsData[this.currentFriendId].messages.push(imageMessage);
-
-        // 更新最后消息
-        this.friendsData[this.currentFriendId].lastMessage = '[图片消息]';
-        this.friendsData[this.currentFriendId].lastTime = imageMessage.time;
-
-        console.log('[Message App] ✅ 图片消息已添加到聊天记录');
-        console.log('[Message App] 🔍 当前好友消息数量:', this.friendsData[this.currentFriendId].messages.length);
-      } catch (error) {
-        console.error('[Message App] ❌ 添加图片消息失败:', error);
-      }
-    }
-
-    // 🌟 新增：刷新消息显示
-    refreshMessageDisplay() {
-      try {
-        console.log('[Message App] 🔍 开始刷新消息显示');
-        console.log('[Message App] 🔍 当前好友ID:', this.currentFriendId);
-        console.log('[Message App] 🔍 friendsData存在:', !!this.friendsData);
-
-        // 确保friendsData存在
-        if (!this.friendsData) {
-          console.warn('[Message App] ⚠️ friendsData不存在，无法刷新消息显示');
-          return;
-        }
-
-        // 刷新当前聊天的消息显示
-        if (this.currentFriendId && window.messageRenderer) {
-          console.log('[Message App] 🔍 刷新消息显示');
-
-          // 获取当前好友的消息
-          const friendData = this.friendsData[this.currentFriendId];
-          console.log('[Message App] 🔍 当前好友数据:', friendData);
-
-          if (friendData && friendData.messages) {
-            console.log('[Message App] 🔍 当前好友消息数量:', friendData.messages.length);
-
-            // 调用消息渲染器更新显示
-            if (typeof window.messageRenderer.renderMessages === 'function') {
-              console.log('[Message App] 🔍 使用renderMessages方法');
-              window.messageRenderer.renderMessages(friendData.messages);
-            } else if (typeof window.messageRenderer.refreshCurrentMessages === 'function') {
-              console.log('[Message App] 🔍 使用refreshCurrentMessages方法');
-              window.messageRenderer.refreshCurrentMessages();
-            } else {
-              console.warn('[Message App] ⚠️ 找不到合适的消息渲染方法');
-            }
-          } else {
-            console.warn('[Message App] ⚠️ 当前好友数据或消息列表不存在');
-          }
-        } else {
-          console.warn('[Message App] ⚠️ currentFriendId或messageRenderer不存在');
-        }
-
-        // 刷新好友列表（更新最后消息显示）
-        console.log('[Message App] 🔍 刷新好友列表UI');
-        this.refreshFriendListUI();
-
-        console.log('[Message App] ✅ 消息显示刷新完成');
-      } catch (error) {
-        console.error('[Message App] ❌ 刷新消息显示失败:', error);
-      }
-    }
-
-    // 🌟 新增：直接在消息列表中显示图片消息（简化版本）
-    displayImageMessageDirectly(imageInfo) {
-      try {
-        console.log('[Message App] 🔍 直接显示图片消息:', imageInfo);
-
-        // 查找消息列表容器
-        const messageContainer =
-          document.querySelector('.message-list') ||
-          document.querySelector('#message-list') ||
-          document.querySelector('.messages-container');
-
-        if (!messageContainer) {
-          console.warn('[Message App] ⚠️ 找不到消息列表容器，尝试创建...');
-          // 如果找不到容器，尝试在当前页面中创建一个临时显示
-          this.createTemporaryImageDisplay(imageInfo);
-          return;
-        }
-
-        // 创建图片消息HTML - 简洁的右侧显示
-        const imageMessageHTML = `
-          <div class="message-detail sent image-message" style="
-            display: flex;
-            justify-content: flex-end;
-            margin: 8px 10px;
-            padding: 0;
-          ">
-            <div class="user-image-container" style="
-              max-width: 70%;
-              display: flex;
-              justify-content: flex-end;
-            ">
-              <img src="${imageInfo.imagePath}"
-                   alt="${imageInfo.fileName}"
-                   class="user-sent-image"
-                   style="
-                     max-width: 200px;
-                     max-height: 300px;
-                     border-radius: 12px;
-                     cursor: pointer;
-                     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                     object-fit: cover;
-                   "
-                   onclick="this.style.transform='scale(1.2)'; setTimeout(() => this.style.transform='scale(1)', 1500);"
-                   title="点击放大">
-            </div>
-          </div>
-        `;
-
-        // 添加到消息容器
-        messageContainer.insertAdjacentHTML('beforeend', imageMessageHTML);
-
-        // 滚动到底部
-        messageContainer.scrollTop = messageContainer.scrollHeight;
-
-        console.log('[Message App] ✅ 图片消息已直接显示在界面中');
-      } catch (error) {
-        console.error('[Message App] ❌ 直接显示图片消息失败:', error);
-      }
-    }
-
-    // 🌟 新增：创建临时图片显示
-    createTemporaryImageDisplay(imageInfo) {
-      try {
-        console.log('[Message App] 🔍 创建临时图片显示');
-
-        // 在页面顶部创建一个临时的图片显示区域
-        const tempDisplay = document.createElement('div');
-        tempDisplay.id = 'temp-image-display';
-        tempDisplay.style.cssText = `
-          position: fixed;
-          top: 10px;
-          right: 10px;
-          z-index: 9999;
-          background: white;
-          border: 2px solid #4CAF50;
-          border-radius: 8px;
-          padding: 10px;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-          max-width: 300px;
-        `;
-
-        tempDisplay.innerHTML = `
-          <div style="margin-bottom: 8px; font-weight: bold; color: #4CAF50;">
-            📱 新图片消息
-          </div>
-          <div style="margin-bottom: 8px;">
-            <strong>发送给:</strong> ${imageInfo.chatName}
-          </div>
-          <div style="margin-bottom: 8px;">
-            <img src="${imageInfo.imagePath}"
-                 alt="${imageInfo.fileName}"
-                 style="max-width: 100%; border-radius: 4px; cursor: pointer;"
-                 onclick="this.style.transform='scale(1.2)'; setTimeout(() => this.style.transform='scale(1)', 1000);">
-          </div>
-          <div style="font-size: 12px; color: #666;">
-            ${imageInfo.fileName} | ${this.formatFileSizeHelper(imageInfo.fileSize)}
-          </div>
-          <button onclick="this.parentElement.remove()"
-                  style="margin-top: 8px; padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            关闭
-          </button>
-        `;
-
-        // 移除之前的临时显示
-        const existingTemp = document.getElementById('temp-image-display');
-        if (existingTemp) {
-          existingTemp.remove();
-        }
-
-        // 添加到页面
-        document.body.appendChild(tempDisplay);
-
-        // 5秒后自动移除
-        setTimeout(() => {
-          if (tempDisplay.parentElement) {
-            tempDisplay.remove();
-          }
-        }, 5000);
-
-        console.log('[Message App] ✅ 临时图片显示已创建');
-      } catch (error) {
-        console.error('[Message App] ❌ 创建临时图片显示失败:', error);
-      }
-    }
-
-    // 显示消息
-    showMessage(text, type = 'info') {
-      // 创建消息提示
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message-toast ${type}`;
-      messageDiv.textContent = text;
-      messageDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10000;
-            padding: 12px 24px;
-            border-radius: 25px;
-            color: white;
-            font-size: 14px;
-            max-width: 300px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            background: ${
-              type === 'error' ? '#ff4444' : type === 'success' ? '#4CAF50' : type === 'warning' ? '#FF9800' : '#2196F3'
-            };
-            animation: messageSlideIn 0.3s ease-out;
-        `;
-
-      // 添加动画样式
-      if (!document.getElementById('message-toast-style')) {
-        const style = document.createElement('style');
-        style.id = 'message-toast-style';
-        style.textContent = `
-                @keyframes messageSlideIn {
-                    from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
-                    to { transform: translateX(-50%) translateY(0); opacity: 1; }
-                }
-                @keyframes messageSlideOut {
-                    from { transform: translateX(-50%) translateY(0); opacity: 1; }
-                    to { transform: translateX(-50%) translateY(-100%); opacity: 0; }
-                }
-            `;
-        document.head.appendChild(style);
-      }
-
-      document.body.appendChild(messageDiv);
-
-      // 3秒后自动消失
-      setTimeout(() => {
-        messageDiv.style.animation = 'messageSlideOut 0.3s ease-out';
-        setTimeout(() => {
-          if (messageDiv.parentNode) {
-            messageDiv.parentNode.removeChild(messageDiv);
-          }
-        }, 300);
-      }, 3000);
-    }
-
-    // 打开聊天界面
-    openChat(friendId) {
-      // 使用好友渲染器获取好友信息
-      if (window.friendRenderer) {
-        const friend = window.friendRenderer.getFriendById(friendId);
-        if (friend) {
-          this.showMessageDetail(friendId, friend.name);
-        } else {
-          this.showMessage('好友信息未找到', 'error');
-        }
-      } else {
-        this.showMessageDetail(friendId, null);
-      }
-    }
-
-    // 显示消息详情页面
-    showMessageDetail(friendId, friendName) {
-     console.log(`[Message App] 显示消息详情: ${friendId}, ${friendName}`);
-
-    // --- 🔴 新增：点开即标记已读 ---
-    if (friendId && window.latestOrderMap) {
-      // 拿到这个人目前在酒馆里最新的消息 ID (权重)
-      const currentMax = window.latestOrderMap[friendId] || 0;
-      // 把它存进“已读名单”
-      localStorage.setItem(`lastRead_${friendId}`, currentMax);
-      console.log(`[Message App] 已将好友 ${friendId} 标记为已读，权重: ${currentMax}`);
-    }
-    // ----------------------------
-
-      this.currentView = 'messageDetail';
-      this.currentFriendId = friendId;
-      this.currentFriendName = friendName;
-      // 注意：currentIsGroup 状态在 selectFriend() 方法中已经设置
-
-      // 通知主框架更新应用状态
-      if (window.mobilePhone) {
-        const detailState = {
-          app: 'messages',
-          title: friendName || `好友 ${friendId}`,
-          view: 'messageDetail',
-          friendId: friendId,
-          friendName: friendName,
-        };
-        window.mobilePhone.pushAppState(detailState);
-      }
-
-      // 更新应用内容
-      this.updateAppContent();
-    }
-
-    // 立即应用好友专属背景
-    applyFriendSpecificBackground(friendId) {
-      try {
-        console.log(`[Message App] 立即应用好友专属背景: ${friendId}`);
-
-        // 确保styleConfigManager存在
-        if (!window.styleConfigManager) {
-          console.warn('[Message App] styleConfigManager未加载，无法应用好友背景');
-          return;
-        }
-
-        // 获取好友背景配置
-        const config = window.styleConfigManager.getConfig();
-        if (!config.friendBackgrounds || config.friendBackgrounds.length === 0) {
-          console.log('[Message App] 没有好友背景配置');
-          return;
-        }
-
-        // 查找当前好友的背景配置
-        const friendBackground = config.friendBackgrounds.find(bg => bg.friendId === friendId);
-        if (!friendBackground) {
-          console.log(`[Message App] 好友 ${friendId} 没有专属背景配置`);
-          return;
-        }
-
-        // 查找消息详情容器
-        const messageDetailContent = document.querySelector('.message-detail-content');
-        if (!messageDetailContent) {
-          console.warn('[Message App] 消息详情容器未找到');
-          return;
-        }
-
-        // 立即应用背景样式
-        const backgroundImage = friendBackground.backgroundImage || friendBackground.backgroundImageUrl;
-        if (backgroundImage) {
-          const rotation = parseFloat(friendBackground.rotation) || 0;
-          const scale = parseFloat(friendBackground.scale) || 1;
-          const backgroundPosition = friendBackground.backgroundPosition || 'center center';
-
-          // 直接设置内联样式，确保立即生效
-          messageDetailContent.style.backgroundImage = `url(${backgroundImage})`;
-          messageDetailContent.style.backgroundSize = 'cover';
-          messageDetailContent.style.backgroundPosition = backgroundPosition;
-          messageDetailContent.style.backgroundRepeat = 'no-repeat';
-          messageDetailContent.style.transform = `rotate(${rotation}deg) scale(${scale})`;
-          messageDetailContent.style.transformOrigin = 'center center';
-
-          console.log(`[Message App] ✅ 已立即应用好友 ${friendId} 的专属背景`);
-        }
-      } catch (error) {
-        console.error('[Message App] 应用好友专属背景失败:', error);
-      }
-    }
-
-    // 调试删除好友功能（不实际删除）
-    async debugDeleteFriend(friendId, friendName) {
-      console.log(`[Message App] 🔍 调试删除好友功能: ${friendName} (ID: ${friendId})`);
-
-      try {
-        // 使用上下文监控器提取相关消息
-        if (!window.contextMonitor) {
-          throw new Error('上下文监控器未加载');
-        }
-
-        // 获取聊天消息
-        const chatData = await window.contextMonitor.getCurrentChatMessages();
-        if (!chatData || !chatData.messages) {
-          throw new Error('无法获取聊天消息');
-        }
-
-        console.log(`[Message App] 📊 总共有 ${chatData.messages.length} 条消息`);
-
-        // 创建匹配器
-        const contextMonitor =
-          window['contextMonitor'] || (window['ContextMonitor'] ? new window['ContextMonitor']() : null);
-        const friendMatchers = contextMonitor.createFriendMessageMatchers(friendId);
-        const friendFormatRegex = new RegExp(`\\[好友id\\|${friendName}\\|${friendId}\\]`, 'g');
-
-        let foundMessages = [];
-
-        chatData.messages.forEach((message, index) => {
-          if (message.mes && typeof message.mes === 'string') {
-            let hasFormatTag = friendFormatRegex.test(message.mes);
-            let hasMyMessage = friendMatchers.myMessage.test(message.mes);
-            let hasOtherMessage = friendMatchers.otherMessage.test(message.mes);
-
-            if (hasFormatTag || hasMyMessage || hasOtherMessage) {
-              let newContent = message.mes.replace(friendFormatRegex, '');
-              foundMessages.push({
-                index,
-                hasFormatTag,
-                hasMyMessage,
-                hasOtherMessage,
-                originalContent: message.mes,
-                newContent: newContent.trim(),
-                wouldDelete: hasMyMessage || hasOtherMessage,
-                wouldModify: hasFormatTag && !hasMyMessage && !hasOtherMessage,
-                preview: message.mes.substring(0, 100) + (message.mes.length > 100 ? '...' : ''),
-              });
-            }
-
-            // 重置正则表达式
-            friendFormatRegex.lastIndex = 0;
-            friendMatchers.myMessage.lastIndex = 0;
-            friendMatchers.otherMessage.lastIndex = 0;
-          }
-        });
-
-        console.log(`[Message App] 📋 找到 ${foundMessages.length} 条相关消息:`);
-        foundMessages.forEach(msg => {
-          console.log(`[Message App] 消息 ${msg.index}:`, {
-            操作类型: msg.wouldDelete ? '🗑️ 删除整条消息' : msg.wouldModify ? '✏️ 修改消息内容' : '❓ 未知',
-            包含格式标记: msg.hasFormatTag ? '✅' : '❌',
-            包含我方消息: msg.hasMyMessage ? '✅' : '❌',
-            包含对方消息: msg.hasOtherMessage ? '✅' : '❌',
-            原始内容: msg.preview,
-            修改后内容: msg.newContent ? msg.newContent.substring(0, 100) + '...' : '(空)',
-          });
-        });
-
-        return foundMessages;
-      } catch (error) {
-        console.error('[Message App] 调试删除好友失败:', error);
-        return [];
-      }
-    }
-
-    // 绑定创建群聊事件
-    bindCreateGroupEvents(appContent) {
-      if (this.currentTab !== 'createGroup') return;
-
-      // 全选好友按钮
-      const selectAllBtn = appContent.querySelector('#select-all-friends');
-      if (selectAllBtn) {
-        selectAllBtn.addEventListener('click', () => {
-          this.toggleSelectAllFriends();
-        });
-      }
-
-      // 好友选择事件
-      const friendItems = appContent.querySelectorAll('.friend-selection-item');
-      friendItems.forEach(item => {
-        const checkbox = item.querySelector('.friend-checkbox-input');
-        if (checkbox) {
-          checkbox.addEventListener('change', e => {
-            this.handleFriendSelection(e.target, item);
-          });
-        }
-      });
-
-      // 创建群聊提交按钮
-      const submitBtn = appContent.querySelector('#create-group-submit');
-      if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-          this.createGroup();
-        });
-      }
-    }
-
-    // 绑定删除群聊事件
-    bindDeleteGroupEvents(appContent) {
-      if (this.currentTab !== 'deleteGroup') return;
-
-      // 刷新群聊列表按钮
-      const refreshBtn = appContent.querySelector('#refresh-group-list');
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-          this.refreshDeleteGroupList();
-        });
-      }
-
-      // 删除群聊按钮
-      const deleteGroupBtns = appContent.querySelectorAll('.delete-group-btn');
-      deleteGroupBtns.forEach(btn => {
-        btn.addEventListener('click', e => {
-          const target = e.currentTarget;
-          const groupId = target.getAttribute('data-group-id');
-          const groupName = target.getAttribute('data-group-name');
-          if (groupId && groupName) {
-            this.deleteGroup(groupId, groupName);
-          }
-        });
-      });
-    }
-
-    // 切换全选好友
-    toggleSelectAllFriends() {
-      const checkboxes = document.querySelectorAll('.friend-checkbox-input');
-      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-
-      checkboxes.forEach(cb => {
-        cb.checked = !allChecked;
-        const item = cb.closest('.friend-selection-item');
-        this.handleFriendSelection(cb, item);
-      });
-
-      // 更新按钮文本
-      const selectAllBtn = document.querySelector('#select-all-friends');
-      if (selectAllBtn) {
-        selectAllBtn.textContent = allChecked ? '全选' : '取消全选';
-      }
-    }
-
-    // 处理好友选择
-    handleFriendSelection(checkbox, item) {
-      const friendId = item.getAttribute('data-friend-id');
-      const friendName = item.getAttribute('data-friend-name');
-      const selectedMembersContainer = document.querySelector('#selected-members');
-
-      if (checkbox.checked) {
-        // 添加到已选成员
-        const memberElement = document.createElement('div');
-        memberElement.className = 'selected-member';
-        memberElement.setAttribute('data-member-id', friendId);
-        memberElement.innerHTML = `
-                <span class="member-name">${friendName}</span>
-                <button class="remove-member-btn" onclick="this.parentElement.remove(); document.querySelector('#friend-${friendId}').checked = false;">✕</button>
-            `;
-        selectedMembersContainer.appendChild(memberElement);
-      } else {
-        // 从已选成员中移除
-        const memberElement = selectedMembersContainer.querySelector(`[data-member-id="${friendId}"]`);
-        if (memberElement) {
-          memberElement.remove();
-        }
-      }
-    }
-
-    // 创建群聊
-    async createGroup() {
-      const groupNameInput = document.getElementById('group-name');
-      const groupIdInput = document.getElementById('group-id');
-
-      if (!groupNameInput || !groupIdInput) {
-        this.showMessage('输入框未找到', 'error');
-        return;
-      }
-
-      const groupName = groupNameInput.value.trim();
-      const groupId = groupIdInput.value.trim();
-
-      if (!groupName || !groupId) {
-        this.showMessage('请填写群聊名称和群聊ID', 'error');
-        return;
-      }
-
-      // 获取已选成员
-      const selectedMembers = this.getSelectedMembers();
-      if (selectedMembers.length === 0) {
-        this.showMessage('请至少选择一个群成员', 'error');
-        return;
-      }
-
-      try {
-        await this.addGroupToContext(groupName, groupId, selectedMembers);
-        this.showMessage('群聊创建成功，已编辑到最新楼层！', 'success');
-
-        // 延迟返回列表
-        setTimeout(() => {
-          this.showMessageList();
-        }, 1500);
-      } catch (error) {
-        console.error('[Message App] 创建群聊失败:', error);
-        this.showMessage('群聊创建失败', 'error');
-      }
-    }
-
-    // 获取已选成员
-    getSelectedMembers() {
-      const selectedMembers = ['我']; // 群主默认在群里
-      const memberElements = document.querySelectorAll('#selected-members .selected-member:not(.default-member)');
-
-      memberElements.forEach(element => {
-        const memberName = element.querySelector('.member-name').textContent;
-        selectedMembers.push(memberName);
-      });
-
-      return selectedMembers;
-    }
-
-    // 将群聊信息添加到上下文
-    async addGroupToContext(groupName, groupId, members) {
-      // 检查移动端上下文编辑器是否可用
-      if (!window.mobileContextEditor) {
-        throw new Error('移动端上下文编辑器未加载');
-      }
-
-      // 检查SillyTavern是否准备就绪
-      if (!window.mobileContextEditor.isSillyTavernReady()) {
-        throw new Error('SillyTavern未准备就绪');
-      }
-
-      // 格式化群聊信息：[群聊|群名|群ID|群成员]
-      const membersStr = members.join('、');
-      const groupInfo = `[群聊|${groupName}|${groupId}|${membersStr}]`;
-
-      // 添加到最新楼层
-      try {
-        const messageIndex = await window.mobileContextEditor.addMessage(groupInfo, false, '系统');
-        console.log(`[Message App] 群聊信息已添加到消息 ${messageIndex}: ${groupInfo}`);
-        return messageIndex;
-      } catch (error) {
-        console.error('[Message App] 添加群聊消息失败:', error);
-        throw error;
-      }
-    }
-
-    // 删除群聊
-    async deleteGroup(groupId, groupName) {
-      // 确认删除
-      if (
-        !confirm(
-          `确定要删除群聊 "${groupName}" (ID: ${groupId}) 吗？\n\n这会删除消息中的群聊格式标记和相关的消息记录。`,
-        )
-      ) {
-        return;
-      }
-
-      try {
-        // 使用类似删除好友的逻辑
-        if (!window.contextMonitor) {
-          throw new Error('上下文监控器未加载');
-        }
-
-        this.showMessage('正在查找相关群聊消息...', 'info');
-
-        // 获取聊天消息
-        const chatData = await window.contextMonitor.getCurrentChatMessages();
-        if (!chatData || !chatData.messages) {
-          throw new Error('无法获取聊天消息');
-        }
-
-        // 查找包含该群聊信息的消息
-        const messagesToProcess = [];
-
-        // 创建所有可能包含群聊ID的格式正则表达式
-        // 只要[]内任何位置包含目标ID就匹配
-        const allGroupFormatsRegex = new RegExp(`\\[[^\\]]*\\|${groupId}\\|[^\\]]*\\]|\\[[^\\]]*\\|${groupId}\\]`, 'g');
-
-        chatData.messages.forEach((message, index) => {
-          if (message.mes && typeof message.mes === 'string') {
-            let messageModified = false;
-            let newMessageContent = message.mes;
-
-            // 预处理：移除thinking标签包裹的内容进行检测
-            const messageForCheck = this.removeThinkingTags(message.mes);
-
-            // 检查是否包含群聊格式标记（在移除thinking标签后的内容中）
-            if (allGroupFormatsRegex.test(messageForCheck)) {
-              // 只移除不在thinking标签内的群聊格式标记
-              newMessageContent = this.removePatternOutsideThinkingTags(message.mes, allGroupFormatsRegex);
-              messageModified = newMessageContent !== message.mes;
-              if (messageModified) {
-                console.log(`[Message App] 消息 ${index} 包含群聊格式标记，移除后内容: "${newMessageContent}"`);
-              }
-            }
-
-            if (messageModified) {
-              messagesToProcess.push({
-                index: index,
-                id: message.id || index,
-                action: newMessageContent.trim().length > 0 ? 'modify' : 'delete',
-                reason: '移除群聊格式标记',
-                originalContent: message.mes,
-                newContent: newMessageContent.trim(),
-                preview: message.mes.length > 50 ? message.mes.substring(0, 50) + '...' : message.mes,
-              });
-            }
-
-            // 重置正则表达式
-            allGroupFormatsRegex.lastIndex = 0;
-          }
-        });
-
-        if (messagesToProcess.length === 0) {
-          this.showMessage('未找到相关群聊记录', 'warning');
-          return;
-        }
-
-        this.showMessage(`找到 ${messagesToProcess.length} 条相关消息，正在处理...`, 'info');
-
-        // 检查移动端上下文编辑器是否可用
-        if (!window.mobileContextEditor) {
-          throw new Error('移动端上下文编辑器未加载');
-        }
-
-        if (!window.mobileContextEditor.isSillyTavernReady()) {
-          throw new Error('SillyTavern未准备就绪');
-        }
-
-        // 从后往前处理，避免索引变化
-        const sortedMessages = messagesToProcess.sort((a, b) => b.index - a.index);
-        let processedCount = 0;
-
-        for (const msgInfo of sortedMessages) {
-          try {
-            if (msgInfo.action === 'delete') {
-              console.log(`[Message App] 删除消息 ${msgInfo.index}: ${msgInfo.reason}`);
-              await window.mobileContextEditor.deleteMessage(msgInfo.index);
-              console.log(`[Message App] ✅ 已删除消息 ${msgInfo.index}`);
-            } else if (msgInfo.action === 'modify') {
-              console.log(`[Message App] 修改消息 ${msgInfo.index}: ${msgInfo.reason}`);
-              await window.mobileContextEditor.modifyMessage(msgInfo.index, msgInfo.newContent);
-              console.log(`[Message App] ✅ 已修改消息 ${msgInfo.index}, 新内容: "${msgInfo.newContent}"`);
-            }
-            processedCount++;
-          } catch (error) {
-            console.error(`[Message App] ❌ 处理消息 ${msgInfo.index} 失败:`, error);
-          }
-        }
-
-        if (processedCount > 0) {
-          this.showMessage(`成功处理群聊 "${groupName}" 相关的 ${processedCount} 条消息`, 'success');
-
-          // 刷新界面
-          setTimeout(() => {
-            this.refreshDeleteGroupList();
-          }, 1000);
-        } else {
-          this.showMessage('处理失败', 'error');
-        }
-      } catch (error) {
-        console.error('[Message App] 删除群聊失败:', error);
-        this.showMessage(`删除群聊失败: ${error.message}`, 'error');
-      }
-    }
-
-    // 刷新删除群聊列表
-    refreshDeleteGroupList() {
-      if (this.currentView === 'addFriend' && this.currentTab === 'deleteGroup') {
-        this.updateAppContent();
-      }
-    }
-
-    // 切换工具栏显示状态
-    toggleToolsFloatingPanel() {
-      const sendTools = document.querySelector('.send-tools');
-
-      if (!sendTools) {
-        console.warn('[Message App] 找不到工具栏元素');
-        return;
-      }
-
-      // 切换显示状态
-      if (sendTools.style.display === 'none') {
-        // 显示工具栏
-        sendTools.style.display = 'flex';
-        console.log('[Message App] 工具栏已显示');
-      } else {
-        // 隐藏工具栏
-        sendTools.style.display = 'none';
-        console.log('[Message App] 工具栏已隐藏');
-      }
-    }
-
-    // 调试工具切换按钮
-    debugToolToggleButton() {
-      console.log('[Message App Debug] 检查工具切换按钮状态:');
-      console.log('  - 当前视图:', this.currentView);
-      console.log('  - 当前好友ID:', this.currentFriendId);
-
-      const toggleBtn = document.querySelector('#detail-tool-toggle-btn');
-      console.log('  - 工具切换按钮存在:', !!toggleBtn);
-
-      if (toggleBtn) {
-        console.log('  - 按钮可见:', toggleBtn.style.display !== 'none');
-        console.log('  - 按钮文本:', toggleBtn.textContent);
-        console.log('  - 按钮位置:', toggleBtn.getBoundingClientRect());
-      }
-
-      const sendTools = document.querySelector('.send-tools');
-      console.log('  - 发送工具区域存在:', !!sendTools);
-
-      if (sendTools) {
-        console.log('  - 发送工具区域可见:', sendTools.style.display !== 'none');
-      }
-
-      const sendInputContainer = document.querySelector('.send-input-container');
-      console.log('  - 发送输入容器存在:', !!sendInputContainer);
-
-      if (sendInputContainer) {
-        console.log('  - 容器内的按钮数量:', sendInputContainer.querySelectorAll('button').length);
-        const buttons = sendInputContainer.querySelectorAll('button');
-        buttons.forEach((btn, index) => {
-          console.log(`    按钮${index + 1}: ${btn.className} - ${btn.textContent}`);
-        });
-      }
-    }
-
-    // 强制刷新消息详情页面
-    forceRefreshMessageDetailPage() {
-      console.log('[Message App] 🔄 强制刷新消息详情页面...');
-
-      if (this.currentView !== 'messageDetail' || !this.currentFriendId) {
-        console.warn('[Message App] 当前不在消息详情页面');
-        return;
-      }
-
-      // 重新触发消息详情异步加载
-      setTimeout(() => {
-        this.loadMessageDetailAsync();
-      }, 100);
-
-      console.log('[Message App] ✅ 已触发强制刷新');
     }
 
     /**
-     * 清理事件监听器
+     * 获取当前好友名称
      */
-    cleanup() {
-      try {
-        if (this.isEventListening && this.eventSource && this.event_types) {
-          if (typeof this.eventSource.off === 'function') {
-            this.eventSource.off(this.event_types.MESSAGE_RECEIVED, this.onMessageReceived);
-            console.log('[Message App] 已清理事件监听器');
-          }
-        }
-
-        // 清理轮询
-        if (this.pollingInterval) {
-          clearInterval(this.pollingInterval);
-          this.pollingInterval = null;
-        }
-
-        // 取消延迟渲染
-        this.cancelDelayedRender();
-
-        this.isEventListening = false;
-      } catch (error) {
-        console.error('[Message App] 清理事件监听器失败:', error);
+    getCurrentFriendName() {
+      if (window.friendRenderer && this.currentFriendId) {
+        const friend = window.friendRenderer.getFriendById(this.currentFriendId);
+        return friend ? friend.name : null;
       }
+      return null;
     }
 
-    // 调试thinking标签功能
-    debugThinkingTagsFunction(testText) {
-      console.log('[Message App Debug] 🧠 测试thinking标签功能');
-
-      const sampleText =
-        testText ||
-        `
-测试内容1 [好友id|张三|123456]
-<thinking>
-这里是思考内容，包含一个好友：[好友id|李四|789012]
-还有群聊：[群聊|测试群|555|张三、李四]
-</thinking>
-测试内容2 [群聊|工作群|888|张三、王五]
-<think>
-另一个思考：[好友id|王五|333444]
-</think>
-正常内容 [好友id|赵六|666777]
-        `;
-
-      console.log('原始文本:', sampleText);
-      console.log('');
-
-      // 测试移除thinking标签
-      const textWithoutThinking = this.removeThinkingTags(sampleText);
-      console.log('移除thinking标签后:', textWithoutThinking);
-      console.log('');
-
-      // 测试好友格式检测
-      const friendRegex = /\[好友id\|([^|]+)\|([^|]+)\]/g;
-      console.log('好友格式匹配（原始文本）:');
-      let match;
-      friendRegex.lastIndex = 0;
-      while ((match = friendRegex.exec(sampleText)) !== null) {
-        const start = match.index;
-        const end = match.index + match[0].length;
-        const isInThinking = this.isPatternInsideThinkingTags(sampleText, start, end);
-        console.log(`  - ${match[0]} (位置${start}-${end}) 在thinking内: ${isInThinking}`);
-      }
-      console.log('');
-
-      // 测试移除thinking外的好友格式
-      const cleanedText = this.removePatternOutsideThinkingTags(sampleText, /\[好友id\|([^|]+)\|([^|]+)\]/g);
-      console.log('移除thinking外好友格式后:', cleanedText);
-      console.log('');
-
-      // 测试群聊格式
-      const groupRegex = /\[群聊\|([^|]+)\|([^|]+)\|([^\]]+)\]/g;
-      console.log('群聊格式匹配（原始文本）:');
-      groupRegex.lastIndex = 0;
-      while ((match = groupRegex.exec(sampleText)) !== null) {
-        const start = match.index;
-        const end = match.index + match[0].length;
-        const isInThinking = this.isPatternInsideThinkingTags(sampleText, start, end);
-        console.log(`  - ${match[0]} (位置${start}-${end}) 在thinking内: ${isInThinking}`);
-      }
-
-      const cleanedText2 = this.removePatternOutsideThinkingTags(cleanedText, /\[群聊\|([^|]+)\|([^|]+)\|([^\]]+)\]/g);
-      console.log('移除thinking外群聊格式后:', cleanedText2);
+    /**
+     * 获取消息统计信息
+     */
+    getMessageStats(friendId = null) {
+      const targetId = friendId || this.currentFriendId;
+      if (!targetId) return null;
 
       return {
-        original: sampleText,
-        withoutThinking: textWithoutThinking,
-        afterFriendRemoval: cleanedText,
-        afterGroupRemoval: cleanedText2,
+        friendId: targetId,
+        myMessagesCount: this.myMessages.length,
+        otherMessagesCount: this.otherMessages.length,
+        groupMessagesCount: this.groupMessages.length,
+        totalCount: this.allMessages.length,
+        lastMessageTime:
+          this.allMessages.length > 0 ? this.allMessages[this.allMessages.length - 1].messageTimestamp : null,
       };
     }
 
-    // 调试好友渲染器的thinking标签处理
-    debugFriendRendererThinking() {
-      console.log('[Message App Debug] 🔍 检查好友渲染器的thinking标签处理');
-
-      // 检查好友渲染器是否存在
-      if (!window.friendRenderer) {
-        console.warn('❌ 好友渲染器不存在');
-        return {
-          error: '好友渲染器不存在',
-        };
+    /**
+     * 性能监控
+     */
+    showPerformanceIndicator(message, duration = 2000) {
+      let indicator = document.querySelector('.performance-indicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.className = 'performance-indicator';
+        document.body.appendChild(indicator);
       }
 
-      console.log('✅ 好友渲染器已加载');
+      indicator.textContent = message;
+      indicator.classList.add('show');
 
-      // 检查好友渲染器是否有thinking标签处理方法
-      const hasRemoveThinking = typeof window.friendRenderer.removeThinkingTags === 'function';
-      const hasPatternOutside = typeof window.friendRenderer.removePatternOutsideThinkingTags === 'function';
+      setTimeout(() => {
+        indicator.classList.remove('show');
+      }, duration);
+    }
 
-      console.log('好友渲染器方法检查:');
-      console.log('  - removeThinkingTags方法:', hasRemoveThinking ? '✅ 存在' : '❌ 不存在');
-      console.log('  - removePatternOutsideThinkingTags方法:', hasPatternOutside ? '✅ 存在' : '❌ 不存在');
-
-      // 获取当前提取的好友列表
-      let extractedFriends = [];
-      try {
-        if (typeof window.friendRenderer.extractFriendsFromContext === 'function') {
-          extractedFriends = window.friendRenderer.extractFriendsFromContext();
-          console.log(`当前提取的好友数量: ${extractedFriends.length}`);
-
-          // 显示前5个好友的详情
-          extractedFriends.slice(0, 5).forEach((friend, index) => {
-            console.log(`好友 ${index + 1}:`, {
-              name: friend.name,
-              number: friend.number,
-              source: friend.source || '未知来源',
-            });
-          });
-        }
-      } catch (error) {
-        console.error('❌ 提取好友列表失败:', error);
-      }
-
-      // 建议修复方案
-      if (!hasRemoveThinking || !hasPatternOutside) {
-        console.log('');
-        console.log('🔧 修复建议:');
-        console.log('需要在好友渲染器中添加thinking标签处理方法。');
-        console.log('可以将MessageApp中的thinking处理方法复制到好友渲染器中。');
-
-        if (
-          window.friendRenderer.addThinkingTagSupport &&
-          typeof window.friendRenderer.addThinkingTagSupport === 'function'
-        ) {
-          console.log('');
-          console.log('🚀 尝试自动修复...');
-          try {
-            // 将MessageApp的thinking方法添加到好友渲染器
-            window.friendRenderer.removeThinkingTags = this.removeThinkingTags.bind(this);
-            window.friendRenderer.isPatternInsideThinkingTags = this.isPatternInsideThinkingTags.bind(this);
-            window.friendRenderer.removePatternOutsideThinkingTags = this.removePatternOutsideThinkingTags.bind(this);
-
-            console.log('✅ 已将thinking处理方法添加到好友渲染器');
-
-            // 触发重新提取
-            if (typeof window.friendRenderer.refresh === 'function') {
-              window.friendRenderer.refresh();
-              console.log('✅ 已触发好友渲染器刷新');
+    /**
+     * 获取性能统计信息
+     */
+    getPerformanceStats() {
+      return {
+        totalMessages: this.allMessages.length,
+        loadedPages: this.pagination.currentPage + 1,
+        totalPages: this.pagination.totalPages,
+        cacheSize: this.renderCache.size,
+        currentPageSize: this.pagination.pageSize,
+        virtualScrolling: this.virtualScrolling,
+        memoryUsage: performance.memory
+          ? {
+              used: Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB',
+              total: Math.round(performance.memory.totalJSHeapSize / 1048576) + 'MB',
             }
-          } catch (error) {
-            console.error('❌ 自动修复失败:', error);
-          }
-        }
-      }
-
-      return {
-        hasThinkingSupport: hasRemoveThinking && hasPatternOutside,
-        friendCount: extractedFriends.length,
-        friends: extractedFriends.slice(0, 3), // 返回前3个好友作为示例
-        canAutoFix: typeof window.friendRenderer.addThinkingTagSupport === 'function',
+          : '不可用',
       };
     }
 
-    // 移除thinking标签包裹的内容
-    removeThinkingTags(text) {
-      if (!text || typeof text !== 'string') {
-        return text;
-      }
-
-      // 移除 <think>...</think> 和 <thinking>...</thinking> 标签及其内容
-      const thinkingTagRegex = /<think>[\s\S]*?<\/think>|<thinking>[\s\S]*?<\/thinking>/gi;
-      return text.replace(thinkingTagRegex, '');
+    /**
+     * 清理缓存
+     */
+    clearCache() {
+      this.renderCache.clear();
+      this.messageCache.clear();
+      console.log('[Message Renderer] 缓存已清理');
+      this.showPerformanceIndicator('缓存已清理', 1500);
     }
 
-    // 检查格式标记是否在thinking标签内
-    isPatternInsideThinkingTags(text, patternStart, patternEnd) {
-      if (!text || typeof text !== 'string') {
-        return false;
+    /**
+     * 调试方法
+     */
+    debug() {
+      console.group('[Message Renderer] 调试信息');
+      console.log('当前好友ID:', this.currentFriendId);
+      console.log('我方消息数量:', this.myMessages.length);
+      console.log('对方消息数量:', this.otherMessages.length);
+      console.log('群聊消息数量:', this.groupMessages.length);
+      console.log('总消息数量:', this.allMessages.length);
+      console.log('上下文监控器状态:', !!this.contextMonitor);
+      console.log('好友姓名映射数量:', this.friendNameToIdMap ? this.friendNameToIdMap.size : 0);
+      console.log('群聊姓名映射数量:', this.groupNameToIdMap ? this.groupNameToIdMap.size : 0);
+      console.log('性能统计:', this.getPerformanceStats());
+      if (this.allMessages.length > 0) {
+        console.log('消息样例:', this.allMessages[0]);
       }
-
-      const thinkingTagRegex = /<think>[\s\S]*?<\/think>|<thinking>[\s\S]*?<\/thinking>/gi;
-      let match;
-
-      while ((match = thinkingTagRegex.exec(text)) !== null) {
-        const thinkStart = match.index;
-        const thinkEnd = match.index + match[0].length;
-
-        // 检查格式标记是否完全在thinking标签内
-        if (patternStart >= thinkStart && patternEnd <= thinkEnd) {
-          return true;
-        }
+      if (this.friendNameToIdMap && this.friendNameToIdMap.size > 0) {
+        console.log('好友姓名映射:', Array.from(this.friendNameToIdMap.entries()));
       }
-
-      return false;
+      if (this.groupNameToIdMap && this.groupNameToIdMap.size > 0) {
+        console.log('群聊姓名映射:', Array.from(this.groupNameToIdMap.entries()));
+      }
+      console.groupEnd();
     }
-
-    // 只移除不在thinking标签内的格式标记
-    removePatternOutsideThinkingTags(text, pattern) {
-      if (!text || typeof text !== 'string') {
-        return text;
-      }
-
-      // 创建新的正则表达式实例，避免lastIndex问题
-      const newPattern = new RegExp(pattern.source, pattern.flags);
-      let result = text;
-      const replacements = [];
-      let match;
-
-      // 找到所有匹配
-      while ((match = newPattern.exec(text)) !== null) {
-        const matchStart = match.index;
-        const matchEnd = match.index + match[0].length;
-
-        // 检查这个匹配是否在thinking标签内
-        if (!this.isPatternInsideThinkingTags(text, matchStart, matchEnd)) {
-          replacements.push({
-            start: matchStart,
-            end: matchEnd,
-            text: match[0],
-          });
-        }
-      }
-
-      // 从后往前替换，避免索引问题
-      replacements.reverse().forEach(replacement => {
-        result = result.substring(0, replacement.start) + result.substring(replacement.end);
-      });
-
-      return result;
-    }
-  }
+  };
 
   // 创建全局实例
-  window.MessageApp = MessageApp;
+  window.MessageRenderer = MessageRenderer;
+  window.messageRenderer = new MessageRenderer();
 
-  // 为mobile-phone.js提供的接口
-  window.getMessageAppContent = function () {
-    console.log('[Message App] 获取应用内容');
-
-    if (!window.messageApp) {
-      console.log('[Message App] 创建新实例');
-      window.messageApp = new MessageApp();
+  // 为message-app提供的接口
+  window.renderMessageDetailForFriend = async function (friendId, friendName) {
+    if (!window.messageRenderer) {
+      console.error('[Message Renderer] 消息渲染器未加载');
+      return '<div>消息渲染器未加载</div>';
     }
 
-    // 检查实例是否已经初始化完成
-    if (!window.messageApp || window.messageApp.currentView === undefined) {
-      console.log('[Message App] 实例未完全初始化，返回加载占位符');
-      return `
-            <div class="messages-app">
-                <div class="loading-placeholder">
-                    <div class="loading-icon">⏳</div>
-                    <div class="loading-text">正在加载消息应用...</div>
-                </div>
-            </div>
-        `;
-    }
-
-    // 确保currentView有效
-    if (!['list', 'addFriend', 'messageDetail'].includes(window.messageApp.currentView)) {
-      console.log('[Message App] 重置currentView为list');
-      window.messageApp.currentView = 'list';
-    }
-
-    const content = window.messageApp.getAppContent();
-    console.log('[Message App] 返回内容，长度:', content.length, '当前视图:', window.messageApp.currentView);
-    return content;
+    return await window.messageRenderer.renderMessageDetail(friendId, friendName);
   };
 
-  window.bindMessageAppEvents = function () {
-    console.log('[Message App] 绑定应用事件');
-    if (window.messageApp) {
-      window.messageApp.bindEvents();
-      console.log('[Message App] 事件绑定完成');
-    } else {
-      console.warn('[Message App] 应用实例不存在');
+  window.bindMessageDetailEvents = function () {
+    if (window.messageRenderer) {
+      window.messageRenderer.bindMessageDetailEvents();
     }
   };
 
-  console.log('[Message App] 信息应用模块加载完成');
-} // 结束 if (typeof window.MessageApp === 'undefined') 检查
-
-(function injectTheUltimateSystemV12() {
-    /**
-     * 【第一部分：永久好友配置区】
-     */
-    const PERMANENT_CONTACTS = {
-        "103": { name: "陈一众", tag: "❤️", isSpecial: true, avatar: "你的Github链接" },
-        "102": { name: "曹信", tag: "❤️", isSpecial: true, avatar: "你的Github链接" },
-        "104": { name: "张主任", tag: "✨", isSpecial: false },
-        "105": { name: "张小满", tag: "✨", isSpecial: false },
-        "100": { name: "服务通知", tag: "📢", isSpecial: false }
-    };
-
-    const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
-
-    /**
-     * 【第二部分：全套样式注入 (CSS)】
-     */
-    const styleId = 'ultimate-unified-style-v12';
-    if (!document.getElementById(styleId)) {
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.innerHTML = `
-            /* 列表基础 */
-            .custom-timestamp { position: absolute !important; top: 10px !important; right: 15px !important; font-size: 11px !important; color: #b0b0b0 !important; z-index: 10 !important; }
-            .unread-dot { position: absolute !important; top: 10px !important; left: 56px !important; width: 10px !important; height: 10px !important; background: #ff4d4f !important; border-radius: 50% !important; border: 1.5px solid white !important; z-index: 11 !important; }
-            .special-friend-name { color: #333 !important; font-weight: 900 !important; }
-            .special-friend-avatar { box-shadow: 0 0 8px rgba(251, 171, 81, 0.6) !important; border: 1.5px solid #fbab51 !important; border-radius: 50%; }
-            .force-call-tag { color: #07c160 !important; font-weight: 500 !important; }
-
-            /* 红包样式 */
-            .beautiful-packet { background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; color: white !important; border-radius: 12px !important; padding: 12px 16px !important; min-width: 195px !important; max-width: 220px !important; cursor: pointer; display: block !important; box-shadow: 0 4px 12px rgba(250,158,59,0.3) !important; font-size: 14px !important; position: relative; margin-left: 0px !important; }
-            
-            /* 通话卡片 - 固定尺寸防变形 */
-            .call-record-card { background: #ffffff !important; border: 1px solid #eeeeee !important; border-radius: 8px !important; padding: 10px 12px !important; margin: 4px 0; display: flex !important; flex-direction: column !important; width: 190px !important; height: 54px !important; box-sizing: border-box !important; cursor: pointer; transition: none !important; }
-            .call-record-card:hover { background: #fcfcfc !important; transform: none !important; }
-            .call-card-main { display: flex; align-items: center; gap: 6px; color: #000; font-size: 14px; pointer-events: none; }
-            .call-card-sub { font-size: 11px; color: #b2b2b2; margin-left: 20px; pointer-events: none; }
-            
-            /* 通话界面全屏动画 */
-            @keyframes breathe-v16 { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.3); opacity: 0.6; } }
-            .soul-bubble-v16 { background: rgba(255,255,255,0.12); backdrop-filter: blur(15px); padding: 12px 18px; border-radius: 20px; font-size: 14px; color: white; max-width: 85%; margin-bottom: 8px; animation: in-v16 0.5s ease forwards; text-align: center; }
-            @keyframes in-v16 { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /**
-     * 【第三部分：交互全系统】
-     */
-    // 红包 UI 逻辑 (完美保留)
-    window.launchPerfectPacket = (wish, amount) => {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:9999999; display:flex; align-items:center; justify-content:center;";
-        overlay.innerHTML = `<div style="width:280px; height:380px; background:#cf4e46; border-radius:20px; display:flex; flex-direction:column; align-items:center; color:#fbd69b; position:relative;">
-            <div style="position:absolute; top:15px; right:15px; font-size:24px; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</div>
-            <div style="margin-top:50px; opacity:0.7; font-size:13px;">来自好友的红包</div>
-            <div style="margin-top:25px; font-size:19px; font-weight:bold; padding:0 25px; text-align:center;">${wish}</div>
-            <div id="p-open-btn" style="width:85px; height:85px; background:#fbd69b; color:#cf4e46; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:bold; cursor:pointer; margin-top:40px; transition:0.6s;">開</div>
-        </div>`;
-        document.body.appendChild(overlay);
-        document.getElementById('p-open-btn').onclick = function() {
-            this.style.transform = "rotateY(720deg)";
-            setTimeout(() => {
-                this.parentElement.innerHTML = `<div style="position:absolute; top:15px; right:15px; font-size:24px; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</div>
-                <div style="margin-top:90px; font-size:45px; font-weight:bold;">${amount}<span style="font-size:18px"> 元</span></div>
-                <div style="margin-top:15px; opacity:0.8; font-size:14px;">已存入零钱</div>`;
-            }, 600);
-        };
-    };
-
-    // 语音通话 UI 逻辑 (头像修复 + 名字显示修复)
-    window.launchCallUI = (name, dialogues, fId) => {
-        const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
-        if (!container) return;
-        const contact = PERMANENT_CONTACTS[fId] || { name: name };
-        const avatarUrl = contact.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fId}`;
-        
-        const overlay = document.createElement('div');
-        overlay.id = "embedded-soul-ui";
-        overlay.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: space-between; color: white; overflow: hidden;`;
-        overlay.innerHTML = `
-            <div style="margin-top: 50px; text-align: center; width: 100%;">
-                <div style="position: relative; width: 100px; height: 100px; margin: 0 auto;">
-                    <div style="position: absolute; width: 100%; height: 100%; background: #fbab51; border-radius: 50%; filter: blur(25px); animation: breathe-v16 2.5s infinite;"></div>
-                    <img src="${avatarUrl}" style="position: relative; width:100%; height:100%; border-radius:50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3);">
-                </div>
-                <div style="margin-top: 18px; font-size: 22px; font-weight: 500;">${contact.name}</div>
-                <div style="margin-top: 5px; font-size: 13px; opacity: 0.5;">通话中 <span id="soul-timer-v16">00:00</span></div>
-                <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
-            </div>
-            <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
-            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px;">✕</div></div>
-        `;
-        container.appendChild(overlay);
-
-        // 动画渲染
-        const cvs = document.getElementById('multi-wave-cvs');
-        const ctx = cvs.getContext('2d');
-        let step = 0;
-        function animate() {
-            if(!document.getElementById('embedded-soul-ui')) return;
-            ctx.clearRect(0,0,cvs.width,cvs.height); step++;
-            ctx.beginPath(); ctx.lineWidth=1.5; ctx.strokeStyle='#fbab51'; ctx.globalAlpha=0.6;
-            for(let x=0; x<cvs.width; x++){
-                const y = cvs.height/2 + Math.sin(x*0.02 + step*0.04)*12;
-                x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-            }
-            ctx.stroke();
-            requestAnimationFrame(animate);
-        } animate();
-
-        let s=0; const tInt = setInterval(() => { s++; const el=document.getElementById('soul-timer-v16'); if(el) el.innerText=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }, 1000);
-        const cont = document.getElementById('soul-msg-cont'); let idx = 0;
-        function next() {
-            if(idx >= dialogues.length || !document.getElementById('embedded-soul-ui')) return;
-            const b = document.createElement('div'); b.className='soul-bubble-v16'; b.innerText=dialogues[idx++];
-            cont.insertBefore(b, cont.firstChild);
-            setTimeout(next, 3200);
-        } next();
-        document.getElementById('soul-close-btn').onclick = () => { clearInterval(tInt); overlay.remove(); };
-    };
-
-    /**
-     * 【第四部分：核心抓取与排序 (修复红点置顶)】
-     */
-    const setupCoreLogic = () => {
-        if (!window.friendRenderer) return;
-        window.friendRenderer.extractFriendsFromContext = function() {
-            const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
-            let lastValidIdx = -1;
-            for (let i = chatLog.length - 1; i >= 0; i--) {
-                if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidIdx = i; break; }
-            }
-            let allMobileText = "";
-            chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
-            
-            let contacts = [];
-            CLOUD_IDS.forEach(fId => {
-                const info = PERMANENT_CONTACTS[fId];
-                let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
-                const lines = allMobileText.split('\n');
-                for (let j = lines.length - 1; j >= 0; j--) {
-                    if (lines[j].includes(`|${fId}|`)) {
-                        const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
-                        item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
-                        const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音通话)\|([^\]]+)\]/);
-                        if (cMatch) {
-                            let content = cMatch[1].split('|')[0];
-                            item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-                        }
-                        item.messageIndex = j; break;
-                    }
-                }
-                // 未读权重逻辑
-                if (lastValidIdx !== -1) {
-                    const lastMes = chatLog[lastValidIdx].mes;
-                    if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]')) {
-                        item.hasUnreadTag = true; item.messageIndex += 1000000;
-                    }
-                }
-                contacts.push(item);
-            });
-            return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
-        };
-    };
-
-    /**
-     * 【第五部分：界面刷新逻辑 (列表+气泡)】
-     */
-    const runUIUpdate = () => {
-        // 1. 列表美化
-        document.querySelectorAll('.message-item').forEach(item => {
-            const fId = item.getAttribute('data-friend-id');
-            const info = PERMANENT_CONTACTS[fId];
-            if (!info) return;
-
-            const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-            if (nameEl && !nameEl.hasAttribute('data-fixed')) {
-                nameEl.innerText = `${info.name} ${info.tag || ''}`;
-                if (info.isSpecial) nameEl.classList.add('special-friend-name');
-                nameEl.setAttribute('data-fixed', 'true');
-            }
-            if (info.isSpecial) {
-                const img = item.querySelector('img');
-                if (img && !img.classList.contains('special-friend-avatar')) img.classList.add('special-friend-avatar');
-            }
-
-            // 红点处理
-            const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
-            if (data) {
-                let dot = item.querySelector('.unread-dot');
-                if (data.hasUnreadTag) {
-                    if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
-                } else if(dot) dot.remove();
-                
-                let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
-                tSpan.innerText = data.lastMessageTime;
-            }
-
-            const lastMsgEl = item.querySelector('.message-last-msg, .friend-last-msg');
-            if (lastMsgEl && (lastMsgEl.innerText.includes('语音通话') || lastMsgEl.innerText.includes('📞'))) {
-                if (!lastMsgEl.querySelector('.force-call-tag')) lastMsgEl.innerHTML = '<span class="force-call-tag">[语音通话]</span>';
-            }
-        });
-
-        // 2. 气泡转换 (通话 + 红包)
-        document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-            const raw = msg.innerText;
-            const bubble = msg.closest('.message-content');
-            
-            // 通话
-            if (raw.includes('语音通话') || raw.includes('📞')) {
-                msg.classList.add('fixed');
-                const parts = raw.split('|').map(p => p.trim());
-                const status = parts[0].replace('📞', '').trim();
-                const titleEl = document.getElementById('app-title');
-                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
-
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                const card = document.createElement('div');
-                card.className = 'call-record-card';
-                card.innerHTML = `<div class="call-card-main"><span>📞</span>语音通话</div><div class="call-card-sub">${status}</div>`;
-                card.onclick = (e) => { e.stopPropagation(); window.launchCallUI(name, parts.slice(1), fId); };
-                msg.innerHTML = ''; msg.appendChild(card);
-            } 
-            // 红包
-            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
-                msg.classList.add('fixed');
-                const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                const card = document.createElement('div');
-                card.className = 'beautiful-packet';
-                card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; msg.appendChild(card);
-            }
-        });
-    };
-
-    /**
-     * 【第六部分：iOS 横幅通知 (补回此功能)】
-     */
-    const initNotifications = () => {
-        const bubbleSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-        let lastMsgKey = localStorage.getItem('last_notified_key') || "";
-        setInterval(() => {
-            const friends = window.friendRenderer?.extractFriendsFromContext?.() || [];
-            if (friends.length === 0) return;
-            const latest = friends[0];
-            const currentKey = `${latest.number}_${latest.lastMessage}`;
-            if (currentKey !== lastMsgKey) {
-                if (lastMsgKey !== "" && !latest.lastMessage.includes('[我方消息|') && latest.hasUnreadTag) {
-                    bubbleSound.play().catch(()=>{});
-                    const toast = document.createElement('div');
-                    toast.style.cssText = "position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 340px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 18px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 999999; display: flex; align-items: center; transition: all 0.5s ease; opacity: 0; transform: translate(-50%, -40px);";
-                    toast.innerHTML = `<div style="width:40px; height:40px; background:#ddd; border-radius:8px; margin-right:12px; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div><div><div style="font-weight:bold; color:black; font-size:14px;">${latest.name}</div><div style="font-size:13px; color:#444;">${latest.lastMessage}</div></div>`;
-                    document.body.appendChild(toast);
-                    setTimeout(()=>{ toast.style.opacity="1"; toast.style.transform="translate(-50%, 0)"; }, 100);
-                    setTimeout(()=>{ toast.style.opacity="0"; toast.style.transform="translate(-50%, -40px)"; setTimeout(()=>toast.remove(), 500); }, 4000);
-                }
-                lastMsgKey = currentKey;
-                localStorage.setItem('last_notified_key', lastMsgKey);
-            }
-        }, 2000);
-    };
-
-    // 启动所有系统
-    setInterval(() => {
-        setupCoreLogic();
-        runUIUpdate();
-    }, 1000);
-    initNotifications();
-})();
+  console.log('[Message Renderer] 消息渲染器模块加载完成');
+} // 结束 if (typeof window.MessageRenderer === 'undefined') 检查
