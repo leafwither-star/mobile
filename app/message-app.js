@@ -6804,48 +6804,66 @@ renderAddFriendTab() {
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-            // --- 【第一步】通话判定 (UI 净化版) ---
-            if (raw.includes('VOICE_CALL') || raw.includes('📞')) {
+            // --- 【第一步】通话判定 (颜色强制修正版) ---
+            if (raw.includes('语音通话') || raw.includes('📞')) {
                 msg.classList.add('fixed');
                 
                 let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
                 const parts = cleanRaw.split('|').map(p => p.trim());
                 
                 let status = "语音通话";
-                let dialogueIndex = 6;
-                
-                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长'));
+                let isSuccess = true;
+
+                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接') || p.includes('挂断'));
                 if (statusIdx !== -1) {
                     let rawStatus = parts[statusIdx].replace(']', '');
-                    // --- 核心净化逻辑 ---
-                    // 如果有括号，取括号开始及其后的所有内容；否则删掉“语音通话”和“📞”
-                    status = rawStatus.includes('(') 
-                        ? rawStatus.substring(rawStatus.indexOf('(')) 
+                    status = rawStatus.includes('(') || rawStatus.includes('（') 
+                        ? rawStatus.substring(rawStatus.search(/[(（]/)) 
                         : rawStatus.replace('📞', '').replace('语音通话', '').trim();
                     
-                    dialogueIndex = statusIdx + 1;
+                    if (status.includes('未接通') || status.includes('已挂断') || status.includes('已拒绝')) {
+                        isSuccess = false;
+                    }
                 }
-
-                const dialogues = parts.slice(dialogueIndex).map(d => d.replace(']', ''));
-                const titleEl = document.getElementById('app-title');
-                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
                 if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
                 
                 const card = document.createElement('div');
                 card.className = 'call-record-card';
-                // 卡片主标题保持大字，副标题显示净化后的 status
-                card.innerHTML = `<div class="call-card-main"><span>📞</span>语音通话</div><div class="call-card-sub">${status}</div>`;
                 
-                card.onclick = (e) => { 
-                    e.stopPropagation(); 
-                    window.launchCallUI(name, dialogues, fId); 
-                };
+                if (isSuccess) {
+                    // --- 成功状态：原色/绿色 ---
+                    card.innerHTML = `
+                        <div class="call-card-main">
+                            <span style="color:#07c160; filter: drop-shadow(0 0 0 #07c160);">📞</span>语音通话
+                        </div>
+                        <div class="call-card-sub">${status}</div>
+                    `;
+                    const dialogues = parts.slice(statusIdx + 1).map(d => d.replace(']', ''));
+                    const titleEl = document.getElementById('app-title');
+                    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+                    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+                    
+                    card.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        window.launchCallUI(name, dialogues, fId); 
+                    };
+                } else {
+                    // --- 失败状态：强制蓝色方案 ---
+                    // 这里我们用 🟦 或者把图标强制调成蓝色系
+                    card.innerHTML = `
+                        <div class="call-card-main">
+                            <span style="color:#2f80ed; filter: drop-shadow(0 0 0 #2f80ed);">🔹</span>语音通话
+                        </div>
+                        <div class="call-card-sub" style="color:#2f80ed !important; opacity:0.8;">${status}</div>
+                    `;
+                    card.style.cursor = "default";
+                    card.onclick = null;
+                }
                 
                 msg.innerHTML = ''; 
                 msg.appendChild(card);
-            } 
+            }
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
