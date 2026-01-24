@@ -6670,6 +6670,22 @@ renderAddFriendTab() {
         // --- 配置区 ---
         const API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOmOuj4V9FlBC6URQyzfp9pORAs2Tc2dXzGFVsvWeKbUCW2ipbWI2xMyspz8JDplgh768efYY"; 
         const GROUP_ID = "2014232095953523532";
+      
+      // --- 挂断音控制 ---
+        const playHangupSound = () => {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = ctx.currentTime;
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.setValueAtTime(450, now); 
+                g.gain.setValueAtTime(0.3, now); 
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.5); 
+                o.connect(g); g.connect(ctx.destination);
+                o.start(); o.stop(now + 0.5);
+            } catch(e) {}
+        };
 
         const container = document.getElementById('message-detail-content') || document.querySelector('.message-detail-content');
         if (!container) return;
@@ -6802,6 +6818,7 @@ renderAddFriendTab() {
         // --- 关闭按钮 (增加停止音频逻辑) ---
         document.getElementById('soul-close-btn').onclick = () => { 
             clearInterval(tInt); 
+            if(typeof playHangupSound === 'function') playHangupSound(); // 响一声挂断音
             // 找到所有正在播的语音并关掉
             document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
             overlay.remove(); 
@@ -6943,29 +6960,52 @@ renderAddFriendTab() {
     card.className = 'call-record-card';
     
     if (isSuccess) {
+        // 修改点：增加“📖 ▽”按钮
         card.innerHTML = `
             <div class="call-row-top"><span>📞</span>语音通话</div>
-            <div class="call-row-bottom">${status}</div>
+            <div class="call-row-bottom">
+                <span>${status}</span>
+                <span class="pre-btn" style="color:#999; cursor:pointer; font-size:12px; margin-left:8px;">📖 ▽</span>
+            </div>
         `;
-        // 绑定点击事件
+
+        // 只有接通状态才创建预览框
+        const preview = document.createElement('div');
+        preview.className = 'call-text-preview';
+        // 这里的 style 完全保留，不影响红包
+        preview.style.cssText = "width:195px; background:#fafafa; border:1px solid #eeeeee; border-top:none; border-radius:0 0 8px 8px; padding:10px 14px; font-size:12px; color:#777; display:none; white-space:pre-wrap; margin-top:-6px; margin-bottom:8px;";
+        preview.innerText = dialogues.join('\n');
+
+        // 绑定点击：点卡片触发通话，点 📖 展开文字
         card.onclick = (e) => { 
-            e.preventDefault();
             e.stopPropagation(); 
-            // 只有接通状态且有对话时才弹出 UI，防止报错闪烁
             window.launchCallUI(name, dialogues, fId); 
         };
+
+        const btn = card.querySelector('.pre-btn');
+        btn.onclick = (e) => {
+            e.stopPropagation(); // 阻止触发通话
+            const isH = preview.style.display === 'none';
+            preview.style.display = isH ? 'block' : 'none';
+            btn.innerHTML = isH ? '📖 △' : '📖 ▽';
+            card.style.borderRadius = isH ? '8px 8px 0 0' : '8px';
+            card.style.borderBottom = isH ? 'none' : '1px solid #eeeeee';
+        };
+
+        msg.innerHTML = '';
+        msg.appendChild(card);
+        msg.appendChild(preview); // 将预览框挂在卡片下面
     } else {
+        // 未接通保持原样
         card.innerHTML = `
             <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
             <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
         `;
         card.style.cursor = "default";
-        card.onclick = (e) => { e.stopPropagation(); }; // 阻止未接通时的事件冒泡
+        card.onclick = (e) => { e.stopPropagation(); };
+        msg.innerHTML = '';
+        msg.appendChild(card);
     }
-    
-    msg.innerHTML = '';
-    msg.appendChild(card);
-}
             // --- 【第二步】如果是红包 (且确定不是通话) ---
             else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
