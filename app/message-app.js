@@ -6804,24 +6804,25 @@ renderAddFriendTab() {
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-            // --- 【第一步】先进行通话判定 (提高优先级，增强识别) ---
-            // 只要包含 📞 或 VOICE_CALL 关键词，优先走通话逻辑
+            // --- 【第一步】通话判定 (UI 净化版) ---
             if (raw.includes('VOICE_CALL') || raw.includes('📞')) {
                 msg.classList.add('fixed');
                 
-                // 清洗掉可能存在的暗号标记和未读标记
                 let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
                 const parts = cleanRaw.split('|').map(p => p.trim());
                 
-                // 动态定位：如果格式是 [时间|方向|姓名|ID|类型|状态|...]
-                // 我们取包含“通话”二字的那个部分作为状态
                 let status = "语音通话";
-                let dialogueIndex = 6; // 默认对话从第7个位置开始
+                let dialogueIndex = 6;
                 
-                // 自动寻找包含“通话”或“时长”的那一项作为状态描述
                 const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长'));
                 if (statusIdx !== -1) {
-                    status = parts[statusIdx].replace(']', '');
+                    let rawStatus = parts[statusIdx].replace(']', '');
+                    // --- 核心净化逻辑 ---
+                    // 如果有括号，取括号开始及其后的所有内容；否则删掉“语音通话”和“📞”
+                    status = rawStatus.includes('(') 
+                        ? rawStatus.substring(rawStatus.indexOf('(')) 
+                        : rawStatus.replace('📞', '').replace('语音通话', '').trim();
+                    
                     dialogueIndex = statusIdx + 1;
                 }
 
@@ -6834,6 +6835,7 @@ renderAddFriendTab() {
                 
                 const card = document.createElement('div');
                 card.className = 'call-record-card';
+                // 卡片主标题保持大字，副标题显示净化后的 status
                 card.innerHTML = `<div class="call-card-main"><span>📞</span>语音通话</div><div class="call-card-sub">${status}</div>`;
                 
                 card.onclick = (e) => { 
