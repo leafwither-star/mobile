@@ -6737,82 +6737,67 @@ renderAddFriendTab() {
         }, 2000);
     };
 
-    /**
-     * 【6. 渲染循环】 - 强力对齐红包
+   /**
+     * 【6. 渲染循环 - 强制夺权版】
      */
-    setInterval(() => {
-        setupCoreLogic();
-        // 列表渲染
-        document.querySelectorAll('.message-item').forEach(item => {
-            const fId = item.getAttribute('data-friend-id');
-            const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
-            if (data) {
-                const lastMsgEl = item.querySelector('.message-last-msg, .friend-last-msg');
-                if (lastMsgEl && lastMsgEl.innerText !== data.lastMessage) {
-                    lastMsgEl.innerText = data.lastMessage;
-                }
-                let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
-                tSpan.innerText = data.lastMessageTime;
-                let dot = item.querySelector('.unread-dot');
-                if (data.hasUnreadTag) { if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); } } else if(dot) dot.remove();
-            }
-        });
-
-        // 聊天气泡渲染 - 加固稳定版
+    const forceRenderPacket = () => {
+        // 查找所有包含“红包”文字但还没处理好的消息
         document.querySelectorAll('.message-text:not(.v21-done)').forEach(msg => {
             const raw = msg.innerText;
             const bubble = msg.closest('.message-content');
             
-            // 1. 语音通话逻辑 (保持原样，仅做微调)
-            if (raw.includes('语音通话') || raw.includes('📞')) {
-                msg.classList.add('v21-done');
-                const parts = raw.split('|').map(p => p.trim());
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;";
-                const card = document.createElement('div');
-                card.className = 'call-record-card';
-                card.innerHTML = `<div style="font-size:14px;">📞 语音通话</div><div style="font-size:11px;color:#b2b2b2;margin-left:20px;">${parts[0].replace('📞','').trim()}</div>`;
-                card.onclick = (e) => { e.stopPropagation(); window.launchCallUI("联系人", parts.slice(1), (document.getElementById('app-title')?.innerText.match(/\d+/) || ["103"])[0]); };
-                msg.innerHTML = ''; msg.appendChild(card);
-            } 
-            
-            // 2. 红包渲染逻辑 (V21 强力修复版)
-            else if (raw.includes('红包') && (raw.includes('|') || raw.includes('(') || raw.match(/\d/))) {
+            // 只要包含红包关键字和特定符号
+            if (raw.includes('红包') && (raw.includes('|') || raw.includes('('))) {
                 
                 const amtMatch = raw.match(/\d+(\.\d+)?/);
                 const amt = amtMatch ? amtMatch[0] : "8.88";
                 const parts = raw.split(/[|(|)]/);
                 const wish = parts[parts.length - 1].replace(/[\]\)]/g, '').trim() || "恭喜发财";
-                
-                // 【重要修改】类名去掉了 message-text，改为 packet-wrapper，彻底避开 CSS 字号为 0 的屏蔽
-                const cardHtml = `
-                    <div class="packet-wrapper v21-done beautiful-packet" 
-                         style="background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; 
-                                border-radius: 12px !important; 
-                                padding: 12px 16px !important; 
-                                width: 210px !important; 
-                                cursor: pointer; 
-                                box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-                                margin: 4px 0 !important;
-                                display: block !important;
-                                position: relative !important;"
-                         onclick="window.launchPerfectPacket('${wish}', '${amt}')">
-                        <div style="font-size:14px !important; font-weight:bold !important; color:white !important; margin-bottom:4px; display:block !important;">🧧 ${wish}</div>
-                        <div style="font-size:11px !important; opacity:0.8 !important; border-top:1px solid rgba(255,255,255,0.2) !important; padding-top:4px; color:white !important; display:block !important;">微信红包</div>
-                    </div>
-                `;
 
+                // 1. 强制抹除父级气泡（防止作者脚本还原样式）
                 if (bubble) {
-                    bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; display:block !important; margin-left:0px !important; width:auto !important; min-width:unset !important;";
-                    if (bubble.parentElement) {
-                        bubble.parentElement.style.justifyContent = "flex-start";
-                        bubble.parentElement.style.display = "flex";
-                    }
+                    bubble.style.setProperty('background', 'transparent', 'important');
+                    bubble.style.setProperty('border', 'none', 'important');
+                    bubble.style.setProperty('box-shadow', 'none', 'important');
+                    bubble.style.setProperty('padding', '0', 'important');
+                    bubble.parentElement.style.justifyContent = "flex-start";
                 }
 
-                // 替换节点
-                msg.outerHTML = cardHtml;
+                // 2. 构造不含 message-text 类的 HTML，防止被 CSS 屏蔽
+                const card = document.createElement('div');
+                card.className = 'beautiful-packet v21-done'; 
+                card.style.cssText = "background: linear-gradient(135deg, #fbab51 0%, #ff7849 100%) !important; border-radius: 12px !important; padding: 12px 16px !important; width: 210px !important; cursor: pointer; color: white !important; display: block !important; margin: 5px 0 !important; font-size: 14px !important;";
+                card.innerHTML = `
+                    <div style="font-weight:bold; margin-bottom:4px; pointer-events:none;">🧧 ${wish}</div>
+                    <div style="font-size:11px; opacity:0.8; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px; pointer-events:none;">微信红包</div>
+                `;
+                
+                card.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.launchPerfectPacket(wish, amt);
+                };
+
+                // 3. 强力插入：清空原文字，塞入新卡片
+                msg.innerHTML = '';
+                msg.appendChild(card);
+                msg.classList.add('v21-done');
+                // 特别防御：给 msg 一个标识，防止被 CSS 再次隐藏
+                msg.style.fontSize = "14px";
+                msg.style.color = "white";
+                msg.style.opacity = "1";
             }
         });
-    }, 800);
-    initNotifications();
+    };
+
+    // 使用 MutationObserver 监听 DOM 变化（比 setInterval 响应更快，专门对付虚拟滚动）
+    const observer = new MutationObserver(() => {
+        forceRenderPacket();
+        setupCoreLogic(); // 顺便运行列表逻辑
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // 保底运行
+    setInterval(forceRenderPacket, 500);
 })();
