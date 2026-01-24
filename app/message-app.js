@@ -6845,10 +6845,20 @@ renderAddFriendTab() {
         }, 2000);
     };
 
-    // 启动所有系统
-    setInterval(() => {
+    // --- 智能提速逻辑 ---
+    let fastCycles = 0;
+    const updateLoop = () => {
         setupCoreLogic();
         runUIUpdate();
-    }, 1000);
+        
+        // 前 10 秒采用高频扫描（200ms一次），确保秒变红包
+        // 10 秒后恢复正常频率（1s一次），节省性能
+        fastCycles++;
+        let nextTick = fastCycles < 50 ? 200 : 1000; 
+        setTimeout(updateLoop, nextTick);
+    };
+
+    // 立即执行第一次
+    updateLoop();
     initNotifications();
 })();
