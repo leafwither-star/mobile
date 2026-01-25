@@ -7177,7 +7177,58 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 3]：红包系统 ---
+    // --- [分支 3]：新闻资讯 (101_N) ---
+    else if (raw.includes('101_N|')) {
+        const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
+        if (p) {
+            const title = p[1] || "暂无新闻标题";
+            const summary = p[2] || "暂无详细摘要";
+            
+            if (bubble) {
+                bubble.classList.add('service-card-bubble');
+                bubble.style.cssText = ""; 
+            }
+            msg.classList.add('service-card-text');
+
+            html = `
+            <div class="service-card-container" style="width:263px; border-radius:32px; padding:24px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span style="background:#ff4757; color:#fff; font-size:10px; padding:2px 8px; border-radius:6px; font-weight:900; letter-spacing:1px;">NEWS</span>
+                    <span style="font-size:11px; color:#86868b; font-weight:800; letter-spacing:1px;">BEIJING TODAY</span>
+                </div>
+                <div style="font-size:15px; color:#101010; font-weight:700; line-height:1.5; margin-bottom:10px;">${title}</div>
+                <div style="font-size:13px; color:#424245; line-height:1.6;">${summary}</div>
+            </div>`;
+            msg.innerHTML = html;
+        }
+    }
+    // --- [分支 4]：交通/警告 (101_A) ---
+    else if (raw.includes('101_A|')) {
+        const p = raw.match(/101_A\|([^|]+)\|([^\]]+)/);
+        if (p) {
+            const alertTitle = p[1] || "交通提醒";
+            const alertDetail = p[2] || "请注意出行安全";
+            
+            if (bubble) {
+                bubble.classList.add('service-card-bubble');
+                bubble.style.cssText = ""; 
+            }
+            msg.classList.add('service-card-text');
+
+            html = `
+            <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
+            <div class="service-card-container" style="width:263px; border-radius:32px; padding:24px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; box-shadow:0 15px 35px rgba(255,71,87,0.1); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="display:flex; align-items:center; gap:8px; color:#ff4757; font-size:11px; font-weight:900; margin-bottom:12px; letter-spacing:1px;">
+                    <div style="width:8px; height:8px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite;"></div>
+                    TRAFFIC ALERT
+                </div>
+                <div style="font-size:15px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:8px;">${alertTitle}</div>
+                <div style="font-size:13px; color:#424245; line-height:1.6;">${alertDetail}</div>
+            </div>`;
+            msg.innerHTML = html;
+        }
+    }
+      // --- [分支 5]：红包系统 ---
     else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
         msg.classList.add('fixed');
         const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
