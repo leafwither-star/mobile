@@ -7132,8 +7132,8 @@ window.fetchAndPlayVoice = async function(rawLine) {
             if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
             msg.innerHTML = html;
         }
-    } // <--- 这是 if (raw.includes('@@UI_')) 的结束
-} // <--- 这是 document.querySelectorAll('.message-text').forEach 的结束
+        } 
+    }); // <--- 关键点1：这是气泡转换 forEach 的闭合
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
