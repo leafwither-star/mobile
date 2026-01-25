@@ -6545,42 +6545,67 @@ renderAddFriendTab() {
 
 (function injectTheUltimateSystemV12() {
     /**
-     window.PERMANENT_CONTACTS = {
-        // --- 核心社交圈 ---
+     * 【第一部分：永久好友配置区】
+     */
+    const PERMANENT_CONTACTS = {
         "103": { name: "陈一众", tag: "❤️", isSpecial: true, avatar: "https://github.com/leafwither-star/touxiang2/blob/main/b2de9c82d158ccbfa6be0223686f5030b03541eb.jpeg?raw=true" },
         "102": { name: "曹信", tag: "❤️", isSpecial: true, avatar: "你的Github链接" },
-        "106": { name: "赵霆 (师兄)", tag: "🎓", isSpecial: false },
-        "107": { name: "苏蔓 (师姐)", tag: "🎓", isSpecial: false },
-
-        // --- 律所权力金字塔 ---
+        "104": { name: "张主任", tag: "✨", isSpecial: false },
+        "105": { name: "张小满", tag: "✨", isSpecial: false },
+    
+       // --- 律所权力金字塔 ---
         "141": { name: "顾远山 (授薪合伙人)", tag: "⚖️", isSpecial: false }, 
         "142": { name: "秦克勤 (管委会)", tag: "⚖️", isSpecial: false }, 
         "143": { name: "行政总监-财务赵姐", tag: "💰", isSpecial: false },
-        "144": { name: "高级顾问-郑老", tag: "👴", isSpecial: false },
+        "144": { name: "高级顾问-郑老", tag: "👴", isSpecial: false }, // 退休的大法官，律所的定海神针
 
-        // --- 同事与友商阵列 ---
+        // --- 同事与友商阵列 (150-170) ---
         "150": { name: "沈冰沁 (Senior)", tag: "💼", isSpecial: false },
         "151": { name: "何一帆 (Junior)", tag: "💼", isSpecial: false },
-        "155": { name: "方廷皓 (金杜律所-友商)", tag: "💼", isSpecial: false },
-        // ... (此处省略你其他的 150-169 同事编号)
+        "152": { name: "陆子昂 (诉讼组)", tag: "💼", isSpecial: false },
+        "153": { name: "周以诺 (Associate)", tag: "💼", isSpecial: false },
+        "154": { name: "蒋承泽 (Associate)", tag: "💼", isSpecial: false },
+        "155": { name: "方廷皓 (金杜律所-友商)", tag: "💼", isSpecial: false }, 
+        "156": { name: "实习生-陈希(北大师弟)", tag: "💼", isSpecial: false },
+        "157": { name: "翻译-Katherine", tag: "💼", isSpecial: false },
+        "158": { name: "文印/快递-小赵", tag: "💼", isSpecial: false },
+        "159": { name: "风控合规-张曼", tag: "💼", isSpecial: false },
+        "160": { name: "律所后勤-王阿姨", tag: "💼", isSpecial: false },
+        "161": { name: "钟意(内核组)", tag: "💼", isSpecial: false },
+        "162": { name: "人力资源-邱总", tag: "💼", isSpecial: false },
+        "163": { name: "蒋承泽律师", tag: "💼", isSpecial: false },
+        "164": { name: "档案室-小张", tag: "💼", isSpecial: false },
+        "165": { name: "税务咨询-杜若", tag: "💼", isSpecial: false },
+        "166": { name: "方廷皓(金融组)", tag: "💼", isSpecial: false },
+        "167": { name: "财务-周静", tag: "💼", isSpecial: false },
+        "168": { name: "后勤-陈叔", tag: "💼", isSpecial: false },
         "169": { name: "顾远山秘书-Lily", tag: "💼", isSpecial: false },
 
-        // --- 客户与项目合作方 ---
+        // --- 客户与项目合作方 (170-220) ---
         "170": { name: "星辉创投-黎总", tag: "💎", isSpecial: false },
-        "174": { name: "瑞银 IBD-James", tag: "🏦", isSpecial: false },
+        "171": { name: "远洋地产-法务总", tag: "💎", isSpecial: false },
+        "172": { name: "蓝鲸科技-王董", tag: "💎", isSpecial: false },
+        "173": { name: "苏太太 (LP成员)", tag: "💎", isSpecial: false },
+        "174": { name: "瑞银 IBD-James", tag: "🏦", isSpecial: false }, // 投行合作方
+        "175": { name: "字节并购-刘经理", tag: "💎", isSpecial: false },
+        "176": { name: "董秘-林舒(拟上市)", tag: "💎", isSpecial: false },
+        "177": { name: "审计师-普华永道老张", tag: "📊", isSpecial: false }, // 四大会计师事务所
+        "178": { name: "理财顾问-私人银行", tag: "💰", isSpecial: false },
+        "179": { name: "泰康人寿-陈经理", tag: "💎", isSpecial: false },
         "180": { name: "韩总 (投后管理)", tag: "💎", isSpecial: false },
 
-        // --- 公众号矩阵 ---
+        // --- 公众号矩阵 (100-120) ---
         "100": { name: "服务通知", tag: "📢", isSpecial: false },
         "101": { name: "北京实时", tag: "🗞️", isSpecial: false }, 
+        "108": { name: "VOGUE时尚前沿", tag: "👗", isSpecial: false },
+        "109": { name: "深夜情感FM", tag: "🌙", isSpecial: false },
         "111": { name: "百夫长黑卡管家", tag: "🛎️", isSpecial: false },
-        "114": { name: "SKP-S 会员中心", tag: "🛍️", isSpecial: false }
+        "112": { name: "最高法判例观察", tag: "📖", isSpecial: false },
+        "113": { name: "律政寄信", tag: "📫", isSpecial: false },
+        "114": { name: "SKP-S 会员中心", tag: "🛍️", isSpecial: false } // 北京最高端的商场，李至中买衣服的地方
     };
 
-    // 2. 【核心修复】将 CLOUD_IDS 明确定义在全局 window 下
-    window.CLOUD_IDS = Object.keys(window.PERMANENT_CONTACTS);
-
-    console.log("🚀 [Message App] 永久联系人与 CLOUD_IDS 已注入全局");
+    const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
     /**
      * 【第二部分：全套样式注入 (CSS)】
