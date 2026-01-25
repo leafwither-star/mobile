@@ -6904,8 +6904,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
         }
     };
 
- * 红包交互系统
- */
+// --- 红包交互系统 ---
 if (!window.launchPerfectPacket) { // 加个判断防止重复定义
     window.launchPerfectPacket = (wish, amount) => {
         console.log("🧧 红包 UI 启动:", wish, amount);
