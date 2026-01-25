@@ -7060,215 +7060,119 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
             }
         });
 
-        // 2. 气泡转换 (通话 + 红包)
-        document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
-            if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
-            
-            const raw = msg.innerText;
-            const bubble = msg.closest('.message-content');
-            
-           if (raw.includes('语音通话') || raw.includes('📞')) {
-                msg.classList.add('fixed');
-                const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
-                
-                // --- 1. 提取状态文字（保留你原本的截取逻辑） ---
-                let status = isSuccess ? "(已接通)" : "(未接通)";
-                const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
-                if (leftBracketIdx !== -1) {
-                    let afterBracket = raw.substring(leftBracketIdx);
-                    status = afterBracket.split(/[|\]]/)[0].trim();
-                }
+        // 2. 气泡转换 (通话 + 服务号 + 红包)
+document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+    if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
 
-                // --- 2. 提取对话内容 ---
-                let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-                const parts = cleanRaw.split('|').map(p => p.trim());
-                const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-                const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
-                
-                const titleEl = document.getElementById('app-title');
-                const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-                const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+    const raw = msg.innerText;
+    const bubble = msg.closest('.message-content');
+    let html = ''; // 统一定义 html 变量
+    const containerStart = `<div class="service-card-container">`;
+    const containerEnd = `</div>`;
 
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-                
-                const card = document.createElement('div');
-                card.className = 'call-record-card';
-                
-                if (isSuccess) {
-                    // 【已接通分支】：注入蓝色 📖 ▽ 图标
-                    card.innerHTML = `
-                        <div class="call-row-top"><span>📞</span>语音通话</div>
-                        <div class="call-row-bottom">
-                            <span>${status}</span>
-                            <span class="read-icon-btn">📖 ▽</span>
-                        </div>
-                    `;
+    // --- [分支 1]：语音通话 ---
+    if (raw.includes('语音通话') || raw.includes('📞')) {
+        msg.classList.add('fixed');
+        const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
+        
+        let status = isSuccess ? "(已接通)" : "(未接通)";
+        const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
+        if (leftBracketIdx !== -1) {
+            let afterBracket = raw.substring(leftBracketIdx);
+            status = afterBracket.split(/[|\]]/)[0].trim();
+        }
 
-                    // 创建预览层
-                    const preview = document.createElement('div');
-                    preview.className = 'call-text-preview';
-                    preview.innerText = dialogues.join('\n');
+        let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+        const parts = cleanRaw.split('|').map(p => p.trim());
+        const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+        const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
+        
+        const titleEl = document.getElementById('app-title');
+        const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+        const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
-                    // 点击卡片：进入通话 UI
-                    card.onclick = (e) => { 
-                        e.stopPropagation(); 
-                        window.launchCallUI(name, dialogues, fId); 
-                    };
-
-                    // 点击蓝色书本：展开/折叠
-                    const trigger = card.querySelector('.read-icon-btn');
-                    trigger.onclick = (e) => {
-                        e.stopPropagation();
-                        const isHidden = preview.style.display === 'none' || preview.style.display === '';
-                        preview.style.display = isHidden ? 'block' : 'none';
-                        trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
-                        // 动态切换圆角，保持 12px 底部
-                        card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
-                        card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
-                    };
-
-                    msg.innerHTML = '';
-                    msg.appendChild(card);
-                    msg.appendChild(preview);
-                } else {
-                    // 【未接通分支】：完全保留你原本的蓝色 🔹 风格渲染
-                    card.innerHTML = `
-                        <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
-                        <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
-                    `;
-                    card.style.cursor = "default";
-                    card.onclick = (e) => { e.stopPropagation(); };
-                    msg.innerHTML = '';
-                    msg.appendChild(card);
-                }
-            }
-             // --- 【第二步】如果是服务号快讯 (101, 108, 109, 113) ---
-// 🌟 【重构】全能天气渲染 (合体最终版)
-else if (raw.includes('101_W|')) {
-    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-    if (p) {
-        const city = p[1] || "BEIJING";
-        const temp = p[2] || "--°";
-        const aqi = parseInt(p[3]) || 0;
-        const desc = p[4] || "未知";
-        const feel = p[5] || (parseInt(temp) - 2) + "°"; // 自动计算体感
-
-        const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
-        let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
-
-        // 应用你刚才调出的最新神仙数值
-        const cfg = { w:"263", h:"267", is:"95", iy:"-43", ix:"5", gap:"0", al:"95" };
-
-        html = containerStart + `
-        <div style="
-            width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; 
-            background: linear-gradient(135deg, #ffffff 0%, #f1f4f9 100%); 
-            color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;
-            border: 1.5px solid rgba(0,0,0, 0.1); position:relative; overflow:hidden;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.06); backdrop-filter: blur(15px);
-            font-family: -apple-system, system-ui, sans-serif;
-        ">
-            <div style="
-                position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); 
-                transform: translateY(-50%); font-size:${cfg.is}px; 
-                animation: weatherFloat 6s ease-in-out infinite; 
-                z-index: 1; filter: drop-shadow(0 12px 20px rgba(0,0,0,0.08));
-            ">${icon}</div>
-
-            <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;">
-                <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">
-                    ${city} · ${desc}
-                </div>
-                <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">
-                    ${temp}
-                </div>
-                <div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">
-                    ${desc}
-                </div>
-            </div>
-
-            <div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom: 5px;">
-                <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
-                    <span>AQI · ${aqi}</span>
-                    <span style="opacity:0.6;">体感 ${feel}</span>
-                </div>
-                <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
-                    <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
-                    <div style="position:absolute; left:${aqiPos}%; top:-20px; transform: translateX(-50%); display:flex; flex-direction:column; align-items:center;">
-                        <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height: 1;">${aqi}</span>
-                        <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>` + containerEnd;
-    }
-}
-                // 3. 治愈/深夜FM (109_E)
-                else if (raw.includes('109_E|')) {
-                    const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;">
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                                <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div>
-                                <div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div>
-                            </div>
-                            <div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div>
-                            <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div>
-                        </div>` + containerEnd;
-                    }
-                }
-
-                // --- 最终渲染执行 ---
-                if (html) {
-                    if (bubble) {
-                        bubble.classList.add('service-card-bubble');
-                        bubble.style.cssText = ""; // 彻底交给前端CSS控制
-                    }
-                    msg.classList.add('service-card-text');
-                    msg.style.cssText = ""; 
-                    msg.innerHTML = html;
-                }
-            }
-            // --- 【第三步】如果是红包 ---
-else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-    msg.classList.add('fixed');
-    const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-    const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-
-    if (bubble) {
-        // 关键：增加 pointer-events: none，让点击穿透透明气泡
-        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important;";
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+        
+        const card = document.createElement('div');
+        card.className = 'call-record-card';
+        
+        if (isSuccess) {
+            card.innerHTML = `<div class="call-row-top"><span>📞</span>语音通话</div><div class="call-row-bottom"><span>${status}</span><span class="read-icon-btn">📖 ▽</span></div>`;
+            const preview = document.createElement('div');
+            preview.className = 'call-text-preview';
+            preview.innerText = dialogues.join('\n');
+            card.onclick = (e) => { e.stopPropagation(); window.launchCallUI(name, dialogues, fId); };
+            const trigger = card.querySelector('.read-icon-btn');
+            trigger.onclick = (e) => {
+                e.stopPropagation();
+                const isHidden = preview.style.display === 'none' || preview.style.display === '';
+                preview.style.display = isHidden ? 'block' : 'none';
+                trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
+                card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
+                card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
+            };
+            msg.innerHTML = '';
+            msg.appendChild(card);
+            msg.appendChild(preview);
+        } else {
+            card.innerHTML = `<div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div><div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>`;
+            card.style.cursor = "default";
+            card.onclick = (e) => { e.stopPropagation(); };
+            msg.innerHTML = '';
+            msg.appendChild(card);
+        }
+    } 
+    // --- [分支 2]：服务号快讯 (天气/FM) ---
+    else if (raw.includes('101_W|')) {
+        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
+        if (p) {
+            const city = p[1] || "BEIJING";
+            const temp = p[2] || "--°";
+            const aqi = parseInt(p[3]) || 0;
+            const desc = p[4] || "未知";
+            const feel = (parseInt(temp) - 2) + "°";
+            const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
+            let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
+            const cfg = { w:"263", h:"267", is:"95", iy:"-43", ix:"5", gap:"0", al:"95" };
+            html = containerStart + `<div style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); backdrop-filter:blur(15px); font-family:-apple-system,system-ui,sans-serif;"><div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08));">${icon}</div><div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;"><div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">${city} · ${desc}</div><div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">${temp}</div><div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div></div><div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom:5px;"><div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;"><span>AQI · ${aqi}</span><span style="opacity:0.6;">体感 ${feel}</span></div><div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;"><div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div><div style="position:absolute; left:${aqiPos}%; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;"><span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height:1;">${aqi}</span><div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div></div></div></div></div>` + containerEnd;
+        }
+    } 
+    else if (raw.includes('109_E|')) {
+        const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
+        if (p) {
+            html = containerStart + `<div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;"><div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div><div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div></div><div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div><div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div></div>` + containerEnd;
+        }
+    } 
+    // --- [分支 3]：红包系统 ---
+    else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
+        msg.classList.add('fixed');
+        const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+        const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important;";
+        const card = document.createElement('div');
+        card.className = 'beautiful-packet';
+        card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+        card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
+        card.onclick = (e) => { 
+            e.stopPropagation(); 
+            const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
+            if (typeof launch === 'function') launch(wish, amt);
+        };
+        msg.innerHTML = ''; 
+        msg.appendChild(card);
     }
 
-    const card = document.createElement('div');
-    card.className = 'beautiful-packet';
-    card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-    
-    // 关键：保持你的 -40px，但确保 pointer-events 为 auto 和 z-index 足够高
-    card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
-    
-    card.onclick = (e) => { 
-        e.stopPropagation(); 
-        e.preventDefault(); // 强力阻止酒馆原生逻辑
-        console.log("🚀 红包卡片被点击了，正在尝试调用 UI...");
-
-    // 定义调用函数
-    const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
-
-    if (typeof launch === 'function') {
-        launch(wish, amt);
-    } else {
-        console.error("❌ 错误：找不到 window.launchPerfectPacket 函数！请检查手机 UI 脚本是否已加载。");
-        // 备选方案：尝试触发自定义事件（如果你的主插件支持事件监听）
-        document.dispatchEvent(new CustomEvent('launchPacket', { detail: { wish, amt } }));
+    // --- [通用渲染：仅针对服务号卡片] ---
+    if (html) {
+        if (bubble) {
+            bubble.classList.add('service-card-bubble');
+            bubble.style.cssText = ""; 
+        }
+        msg.classList.add('service-card-text');
+        msg.style.cssText = ""; 
+        msg.innerHTML = html;
     }
-};
-
-    msg.innerHTML = ''; 
-    msg.appendChild(card);
-}
-        }); // 闭合 forEach
+}); // 正确闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
