@@ -7098,7 +7098,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 }
             }
             // --- 【第二步】如果是红包 (且确定不是通话) ---
-            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
+            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('@@UI_')) {
                 msg.classList.add('fixed');
                 // ... (此处保持你原有的红包渲染代码不变) ...
                 const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
