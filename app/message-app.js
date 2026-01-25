@@ -7302,9 +7302,9 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         }
     }
 
-    // --- [分支 8]：树洞吐槽 (113_S) ---
-    else if (raw.includes('113_S|')) {
-        const p = raw.match(/113_S\|([^|]+)\|([^\]]+)/);
+    // --- [分支 8]：树洞吐槽 (113_S) - 颜值提升版 ---
+    else if (raw.includes('UI_113_S|')) {
+        const p = raw.match(/UI_113_S\|([^|]+)\|([^\]]+)/);
         if (p) {
             const sNum = p[1] || "404";
             const sContent = p[2] || "";
@@ -7312,11 +7312,11 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#feff9c; color:#444; box-sizing:border-box; border:1.5px solid #f1f1d1; position:relative; display:flex; flex-direction:column; justify-content:center; box-shadow:5px 8px 20px rgba(0,0,0,0.05);">
-                <div style="position:absolute; top:12px; left:50%; transform:translateX(-50%); width:18px; height:18px; background:#ff4757; border-radius:50%; box-shadow:inset -2px -2px 5px rgba(0,0,0,0.2); z-index:2;"></div>
-                <div style="font-size:10px; color:#a3a372; margin-bottom:10px; border-bottom:1px dashed #d1d1a1; padding-top:10px; font-weight:800;"># 匿名投稿：NO.${sNum}</div>
-                <div style="font-size:13.5px; color:#1d1d1f; line-height:1.5; font-weight:700;">“${sContent}”</div>
-                <div style="font-size:10px; color:#888; margin-top:8px; text-align:right; font-weight:600;">—— 匿名树洞 · 搬砖日常</div>
+            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1px solid rgba(0,0,0,0.06); position:relative; display:flex; flex-direction:column; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
+                <div style="position:absolute; top:12px; left:50%; transform:translateX(-50%); width:12px; height:12px; background:#444; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.2); z-index:2;"></div>
+                <div style="font-size:10px; color:#aaa; margin-bottom:10px; border-bottom:1px dashed #eee; padding-top:8px; font-weight:800; letter-spacing:1px;"># SECRET HOLE NO.${sNum}</div>
+                <div style="font-size:14px; color:#333; line-height:1.6; font-weight:700; font-family:serif; font-style:italic;">“${sContent}”</div>
+                <div style="font-size:10px; color:#ccc; margin-top:10px; text-align:right; font-weight:600; text-transform:uppercase;">Anonymous Post</div>
             </div>`;
             msg.innerHTML = html;
         }
