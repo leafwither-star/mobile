@@ -7191,10 +7191,29 @@ else if (raw.includes('[UI_')) {
     // 最终渲染逻辑
     if (html) {
         if (bubble) {
-            // 关键：强制抹除原本的气泡样式，确保宽度受控且左对齐
-            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important; display:block !important; width:fit-content !important; margin-left:0px !important;";
+            // 1. 清除气泡外层的间距限制
+            // margin-left: 0px 遵循你之前的修正要求 [cite: 2026-01-20]
+            bubble.style.cssText = `
+                background: transparent !important; 
+                border: none !important; 
+                box-shadow: none !important; 
+                padding: 0 !important; 
+                margin-left: 0px !important; 
+                margin-top: -8px !important;  /* 关键：把气泡整体上提 */
+                display: block !important; 
+                width: fit-content !important;
+                min-height: auto !important;
+            `;
         }
-        msg.style.cssText = "padding:0 !important; background:none !important; margin:0 !important; display:block !important;";
+        
+        // 2. 强制抹除消息文本框的自带留白
+        msg.style.cssText = `
+            padding: 0 !important; 
+            background: none !important; 
+            margin: 0 !important; 
+            display: block !important; 
+            width: 240px !important;
+        `;
         msg.innerHTML = html;
     }
 }
