@@ -6718,6 +6718,58 @@ renderAddFriendTab() {
                 position: relative !important;
                 left: 0 !important;
             }
+        
+        /* =========================================
+               【新增】天气卡片专项镇压样式 (神仙比例 V3.1)
+               ========================================= */
+            /* 1. 彻底清除天气气泡的原生背景 */
+            .service-card-bubble { 
+                background: transparent !important; 
+                border: none !important; 
+                box-shadow: none !important; 
+                padding: 0 !important;
+                margin-top: -54px !important; /* 你调好的位移 t */
+                margin-left: 0px !important;
+                transition: none !important; /* 强制关闭原生过渡，解决闪烁 */
+                overflow: visible !important;
+            }
+
+            /* 2. 彻底禁用 hover 动画，防止鼠标悬停时卡片乱跳 */
+            .service-card-bubble:hover {
+                transform: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            /* 3. 修正天气文本容器 */
+            .service-card-text { 
+                padding: 0 !important; 
+                background: transparent !important;
+            }
+
+            /* 4. 天气图标专属浮动动画 */
+            @keyframes weatherFloat { 
+                0%, 100% { transform: translateY(-50%) scale(1); } 
+                50% { transform: translateY(-55%) scale(1.05); } 
+            }
+
+            .message-received .message-text:has(.beautiful-packet) {
+                display: block !important;
+                text-align: left !important;
+                overflow: visible !important;
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+                width: 100% !important;
+                background: transparent !important;
+            }
+
+            .message-received .message-text .beautiful-packet {
+                margin-left: 0 !important;
+                margin-right: auto !important;
+                display: block !important;
+                position: relative !important;
+                left: 0 !important;
+            }
         `; // <--- 确保反引号在这里关闭
         document.head.appendChild(style);
     }
