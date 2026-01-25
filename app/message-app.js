@@ -6978,14 +6978,24 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
     let content = cMatch[1].split('|')[0];
 
     // 2. 【新增：强力清洗逻辑】
-    // 只要内容里包含 < 和 >，就认为它是 HTML，启动清洗
-    if (content.includes('<') && content.includes('>')) {
+    // A. 处理新的服务号 UI 格式
+    if (content.includes('UI_')) {
+        if (content.includes('101_N')) content = "[今日新闻]";
+        else if (content.includes('101_A')) content = "[政务预警]";
+        else if (content.includes('101_W')) content = "[天气快报]";
+        else if (content.includes('108_F')) content = "[时尚快讯]";
+        else if (content.includes('109_H')) content = "[暖心语录]";
+        else if (content.includes('109_E')) content = "[深夜FM]";
+        else if (content.includes('113_S')) content = "[匿名树洞]";
+        else content = "[服务通知]";
+    } 
+    // B. 原有的 HTML 清洗逻辑（保留，以防万一有旧格式）
+    else if (content.includes('<') && content.includes('>')) {
         content = content
-            .replace(/<[^>]*>/g, '')   // 移除所有 <...> 格式的标签
-            .replace(/&nbsp;/g, ' ')   // 把 HTML 的空格实体转为普通空格
-            .trim();                   // 去掉首尾多余空格
+            .replace(/<[^>]*>/g, '')   
+            .replace(/&nbsp;/g, ' ')   
+            .trim();
         
-        // 如果洗完发现只剩空字符串了（比如纯代码卡片），给个友好的占位符
         if (!content) content = "[图文内容]";
     }
 
