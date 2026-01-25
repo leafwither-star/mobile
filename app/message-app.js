@@ -7124,54 +7124,73 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
             }
              // --- 【第二步】如果是服务号快讯 (101, 108, 109, 113) ---
 else if (raw.includes('[UI_')) {
-                // 关键：绕过红包
-                if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
+    if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
 
-                msg.classList.add('fixed');
-                let html = '';
-                
-                // 统一使用 CSS 变量容器
-                const containerStart = `<div class="service-card-container">`;
-                const containerEnd = `</div>`;
+    msg.classList.add('fixed');
+    let html = '';
+    const containerStart = `<div class="service-card-container">`;
+    const containerEnd = `</div>`;
 
-                // 1. 晴天卡片
-                if (raw.includes('101_W|') && raw.includes('晴')) {
-                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:linear-gradient(135deg, #6284ff, #4facfe); border-radius:16px; padding:18px; color:#fff; box-shadow:0 10px 20px rgba(98,132,255,0.2); box-sizing:border-box;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · SUNNY</div>
-                                    <div style="font-size:32px; font-weight:bold; margin-top:4px; line-height:1;">${p[2]}</div>
-                                </div>
-                                <div style="font-size:42px; line-height:1;">☀️</div>
-                            </div>
-                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;">
-                                <b>AQI ${p[3]}</b> · ${p[4]}
-                            </div>
-                        </div>` + containerEnd;
-                    }
-                }
-                
-                // 2. 雨天卡片
-                else if (raw.includes('101_W|') && raw.includes('雨')) {
-                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:linear-gradient(180deg, #3a485a, #1c262f); border-radius:16px; padding:18px; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
-                            <style>@keyframes rF { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }</style>
-                            <div style="position:absolute; width:1px; height:15px; background:white; left:30%; animation:rF 1s linear infinite;"></div>
-                            <div style="position:absolute; width:1px; height:15px; background:white; left:70%; animation:rF 1.2s linear infinite 0.3s;"></div>
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div><div style="font-size:10px; opacity:0.7;">BEIJING · RAINY</div><div style="font-size:32px; font-weight:bold; margin-top:4px;">${p[2]}</div></div>
-                                <div style="font-size:42px;">🌧️</div>
-                            </div>
-                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
-                        </div>` + containerEnd;
-                    }
-                }
+    // 🌟 【重构】全能天气卡片逻辑 (替换掉原来的 1.晴天 和 2.雨天)
+    if (raw.includes('101_W|')) {
+        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
+        if (p) {
+            const city = p[1] || "BEIJING";
+            const temp = p[2] || "--°";
+            const aqi = parseInt(p[3]) || 0;
+            const desc = p[4] || "未知";
+            
+            // 自动匹配图标
+            let icon = '🌤️';
+            if (desc.includes('晴')) icon = '☀️';
+            else if (desc.includes('云') || desc.includes('阴')) icon = '⛅';
+            else if (desc.includes('雨')) icon = '🌧️';
+            else if (desc.includes('雪')) icon = '❄️';
 
+            // 计算 AQI 指针位置 (8% - 92% 之间移动)
+            const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
+
+            // 你的神仙数值：w:243, h:267, is:100, ix:-13, iy:-109, gap:0, t:-54, al:98
+            html = containerStart + `
+            <div style="
+                width:243px; height:267px; border-radius:32px; padding:24px; 
+                background: linear-gradient(135deg, #ffffff 0%, #f1f4f9 100%); 
+                color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;
+                border: 1.5px solid rgba(0,0,0, 0.1); position:relative; overflow:hidden;
+                box-shadow: 0 15px 35px rgba(0,0,0,0.06); backdrop-filter: blur(15px);
+                font-family: -apple-system, system-ui, sans-serif;
+            ">
+                <div style="
+                    position:absolute; right:-13px; top:calc(45% - 109px); 
+                    transform: translateY(-50%); font-size:100px; 
+                    animation: weatherFloat 6s ease-in-out infinite; 
+                    z-index: 1; filter: drop-shadow(0 12px 20px rgba(0,0,0,0.08));
+                ">${icon}</div>
+
+                <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:0px;">
+                    <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">
+                        ${desc.toUpperCase()} · ${city.toUpperCase()}
+                    </div>
+                    <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">
+                        ${temp}
+                    </div>
+                </div>
+
+                <div style="position:relative; z-index:2; width:98%; margin-bottom: 5px;">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
+                        <span>AQI · ${aqi}</span>
+                    </div>
+                    <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
+                        <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
+                        <div style="position:absolute; left:${aqiPos}%; top:-20px; transform: translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height: 1;">${aqi}</span>
+                            <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>` + containerEnd;
+        }
+    }
                 // 3. 治愈/深夜FM (109_E)
                 else if (raw.includes('109_E|')) {
                     const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
