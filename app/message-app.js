@@ -7195,9 +7195,19 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     card.onclick = (e) => { 
         e.stopPropagation(); 
         e.preventDefault(); // 强力阻止酒馆原生逻辑
-        console.log("红包卡片被点击了"); // 你可以开F12看有没有这一行，有就说明互动通了
-        window.launchPerfectPacket(wish, amt); 
-    };
+        console.log("🚀 红包卡片被点击了，正在尝试调用 UI...");
+
+    // 定义调用函数
+    const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
+
+    if (typeof launch === 'function') {
+        launch(wish, amt);
+    } else {
+        console.error("❌ 错误：找不到 window.launchPerfectPacket 函数！请检查手机 UI 脚本是否已加载。");
+        // 备选方案：尝试触发自定义事件（如果你的主插件支持事件监听）
+        document.dispatchEvent(new CustomEvent('launchPacket', { detail: { wish, amt } }));
+    }
+};
 
     msg.innerHTML = ''; 
     msg.appendChild(card);
