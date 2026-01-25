@@ -7330,17 +7330,25 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.appendChild(card);
     }
 
-    // --- [通用渲染：仅针对服务号卡片] ---
+    // --- [通用渲染：全能版] ---
     if (html) {
         if (bubble) {
             bubble.classList.add('service-card-bubble');
+            // 清空内联样式，确保 CSS 自定义区的透明背景生效
             bubble.style.cssText = ""; 
+            
+            // 针对所有 UI 卡片，强制取消酒馆的内边距，让我们的 130px 准确定位
+            if (raw.includes('UI_')) {
+                bubble.style.padding = "0";
+                bubble.style.background = "transparent";
+                bubble.style.border = "none";
+                bubble.style.height = "auto"; 
+            }
         }
         msg.classList.add('service-card-text');
-        msg.style.cssText = ""; 
         msg.innerHTML = html;
-    }
-}); // 正确闭合 forEach
+    } 
+  };// 正确闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
