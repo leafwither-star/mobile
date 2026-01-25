@@ -7190,7 +7190,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif;">
+            <div class="service-card-container" style="width:263px; height:130px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif;">
                 <div class="deco-icon" style="position:absolute; right:9px; top:12px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">📰</div>
                 
                 <div style="position:relative; z-index:2;">
@@ -7219,7 +7219,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
             html = `
             <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
-            <div class="service-card-container" style="width:263px; min-height:130px; border-radius:32px; padding:22px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(255,71,87,0.08); font-family:-apple-system,sans-serif;">
+            <div class="service-card-container" style="width:263px; height:130px; border-radius:32px; padding:22px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(255,71,87,0.08); font-family:-apple-system,sans-serif;">
                 <div class="deco-icon" style="position:absolute; right:9px; top:12px; font-size:46px; opacity:0.25; pointer-events:none;">⚠️</div>
                 
                 <div style="position:relative; z-index:2;">
@@ -7253,16 +7253,25 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.appendChild(card);
     }
 
-    // --- [通用渲染：仅针对服务号卡片] ---
-    if (html) {
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
-            bubble.style.cssText = ""; 
+   // --- [通用渲染：精准高度控制版] ---
+if (html) {
+    if (bubble) {
+        bubble.classList.add('service-card-bubble');
+        bubble.style.cssText = ""; 
+        
+        // 🎯 核心修正：
+        // 如果是新闻(101_N)或警告(101_A)，强制外层气泡高度为 130px
+        if (raw.includes('101_N|') || raw.includes('101_A|')) {
+            bubble.style.height = "130px";
+        } else {
+            // 天气或其他长卡片，高度设为自动，防止彩虹条掉出去
+            bubble.style.height = "auto";
         }
-        msg.classList.add('service-card-text');
-        msg.style.cssText = ""; 
-        msg.innerHTML = html;
     }
+    msg.classList.add('service-card-text');
+    msg.style.cssText = ""; 
+    msg.innerHTML = html;
+}
 }); // 正确闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
