@@ -6545,15 +6545,13 @@ renderAddFriendTab() {
 
 (function injectTheUltimateSystemV12() {
     /**
-     * 【第一部分：永久好友配置区】
-     */
-    const PERMANENT_CONTACTS = {
+     // --- 核心社交圈 (保持不变) ---
         "103": { name: "陈一众", tag: "❤️", isSpecial: true, avatar: "https://github.com/leafwither-star/touxiang2/blob/main/b2de9c82d158ccbfa6be0223686f5030b03541eb.jpeg?raw=true" },
         "102": { name: "曹信", tag: "❤️", isSpecial: true, avatar: "你的Github链接" },
-        "104": { name: "张主任", tag: "✨", isSpecial: false },
-        "105": { name: "张小满", tag: "✨", isSpecial: false },
-    
-       // --- 律所权力金字塔 ---
+        "106": { name: "赵霆 (师兄)", tag: "🎓", isSpecial: false },
+        "107": { name: "苏蔓 (师姐)", tag: "🎓", isSpecial: false },
+
+        // --- 律所权力金字塔 ---
         "141": { name: "顾远山 (授薪合伙人)", tag: "⚖️", isSpecial: false }, 
         "142": { name: "秦克勤 (管委会)", tag: "⚖️", isSpecial: false }, 
         "143": { name: "行政总监-财务赵姐", tag: "💰", isSpecial: false },
@@ -6604,7 +6602,6 @@ renderAddFriendTab() {
         "113": { name: "律政寄信", tag: "📫", isSpecial: false },
         "114": { name: "SKP-S 会员中心", tag: "🛍️", isSpecial: false } // 北京最高端的商场，李至中买衣服的地方
     };
-
     const CLOUD_IDS = Object.keys(PERMANENT_CONTACTS);
 
     /**
@@ -6928,25 +6925,10 @@ window.fetchAndPlayVoice = async function(rawLine) {
                         const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                         item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
                         const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音通话)\|([^\]]+)\]/);
-                       if (cMatch) {
-    // 1. 先拿到原始匹配内容（此时可能带有 <div> 等标签）
-    let content = cMatch[1].split('|')[0];
-
-    // 2. 【新增：强力清洗逻辑】
-    // 只要内容里包含 < 和 >，就认为它是 HTML，启动清洗
-    if (content.includes('<') && content.includes('>')) {
-        content = content
-            .replace(/<[^>]*>/g, '')   // 移除所有 <...> 格式的标签
-            .replace(/&nbsp;/g, ' ')   // 把 HTML 的空格实体转为普通空格
-            .trim();                   // 去掉首尾多余空格
-        
-        // 如果洗完发现只剩空字符串了（比如纯代码卡片），给个友好的占位符
-        if (!content) content = "[图文内容]";
-    }
-
-    // 3. 将洗干净的内容赋值给预览（保持你原有的图片判定逻辑）
-    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-}
+                        if (cMatch) {
+                            let content = cMatch[1].split('|')[0];
+                            item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+                        }
                         item.messageIndex = j; break;
                     }
                 }
