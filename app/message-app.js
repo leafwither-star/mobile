@@ -7190,15 +7190,16 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; height:145px; border-radius:32px; padding:20px 22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-    <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none;">📰</div>
-    <div style="position:relative; z-index:2;">
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
-            <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900;">NEWS</span>
-            <span style="font-size:10px; color:#86868b; font-weight:800;">TODAY</span>
+<div style="padding-bottom: 20px; width: 263px;"> <div class="service-card-container" style="width:263px; height:150px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
+        <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none;">📰</div>
+        <div style="position:relative; z-index:2;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+                <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900;">NEWS</span>
+                <span style="font-size:10px; color:#86868b; font-weight:800;">TODAY</span>
+            </div>
+            <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px; padding-right:25px;">${title}</div>
+            <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
         </div>
-        <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px; padding-right:25px;">${title}</div>
-        <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
     </div>
 </div>`;
             msg.innerHTML = html;
@@ -7218,15 +7219,16 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
             html = `
 <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
-<div class="service-card-container" style="width:263px; height:145px; border-radius:32px; padding:20px 22px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(255,71,87,0.08); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-    <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.25; pointer-events:none;">⚠️</div>
-    <div style="position:relative; z-index:2;">
-        <div style="display:flex; align-items:center; gap:8px; color:#ff4757; font-size:10px; font-weight:900; margin-bottom:10px;">
-            <div style="width:7px; height:7px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite;"></div>
-            TRAFFIC ALERT
+<div style="padding-bottom: 20px; width: 263px;"> <div class="service-card-container" style="width:263px; height:150px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
+        <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none;">📰</div>
+        <div style="position:relative; z-index:2;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+                <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900;">NEWS</span>
+                <span style="font-size:10px; color:#86868b; font-weight:800;">TODAY</span>
+            </div>
+            <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px; padding-right:25px;">${title}</div>
+            <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
         </div>
-        <div style="font-size:14.5px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:6px; padding-right:25px;">${alertTitle}</div>
-        <div style="font-size:12.5px; color:#424245; line-height:1.5;">${alertDetail}</div>
     </div>
 </div>`;
             msg.innerHTML = html;
@@ -7257,17 +7259,13 @@ if (html) {
         bubble.classList.add('service-card-bubble');
         bubble.style.cssText = ""; 
         
-        // 这里的数值必须和你卡片 div 里的 height 一致
         if (raw.includes('101_N|') || raw.includes('101_A|')) {
-            bubble.style.height = "145px"; 
+            bubble.style.height = "170px"; // 内部 150 + 底部间距 20
         } else if (raw.includes('101_W|')) {
-            bubble.style.height = "267px"; // 天气卡片的高度也顺手锁死，最稳
-        } else {
-            bubble.style.height = "auto";
+            bubble.style.height = "287px"; // 天气 267 + 底部间距 20
         }
     }
     msg.classList.add('service-card-text');
-    msg.style.cssText = ""; 
     msg.innerHTML = html;
 }
 }); // 正确闭合 forEach
