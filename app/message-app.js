@@ -7220,7 +7220,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-// --- [分支 5]：VOGUE时尚 (108_F) ---
+      // --- [分支 5]：VOGUE时尚 (108_F) ---
     else if (raw.includes('108_F|')) {
         const p = raw.match(/108_F\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7347,8 +7347,8 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         }
         msg.classList.add('service-card-text');
         msg.innerHTML = html;
-    } 
-  };// 正确闭合 forEach
+    }
+}); // 正确闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
