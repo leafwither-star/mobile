@@ -7127,44 +7127,37 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
             const city = (p[1] || "BEIJING").toUpperCase();
-            const temp = p[2] || "--";
+            const temp = p[2] || "--°";
             const aqi = parseInt(p[3]) || 0;
-            const desc = p[4] || "晴";
-            
-            const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-            const weekDay = days[new Date().getDay()];
+            const desc = p[4] || "未知";
+            const feel = (parseInt(temp) - 2) + "°";
             const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
             let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
             
-            // 🎯 严格执行你的黄金数值
-            const cfg = {"w":"263","h":"267","is":"95","iy":"-43","ix":"5","al":"95"};
+            // 🎯 你的黄金数值 (JS 只负责内部比例)
+            const cfg = {"w":"263","h":"267","is":"95","iy":"-43","ix":"5","gap":"0","al":"95"};
 
+            // 【关键步骤】激活 CSS 镇压
             if (bubble) {
+                // 1. 给气泡套上你在 CSS 区写的那个名字
                 bubble.classList.add('service-card-bubble');
+                // 2. 清空酒馆原本可能残留的 style 干扰
                 bubble.style.cssText = ""; 
             }
 
+            // 【关键步骤】给消息文本套上名字
+            msg.classList.add('service-card-text');
+
             html = `
-            <div class="service-card-container" style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; border:1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system, system-ui, sans-serif; box-sizing:border-box;">
-                
-                <div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08)); line-height:1;">${icon}</div>
-                
-                <div style="position:absolute; left:24px; top:32px; z-index:2; font-size:11px; font-weight:800; color:#86868b; letter-spacing:1.5px;">
-                    ${weekDay} · ${city}
+            <div class="service-card-container" style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; border: 1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08));">${icon}</div>
+                <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;">
+                    <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">${city} · ${desc}</div>
+                    <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">${temp}</div>
+                    <div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div>
                 </div>
-
-                <div style="position:absolute; left:20px; top:52px; z-index:2; font-size:56px; font-weight:700; color:#101010; letter-spacing:-3px; line-height:1;">
-                    ${temp}<span style="font-size:32px; margin-left:2px;">°</span>
-                </div>
-
-                <div style="position:absolute; left:24px; top:115px; z-index:2; font-size:16px; font-weight:600; color:#3a3a3c;">
-                    ${desc}
-                </div>
-
-                <div style="position:absolute; left:24px; bottom:28px; width:${cfg.al}%; z-index:2;">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
-                        <span>空气质量 · ${aqi}</span>
-                    </div>
+                <div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom:5px;">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;"><span>AQI · ${aqi}</span><span style="opacity:0.6;">体感 ${feel}</span></div>
                     <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
                         <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
                         <div style="position:absolute; left:${aqiPos}%; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
@@ -7175,6 +7168,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                 </div>
             </div>`;
             
+            // 立即渲染
             msg.innerHTML = html;
         }
     }
