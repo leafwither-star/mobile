@@ -7181,8 +7181,9 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     else if (raw.includes('101_N|')) {
         const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
         if (p) {
-            const title = p[1] || "";
-            const summary = p[2] || "";
+            const title = p[1] || "暂无新闻标题";
+            const summary = p[2] || "暂无详细摘要";
+            
             if (bubble) {
                 bubble.classList.add('service-card-bubble');
                 bubble.style.cssText = ""; 
@@ -7190,18 +7191,14 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-<div style="padding-bottom: 20px; width: 263px;"> <div class="service-card-container" style="width:263px; height:150px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-        <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none;">📰</div>
-        <div style="position:relative; z-index:2;">
-            <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
-                <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900;">NEWS</span>
-                <span style="font-size:10px; color:#86868b; font-weight:800;">TODAY</span>
-            </div>
-            <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px; padding-right:25px;">${title}</div>
-            <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
-        </div>
-    </div>
-</div>`;
+            <div class="service-card-container" style="width:263px; border-radius:32px; padding:24px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span style="background:#ff4757; color:#fff; font-size:10px; padding:2px 8px; border-radius:6px; font-weight:900; letter-spacing:1px;">NEWS</span>
+                    <span style="font-size:11px; color:#86868b; font-weight:800; letter-spacing:1px;">BEIJING TODAY</span>
+                </div>
+                <div style="font-size:15px; color:#101010; font-weight:700; line-height:1.5; margin-bottom:10px;">${title}</div>
+                <div style="font-size:13px; color:#424245; line-height:1.6;">${summary}</div>
+            </div>`;
             msg.innerHTML = html;
         }
     }
@@ -7209,8 +7206,9 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     else if (raw.includes('101_A|')) {
         const p = raw.match(/101_A\|([^|]+)\|([^\]]+)/);
         if (p) {
-            const alertTitle = p[1] || "";
-            const alertDetail = p[2] || "";
+            const alertTitle = p[1] || "交通提醒";
+            const alertDetail = p[2] || "请注意出行安全";
+            
             if (bubble) {
                 bubble.classList.add('service-card-bubble');
                 bubble.style.cssText = ""; 
@@ -7218,19 +7216,15 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-<style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
-<div style="padding-bottom: 20px; width: 263px;"> <div class="service-card-container" style="width:263px; height:150px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-        <div class="deco-icon" style="position:absolute; right:9px; top:25px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none;">📰</div>
-        <div style="position:relative; z-index:2;">
-            <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
-                <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900;">NEWS</span>
-                <span style="font-size:10px; color:#86868b; font-weight:800;">TODAY</span>
-            </div>
-            <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px; padding-right:25px;">${title}</div>
-            <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
-        </div>
-    </div>
-</div>`;
+            <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
+            <div class="service-card-container" style="width:263px; border-radius:32px; padding:24px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; box-shadow:0 15px 35px rgba(255,71,87,0.1); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="display:flex; align-items:center; gap:8px; color:#ff4757; font-size:11px; font-weight:900; margin-bottom:12px; letter-spacing:1px;">
+                    <div style="width:8px; height:8px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite;"></div>
+                    TRAFFIC ALERT
+                </div>
+                <div style="font-size:15px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:8px;">${alertTitle}</div>
+                <div style="font-size:13px; color:#424245; line-height:1.6;">${alertDetail}</div>
+            </div>`;
             msg.innerHTML = html;
         }
     }
@@ -7253,21 +7247,16 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.appendChild(card);
     }
 
-   // --- [通用渲染：145px 同步版] ---
-if (html) {
-    if (bubble) {
-        bubble.classList.add('service-card-bubble');
-        bubble.style.cssText = ""; 
-        
-        if (raw.includes('101_N|') || raw.includes('101_A|')) {
-            bubble.style.height = "170px"; // 内部 150 + 底部间距 20
-        } else if (raw.includes('101_W|')) {
-            bubble.style.height = "287px"; // 天气 267 + 底部间距 20
+    // --- [通用渲染：仅针对服务号卡片] ---
+    if (html) {
+        if (bubble) {
+            bubble.classList.add('service-card-bubble');
+            bubble.style.cssText = ""; 
         }
+        msg.classList.add('service-card-text');
+        msg.style.cssText = ""; 
+        msg.innerHTML = html;
     }
-    msg.classList.add('service-card-text');
-    msg.innerHTML = html;
-}
 }); // 正确闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
