@@ -6928,10 +6928,25 @@ window.fetchAndPlayVoice = async function(rawLine) {
                         const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                         item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
                         const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音通话)\|([^\]]+)\]/);
-                        if (cMatch) {
-                            let content = cMatch[1].split('|')[0];
-                            item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-                        }
+                       if (cMatch) {
+    // 1. 先拿到原始匹配内容（此时可能带有 <div> 等标签）
+    let content = cMatch[1].split('|')[0];
+
+    // 2. 【新增：强力清洗逻辑】
+    // 只要内容里包含 < 和 >，就认为它是 HTML，启动清洗
+    if (content.includes('<') && content.includes('>')) {
+        content = content
+            .replace(/<[^>]*>/g, '')   // 移除所有 <...> 格式的标签
+            .replace(/&nbsp;/g, ' ')   // 把 HTML 的空格实体转为普通空格
+            .trim();                   // 去掉首尾多余空格
+        
+        // 如果洗完发现只剩空字符串了（比如纯代码卡片），给个友好的占位符
+        if (!content) content = "[图文内容]";
+    }
+
+    // 3. 将洗干净的内容赋值给预览（保持你原有的图片判定逻辑）
+    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+}
                         item.messageIndex = j; break;
                     }
                 }
