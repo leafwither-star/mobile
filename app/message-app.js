@@ -7113,26 +7113,61 @@ window.fetchAndPlayVoice = async function(rawLine) {
             }
     
     // --- 【第三步】如果是服务号快讯 ---
-    else if (raw.includes('@@UI_')) {
-        msg.classList.add('fixed');
-        let html = '';
-        const content = raw.split('文字|')[1]?.split(']')[0] || "";
-        const p = content.split('|');
+else if (raw.includes('@@UI_')) {
+    msg.classList.add('fixed');
+    let html = '';
 
-        if (p[0] === '@@UI_101_W') {
-            // ... 天气代码 ...
-            html = `...`; 
-        } 
-        else if (p[0] === '@@UI_109_E') {
-            // ... FM代码 ...
-            html = `...`;
-        }
+    // 关键修正：既然脚本把 @@UI_ 一直到结束都当下聊天内容
+    // 我们直接对 raw (即 msg.innerText) 进行切分
+    const p = raw.split('@@UI_')[1]?.split(']')[0]?.split('|') || [];
+    // 此时 p[0] 是 101_W, p[1] 是 雨, p[2] 是 12°C ...
 
-        if (html) {
-            if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-            msg.innerHTML = html;
-        }
-        } 
+    // 天气快讯：101_W
+    if (p[0] === '101_W') {
+        const state = p[1] || '晴';
+        const temp = p[2] || '--°C';
+        const aqi = p[3] || '0';
+        const tips = p[4] || '';
+
+        const types = {
+            '雨': { bg: 'linear-gradient(180deg, #3a485a, #1c262f)', icon: '🌧️' },
+            '晴': { bg: 'linear-gradient(135deg, #6284ff, #4facfe)', icon: '☀️' }
+        };
+        const s = types[state] || types['晴'];
+
+        html = `
+        <div style="background:${s.bg}; border-radius:12px; padding:15px; width:220px; color:#fff; font-family:sans-serif;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · ${state}</div>
+                    <div style="font-size:28px; font-weight:bold; margin-top:4px;">${temp}</div>
+                </div>
+                <div style="font-size:40px; line-height:1;">${s.icon}</div>
+            </div>
+            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
+                <div style="font-size:12px; font-weight:bold;">AQI ${aqi}</div>
+                <div style="font-size:11px; opacity:0.9; margin-top:2px;">${tips}</div>
+            </div>
+        </div>`;
+    }
+    
+    // 深夜FM：109_E
+    else if (p[0] === '109_E') {
+        html = `
+        <div style="background:#1a1a1a; border-radius:12px; padding:15px; width:220px; color:#d4af37; border:1px solid #333;">
+            <div style="font-size:9px; text-transform:uppercase; border:1px solid #d4af37; display:inline-block; padding:0 4px; border-radius:2px;">Live</div>
+            <div style="font-size:14px; color:#eee; margin-top:10px; font-weight:500;">${p[1]}</div>
+            <div style="font-size:11px; color:#777; margin-top:6px; line-height:1.4;">${p[2]}</div>
+        </div>`;
+    }
+
+    // 核心操作：强制覆盖掉原来的 @@UI_ 文字
+    if (html) {
+        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+        msg.innerHTML = html;
+        console.log("✅ UI已置换");
+    }
+}
     }); // <--- 关键点1：这是气泡转换 forEach 的闭合
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
