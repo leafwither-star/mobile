@@ -7131,22 +7131,25 @@ else if (raw.includes('@@UI_')) {
 
         const types = {
             '雨': { bg: 'linear-gradient(180deg, #3a485a, #1c262f)', icon: '🌧️' },
-            '晴': { bg: 'linear-gradient(135deg, #6284ff, #4facfe)', icon: '☀️' }
+            '晴': { bg: 'linear-gradient(135deg, #4facfe, #00f2fe)', icon: '☀️' }
         };
         const s = types[state] || types['晴'];
 
+        // 重点：外层套一个 div 隔离，并强制重置 box-sizing
         html = `
-        <div style="background:${s.bg}; border-radius:12px; padding:15px; width:220px; color:#fff; font-family:sans-serif;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div>
-                    <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · ${state}</div>
-                    <div style="font-size:28px; font-weight:bold; margin-top:4px;">${temp}</div>
+        <div class="service-card-wrapper" style="box-sizing: border-box; width: 240px; margin: 5px 0; text-align: left;">
+            <div style="background:${s.bg}; border-radius:12px; padding:16px; color:#fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
+                <div style="display:flex; justify-content:space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <div style="font-size:11px; opacity:0.8; font-family: sans-serif; margin-bottom: 2px;">BEIJING · ${state}</div>
+                        <div style="font-size:32px; font-weight:700; font-family: Arial;">${temp}</div>
+                    </div>
+                    <div style="font-size:44px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">${s.icon}</div>
                 </div>
-                <div style="font-size:40px; line-height:1;">${s.icon}</div>
-            </div>
-            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
-                <div style="font-size:12px; font-weight:bold;">AQI ${aqi}</div>
-                <div style="font-size:11px; opacity:0.9; margin-top:2px;">${tips}</div>
+                <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-family: sans-serif;">
+                    <span style="font-size:12px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:4px;">AQI ${aqi}</span>
+                    <div style="font-size:12px; margin-top:6px; line-height: 1.4; opacity: 0.9;">${tips}</div>
+                </div>
             </div>
         </div>`;
     }
