@@ -7183,48 +7183,47 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         if (p) {
             const title = p[1] || "";
             const summary = p[2] || "";
-            
-            if (bubble) {
-                bubble.classList.add('service-card-bubble');
-                bubble.style.cssText = ""; 
-            }
+            if (bubble) bubble.classList.add('service-card-bubble');
             msg.classList.add('service-card-text');
 
-            // 🎯 优化：height 变 min-height，margin-bottom 缩小
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:20px 24px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system,system-ui,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-                    <span style="background:#ff4757; color:#fff; font-size:10px; padding:2px 8px; border-radius:6px; font-weight:900; letter-spacing:1px;">NEWS</span>
-                    <span style="font-size:10px; color:#86868b; font-weight:800; letter-spacing:1px;">BEIJING TODAY</span>
+            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.08); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.05); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
+                <div class="deco-icon" style="position:absolute; right:9px; top:18px; font-size:46px; opacity:0.15; transform:rotate(10deg); pointer-events:none; z-index:1;">📰</div>
+                
+                <div style="position:relative; z-index:2;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+                        <span style="background:#007aff; color:#fff; font-size:10px; padding:2px 7px; border-radius:6px; font-weight:900; letter-spacing:0.5px;">NEWS</span>
+                        <span style="font-size:10px; color:#86868b; font-weight:800; letter-spacing:1px;">TODAY</span>
+                    </div>
+                    <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.45; margin-bottom:6px; padding-right:30px;">${title}</div>
+                    <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
                 </div>
-                <div style="font-size:14.5px; color:#101010; font-weight:700; line-height:1.4; margin-bottom:6px;">${title}</div>
-                <div style="font-size:12.5px; color:#424245; line-height:1.5; opacity:0.9;">${summary}</div>
             </div>`;
             msg.innerHTML = html;
         }
     }
-    // --- [分支 4]：交通/警告 (101_A) ---
+    // --- [分支 4]：政务/预警 (101_A) ---
     else if (raw.includes('101_A|')) {
         const p = raw.match(/101_A\|([^|]+)\|([^\]]+)/);
         if (p) {
             const alertTitle = p[1] || "";
             const alertDetail = p[2] || "";
-            
-            if (bubble) {
-                bubble.classList.add('service-card-bubble');
-                bubble.style.cssText = ""; 
-            }
+            if (bubble) bubble.classList.add('service-card-bubble');
             msg.classList.add('service-card-text');
 
             html = `
             <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:20px 24px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; box-shadow:0 15px 35px rgba(255,71,87,0.1); font-family:-apple-system,system-ui,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; align-items:center; gap:8px; color:#ff4757; font-size:10px; font-weight:900; margin-bottom:8px; letter-spacing:1px;">
-                    <div style="width:8px; height:8px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite;"></div>
-                    TRAFFIC ALERT
+            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(255,71,87,0.08); font-family:-apple-system,sans-serif; display:flex; flex-direction:column; justify-content:center;">
+                <div class="deco-icon" style="position:absolute; right:9px; top:18px; font-size:46px; opacity:0.25; pointer-events:none; z-index:1;">⚠️</div>
+                
+                <div style="position:relative; z-index:2;">
+                    <div style="display:flex; align-items:center; gap:6px; color:#ff4757; font-size:10px; font-weight:900; margin-bottom:10px; letter-spacing:0.5px;">
+                        <div style="width:7px; height:7px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite; flex-shrink:0;"></div>
+                        SERVICE ALERT · 北京预警
+                    </div>
+                    <div style="font-size:14.5px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:6px; padding-right:30px;">${alertTitle}</div>
+                    <div style="font-size:12.5px; color:#424245; line-height:1.5;">${alertDetail}</div>
                 </div>
-                <div style="font-size:14.5px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:6px;">${alertTitle}</div>
-                <div style="font-size:12.5px; color:#424245; line-height:1.5;">${alertDetail}</div>
             </div>`;
             msg.innerHTML = html;
         }
