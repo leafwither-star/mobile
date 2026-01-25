@@ -6719,57 +6719,25 @@ renderAddFriendTab() {
                 left: 0 !important;
             }
         
-        /* =========================================
-               【新增】天气卡片专项镇压样式 (神仙比例 V3.1)
-               ========================================= */
-            /* 1. 彻底清除天气气泡的原生背景 */
-            .service-card-bubble { 
-                background: transparent !important; 
-                border: none !important; 
-                box-shadow: none !important; 
-                padding: 0 !important;
-                margin-top: -54px !important; /* 你调好的位移 t */
-                margin-left: 0px !important;
-                transition: none !important; /* 强制关闭原生过渡，解决闪烁 */
-                overflow: visible !important;
-            }
+       /* --- 天气卡片：极致镇压样式 --- */
+.service-card-bubble { 
+    background: transparent !important; 
+    border: none !important; 
+    box-shadow: none !important; 
+    padding: 0 !important;
+    margin-top: -54px !important; /* 你调好的位移 t */
+    margin-left: 0px !important;
+    transition: none !important;
+    overflow: visible !important;
+}
+.service-card-bubble:hover { transform: none !important; }
+.service-card-text { padding: 0 !important; background: transparent !important; }
 
-            /* 2. 彻底禁用 hover 动画，防止鼠标悬停时卡片乱跳 */
-            .service-card-bubble:hover {
-                transform: none !important;
-                background: transparent !important;
-                box-shadow: none !important;
-            }
-
-            /* 3. 修正天气文本容器 */
-            .service-card-text { 
-                padding: 0 !important; 
-                background: transparent !important;
-            }
-
-            /* 4. 天气图标专属浮动动画 */
-            @keyframes weatherFloat { 
-                0%, 100% { transform: translateY(-50%) scale(1); } 
-                50% { transform: translateY(-55%) scale(1.05); } 
-            }
-
-            .message-received .message-text:has(.beautiful-packet) {
-                display: block !important;
-                text-align: left !important;
-                overflow: visible !important;
-                padding-top: 8px !important;
-                padding-bottom: 8px !important;
-                width: 100% !important;
-                background: transparent !important;
-            }
-
-            .message-received .message-text .beautiful-packet {
-                margin-left: 0 !important;
-                margin-right: auto !important;
-                display: block !important;
-                position: relative !important;
-                left: 0 !important;
-            }
+/* 天气图标专属浮动动画 */
+@keyframes weatherFloat { 
+    0%, 100% { transform: translateY(-50%) scale(1); } 
+    50% { transform: translateY(-55%) scale(1.05); } 
+}
         `; // <--- 确保反引号在这里关闭
         document.head.appendChild(style);
     }
@@ -7175,74 +7143,66 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
              // --- 【第二步】如果是服务号快讯 (101, 108, 109, 113) ---
-else if (raw.includes('[UI_')) {
-    if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
+// 🌟 【重构】全能天气渲染 (合体最终版)
+else if (raw.includes('101_W|')) {
+    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
+    if (p) {
+        const city = p[1] || "BEIJING";
+        const temp = p[2] || "--°";
+        const aqi = parseInt(p[3]) || 0;
+        const desc = p[4] || "未知";
+        const feel = p[5] || (parseInt(temp) - 2) + "°"; // 自动计算体感
 
-    msg.classList.add('fixed');
-    let html = '';
-    const containerStart = `<div class="service-card-container">`;
-    const containerEnd = `</div>`;
+        const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
+        let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
 
-    // 🌟 【重构】全能天气卡片逻辑 (替换掉原来的 1.晴天 和 2.雨天)
-    if (raw.includes('101_W|')) {
-        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            const city = p[1] || "BEIJING";
-            const temp = p[2] || "--°";
-            const aqi = parseInt(p[3]) || 0;
-            const desc = p[4] || "未知";
-            
-            // 自动匹配图标
-            let icon = '🌤️';
-            if (desc.includes('晴')) icon = '☀️';
-            else if (desc.includes('云') || desc.includes('阴')) icon = '⛅';
-            else if (desc.includes('雨')) icon = '🌧️';
-            else if (desc.includes('雪')) icon = '❄️';
+        // 应用你刚才调出的最新神仙数值
+        const cfg = { w:"263", h:"267", is:"95", iy:"-43", ix:"5", gap:"0", al:"95" };
 
-            // 计算 AQI 指针位置 (8% - 92% 之间移动)
-            const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
-
-            // 你的神仙数值：w:243, h:267, is:100, ix:-13, iy:-109, gap:0, t:-54, al:98
-            html = containerStart + `
+        html = containerStart + `
+        <div style="
+            width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; 
+            background: linear-gradient(135deg, #ffffff 0%, #f1f4f9 100%); 
+            color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;
+            border: 1.5px solid rgba(0,0,0, 0.1); position:relative; overflow:hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.06); backdrop-filter: blur(15px);
+            font-family: -apple-system, system-ui, sans-serif;
+        ">
             <div style="
-                width:243px; height:267px; border-radius:32px; padding:24px; 
-                background: linear-gradient(135deg, #ffffff 0%, #f1f4f9 100%); 
-                color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;
-                border: 1.5px solid rgba(0,0,0, 0.1); position:relative; overflow:hidden;
-                box-shadow: 0 15px 35px rgba(0,0,0,0.06); backdrop-filter: blur(15px);
-                font-family: -apple-system, system-ui, sans-serif;
-            ">
-                <div style="
-                    position:absolute; right:-13px; top:calc(45% - 109px); 
-                    transform: translateY(-50%); font-size:100px; 
-                    animation: weatherFloat 6s ease-in-out infinite; 
-                    z-index: 1; filter: drop-shadow(0 12px 20px rgba(0,0,0,0.08));
-                ">${icon}</div>
+                position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); 
+                transform: translateY(-50%); font-size:${cfg.is}px; 
+                animation: weatherFloat 6s ease-in-out infinite; 
+                z-index: 1; filter: drop-shadow(0 12px 20px rgba(0,0,0,0.08));
+            ">${icon}</div>
 
-                <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:0px;">
-                    <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">
-                        ${desc.toUpperCase()} · ${city.toUpperCase()}
-                    </div>
-                    <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">
-                        ${temp}
+            <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;">
+                <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">
+                    ${city} · ${desc}
+                </div>
+                <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">
+                    ${temp}
+                </div>
+                <div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">
+                    ${desc}
+                </div>
+            </div>
+
+            <div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom: 5px;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
+                    <span>AQI · ${aqi}</span>
+                    <span style="opacity:0.6;">体感 ${feel}</span>
+                </div>
+                <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
+                    <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
+                    <div style="position:absolute; left:${aqiPos}%; top:-20px; transform: translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+                        <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height: 1;">${aqi}</span>
+                        <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
                     </div>
                 </div>
-
-                <div style="position:relative; z-index:2; width:98%; margin-bottom: 5px;">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
-                        <span>AQI · ${aqi}</span>
-                    </div>
-                    <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
-                        <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
-                        <div style="position:absolute; left:${aqiPos}%; top:-20px; transform: translateX(-50%); display:flex; flex-direction:column; align-items:center;">
-                            <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height: 1;">${aqi}</span>
-                            <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>` + containerEnd;
-        }
+            </div>
+        </div>` + containerEnd;
     }
+}
                 // 3. 治愈/深夜FM (109_E)
                 else if (raw.includes('109_E|')) {
                     const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
