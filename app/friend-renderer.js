@@ -312,97 +312,75 @@ if (typeof window.FriendRenderer === 'undefined') {
      * 提取实际的消息内容（过滤思考过程，提取QQ格式消息）
      */
     extractActualMessageContent(messageText) {
-      try {
-        // 1. 移除 <thinking> 标签及其内容
-        let cleanedText = messageText.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  try {
+    // 1. 移除 <thinking> 标签及其内容
+    let cleanedText = messageText.replace(/<think>[\s\S]*?<\/think>|<thinking>[\s\S]*?<\/thinking>/gi, '');
 
-        // 2. 尝试提取QQ格式的消息
-        const qqMessagePatterns = [
-          // 我方消息格式：[我方消息|好友名|好友号|消息内容|时间]
-          /\[我方消息\|[^|]+\|[^|]+\|([^|]+)\|[^\]]+\]/g,
-          // 我方群聊消息格式：[我方群聊消息|群名|群号|我|消息内容|时间]
-          /\[我方群聊消息\|[^|]+\|[^|]+\|[^|]+\|([^|]+)\|[^\]]+\]/g,
-          // 对方消息格式：[对方消息|角色名|数字id|消息类型|消息内容]
-          /\[对方消息\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
-          // 对方群聊消息格式：[对方群聊消息|群名|群号|发言者|消息类型|消息内容]
-          /\[对方群聊消息\|[^|]+\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
-          // 新增：群聊消息格式：[群聊消息|群ID|发送者|消息类型|消息内容]
-          /\[群聊消息\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
-          // 表情包格式：[表情包|文件名|文件路径]
-          /\[表情包\|[^|]+\|[^\]]+\]/g,
-          // 语音格式：[语音|时长|内容]
-          /\[语音\|[^|]+\|([^\]]+)\]/g,
-          // 红包格式：[红包|金额|祝福语]
-          /\[红包\|([^|]+)\|[^\]]+\]/g,
-        ];
+    // 2. 定义匹配模式
+    const qqMessagePatterns = [
+      /\[我方消息\|[^|]+\|[^|]+\|([^|]+)\|[^\]]+\]/g,
+      /\[我方群聊消息\|[^|]+\|[^|]+\|[^|]+\|([^|]+)\|[^\]]+\]/g,
+      /\[对方消息\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
+      /\[对方群聊消息\|[^|]+\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
+      /\[群聊消息\|[^|]+\|[^|]+\|[^|]+\|([^\]]+)\]/g,
+      /\[表情包\|[^|]+\|[^\]]+\]/g,
+      /\[语音\|[^|]+\|([^\]]+)\]/g,
+      /\[红包\|([^|]+)\|[^\]]+\]/g,
+    ];
 
-        // 查找所有匹配的消息
-        const extractedMessages = [];
+    const extractedMessages = [];
 
-        for (const pattern of qqMessagePatterns) {
-          let match;
-          while ((match = pattern.exec(cleanedText)) !== null) {
-            if (match[1]) {
-              let content = match[1];
+    for (const pattern of qqMessagePatterns) {
+      let match;
+      while ((match = pattern.exec(cleanedText)) !== null) {
+        if (match[1] || match[0]) {
+          let content = match[1] || match[0];
 
-              // 检查是否包含HTML标签
-              if (content.includes('<img')) {
-                content = '[图片]';
-              } else if (content.includes('<video')) {
-                content = '[视频]';
-              } else if (content.includes('<audio')) {
-                content = '[音频]';
-              } else if (/<[^>]+>/.test(content)) {
-                // 移除其他HTML标签，只保留文本内容
-                content = content.replace(/<[^>]*>/g, '').trim();
-                if (!content) {
-                  content = '[富文本消息]';
-                }
-              }
-
-              // 对于红包，显示 "红包：金额"
-              if (pattern.source.includes('红包')) {
-                extractedMessages.push(`红包：${content}`);
-              } else if (pattern.source.includes('表情包')) {
-                extractedMessages.push('表情包');
-              } else if (pattern.source.includes('语音')) {
-                extractedMessages.push(`语音：${content}`);
-              } else {
-                extractedMessages.push(content);
-              }
-            } else if (match[0]) {
-              // 对于表情包这种没有提取内容的，直接显示类型
-              if (pattern.source.includes('表情包')) {
-                extractedMessages.push('表情包');
-              }
-            }
+          // --- 核心修复：强力清洗预览中的 HTML ---
+          if (content.includes('<img')) {
+            content = '[图片]';
+          } else if (content.includes('<video')) {
+            content = '[视频]';
+          } else if (content.includes('<audio')) {
+            content = '[音频]';
+          } else if (/<[^>]+>/g.test(content)) {
+            // 这里是关键：先移除所有 HTML 标签，再把 &nbsp; 等实体转为空格
+            content = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+            // 如果洗完只剩下空白，说明是纯图文卡片，给个保底
+            if (!content) content = '[图文消息]';
           }
-          pattern.lastIndex = 0; // 重置正则表达式
+          // --- 修复结束 ---
+
+          // 保持原有的特殊格式处理
+          if (pattern.source.includes('红包')) {
+            extractedMessages.push(`红包：${content}`);
+          } else if (pattern.source.includes('表情包')) {
+            extractedMessages.push('表情包');
+          } else if (pattern.source.includes('语音')) {
+            extractedMessages.push(`语音：${content}`);
+          } else {
+            extractedMessages.push(content);
+          }
         }
-
-        // 如果提取到了消息，返回最后一条
-        if (extractedMessages.length > 0) {
-          return extractedMessages[extractedMessages.length - 1];
-        }
-
-        // 3. 如果没有匹配到QQ格式，尝试其他常见格式
-        cleanedText = cleanedText.trim();
-
-        // 移除多余的空行
-        cleanedText = cleanedText.replace(/\n\s*\n/g, '\n');
-
-        // 如果还是很长，取第一行作为预览
-        if (cleanedText.length > 50) {
-          const firstLine = cleanedText.split('\n')[0];
-          return firstLine || '消息内容';
-        }
-
-        return cleanedText || '消息内容';
-      } catch (error) {
-        console.error('[Friend Renderer] 提取消息内容失败:', error);
-        return '消息内容';
       }
+      pattern.lastIndex = 0;
     }
+
+    if (extractedMessages.length > 0) {
+      const finalContent = extractedMessages[extractedMessages.length - 1];
+      // 限制字数，防止预览撑破布局
+      return finalContent.length > 50 ? finalContent.substring(0, 50) + '...' : finalContent;
+    }
+
+    // 3. 兜底逻辑：如果没有匹配到格式，处理纯文本
+    let finalClean = cleanedText.trim().replace(/\n\s*\n/g, '\n').split('\n')[0];
+    return finalClean.length > 50 ? finalClean.substring(0, 50) + '...' : finalClean || '消息内容';
+    
+  } catch (error) {
+    console.error('[Friend Renderer] 提取消息内容失败:', error);
+    return '消息内容';
+  }
+}
 
     /**
      * HTML转义函数
