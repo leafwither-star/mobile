@@ -7120,100 +7120,82 @@ else if (raw.includes('[UI_')) {
     const containerStart = `<div style="box-sizing:border-box; width:240px; text-align:left; margin:5px 0; display:block;">`;
     const containerEnd = `</div>`;
 
-    // 1. 处理天气快讯 [UI_101_W|状态|温度|AQI|建议]
-    if (raw.includes('101_W|')) {
+    // --- 【第三步】如果是服务号快讯 (101, 108, 109, 113) ---
+else if (raw.includes('[UI_')) {
+    // 关键：如果内容包含红包特征，立即退出，绝对不碰红包逻辑
+    if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
+
+    msg.classList.add('fixed');
+    let html = '';
+    
+    // 使用变量控制宽度和对齐，适配手机端 [cite: 2026-01-20]
+    const containerStart = `<div style="box-sizing:border-box; width:var(--ui-width); text-align:left; margin:0; display:block; position:relative;">`;
+    const containerEnd = `</div>`;
+
+    // 1. 晴天卡片 (采用你喜欢的控制台精致风格)
+    if (raw.includes('101_W|') && raw.includes('晴')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
-            const types = {
-                '雨': { bg: 'linear-gradient(180deg, #3a485a, #1c262f)', icon: '🌧️', ani: 'rainFall' },
-                '晴': { bg: 'linear-gradient(135deg, #6284ff, #ff000022)', icon: '☀️', ani: 'sunFloat' }
-            };
-            const s = types[p[1]] || types['晴'];
             html = containerStart + `
-            <div style="background:${s.bg}; border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.15); width:100%; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
-                <style>
-                    @keyframes rainFall { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }
-                    @keyframes sunFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
-                </style>
-                ${p[1]==='雨' ? '<div style="position:absolute;width:1px;height:15px;background:white;left:30%;animation:rainFall 1s linear infinite;"></div>' : ''}
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div><div style="font-size:10px; opacity:0.7;">BEIJING · ${p[1]}</div><div style="font-size:26px; font-weight:200; margin:5px 0; line-height:1.2;">${p[2]}</div></div>
-                    <div style="font-size:40px; animation:${s.ani} 3s infinite; line-height:1;">${s.icon}</div>
+            <div style="background:linear-gradient(135deg, #6284ff, #4facfe); border-radius:16px; padding:18px; color:#fff; box-shadow:0 10px 20px rgba(98,132,255,0.2); box-sizing:border-box;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · SUNNY</div>
+                        <div style="font-size:32px; font-weight:bold; margin-top:4px; line-height:1;">${p[2]}</div>
+                    </div>
+                    <div style="font-size:42px; line-height:1;">☀️</div>
                 </div>
-                <div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px; line-height:1.4;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
+                <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;">
+                    <b>AQI ${p[3]}</b> · ${p[4]}
+                </div>
             </div>` + containerEnd;
         }
     }
     
-    // 2. 处理律政树洞 [UI_113_S|编号|吐槽]
-    else if (raw.includes('113_S|')) {
-        const p = raw.match(/113_S\|([^|]+)\|([^\]]+)/);
+    // 2. 雨天卡片 (带雨滴动画)
+    else if (raw.includes('101_W|') && raw.includes('雨')) {
+        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
             html = containerStart + `
-            <div style="background:#feff9c; border-radius:2px; padding:15px; box-shadow:5px 5px 15px rgba(0,0,0,0.1); width:100%; transform:rotate(-1.5deg); position:relative; color:#444; font-family:cursive; box-sizing:border-box;">
-                <div style="position:absolute; top:-10px; left:50%; width:18px; height:18px; background:#ff4757; border-radius:50%; transform:translateX(-50%); box-shadow:inset -2px -2px 5px rgba(0,0,0,0.2);"></div>
-                <div style="font-size:10px; color:#a3a372; border-bottom:1px dashed #d1d1a1; margin-bottom:8px; padding-bottom:4px;"># 匿名树洞：${p[1]}</div>
-                <div style="font-size:13px; font-weight:bold; line-height:1.6; word-break:break-all;">“${p[2]}”</div>
+            <div style="background:linear-gradient(180deg, #3a485a, #1c262f); border-radius:16px; padding:18px; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
+                <style>@keyframes rF { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }</style>
+                <div style="position:absolute; width:1px; height:15px; background:white; left:30%; animation:rF 1s linear infinite;"></div>
+                <div style="position:absolute; width:1px; height:15px; background:white; left:70%; animation:rF 1.2s linear infinite 0.3s;"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div><div style="font-size:10px; opacity:0.7;">BEIJING · RAINY</div><div style="font-size:32px; font-weight:bold; margin-top:4px;">${p[2]}</div></div>
+                    <div style="font-size:42px;">🌧️</div>
+                </div>
+                <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
             </div>` + containerEnd;
         }
     }
-    
-    // 3. 处理深夜FM [UI_109_E|标题|文案]
+
+    // 3. 治愈/深夜FM (109_E)
     else if (raw.includes('109_E|')) {
         const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
         if (p) {
             html = containerStart + `
-            <div style="background:#121212; border-radius:12px; padding:18px; box-shadow:0 15px 40px rgba(0,0,0,0.4); width:100%; border:1px solid #333; position:relative; color:#eee; box-sizing:border-box;">
-                <style>@keyframes sPulse { 0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,0.6)} 50%{box-shadow:0 0 15px 4px rgba(212,175,55,0.3)} }</style>
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-                    <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; animation:sPulse 2s infinite;"></div>
-                    <div style="font-size:10px; color:#d4af37; letter-spacing:1px; font-weight:bold;">FM 109 LIVE</div>
+            <div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                    <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div>
+                    <div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div>
                 </div>
-                <div style="font-size:15px; font-weight:500; line-height:1.4;">${p[1]}</div>
-                <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #333; padding-left:8px; line-height:1.5;">${p[2]}</div>
+                <div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div>
+                <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div>
             </div>` + containerEnd;
         }
     }
 
-    // 4. 处理时尚杂志 [UI_108_V|标题|副标题]
-    else if (raw.includes('108_V|')) {
-        const p = raw.match(/108_V\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            html = containerStart + `
-            <div style="background:#fff; border:4px solid #000; padding:15px; width:100%; color:#000; text-align:center; position:relative; box-sizing:border-box;">
-                <div style="font-family: 'Times New Roman', serif; font-size:32px; font-weight:900; border-bottom:2px solid #000; margin-bottom:10px; line-height:1.1;">VOGUE</div>
-                <div style="font-size:16px; font-weight:bold; line-height:1.2; text-transform:uppercase; word-break:break-word;">${p[1]}</div>
-                <div style="font-size:10px; margin-top:8px; color:#666; letter-spacing:2px;">${p[2]}</div>
-            </div>` + containerEnd;
-        }
-    }
-
-    // 最终渲染逻辑
+    // --- 最终渲染执行 ---
+    // 最终渲染逻辑：脚本只负责“放人”，不负责“穿衣”
     if (html) {
         if (bubble) {
-            // 1. 清除气泡外层的间距限制
-            // margin-left: 0px 遵循你之前的修正要求 [cite: 2026-01-20]
-            bubble.style.cssText = `
-                background: transparent !important; 
-                border: none !important; 
-                box-shadow: none !important; 
-                padding: 0 !important; 
-                margin-left: 0px !important; 
-                margin-top: -8px !important;  /* 关键：把气泡整体上提 */
-                display: block !important; 
-                width: fit-content !important;
-                min-height: auto !important;
-            `;
+            // 给这个特定的气泡加一个唯一的 class 标志
+            bubble.classList.add('service-card-bubble');
+            bubble.style.cssText = ""; // 清空脚本干预，交给 CSS 面板
         }
-        
-        // 2. 强制抹除消息文本框的自带留白
-        msg.style.cssText = `
-            padding: 0 !important; 
-            background: none !important; 
-            margin: 0 !important; 
-            display: block !important; 
-            width: 240px !important;
-        `;
+        msg.classList.add('service-card-text');
+        msg.style.cssText = ""; // 清空脚本干预
         msg.innerHTML = html;
     }
 }
