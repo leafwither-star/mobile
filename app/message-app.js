@@ -7113,93 +7113,82 @@ window.fetchAndPlayVoice = async function(rawLine) {
             }
        // --- 【第三步】如果是服务号快讯 (101, 108, 109, 113) ---
 else if (raw.includes('[UI_')) {
-    msg.classList.add('fixed');
-    let html = '';
-    
-    // 基础容器样式，确保不被外层居中干扰，强制左对齐
-    const containerStart = `<div style="box-sizing:border-box; width:240px; text-align:left; margin:5px 0; display:block;">`;
-    const containerEnd = `</div>`;
+                // 关键：绕过红包
+                if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
 
-    // --- 【第三步】如果是服务号快讯 (101, 108, 109, 113) ---
-else if (raw.includes('[UI_')) {
-    // 关键：如果内容包含红包特征，立即退出，绝对不碰红包逻辑
-    if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
+                msg.classList.add('fixed');
+                let html = '';
+                
+                // 统一使用 CSS 变量容器
+                const containerStart = `<div class="service-card-container">`;
+                const containerEnd = `</div>`;
 
-    msg.classList.add('fixed');
-    let html = '';
-    
-    // 使用变量控制宽度和对齐，适配手机端 [cite: 2026-01-20]
-    const containerStart = `<div style="box-sizing:border-box; width:var(--ui-width); text-align:left; margin:0; display:block; position:relative;">`;
-    const containerEnd = `</div>`;
+                // 1. 晴天卡片
+                if (raw.includes('101_W|') && raw.includes('晴')) {
+                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
+                    if (p) {
+                        html = containerStart + `
+                        <div style="background:linear-gradient(135deg, #6284ff, #4facfe); border-radius:16px; padding:18px; color:#fff; box-shadow:0 10px 20px rgba(98,132,255,0.2); box-sizing:border-box;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · SUNNY</div>
+                                    <div style="font-size:32px; font-weight:bold; margin-top:4px; line-height:1;">${p[2]}</div>
+                                </div>
+                                <div style="font-size:42px; line-height:1;">☀️</div>
+                            </div>
+                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;">
+                                <b>AQI ${p[3]}</b> · ${p[4]}
+                            </div>
+                        </div>` + containerEnd;
+                    }
+                }
+                
+                // 2. 雨天卡片
+                else if (raw.includes('101_W|') && raw.includes('雨')) {
+                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
+                    if (p) {
+                        html = containerStart + `
+                        <div style="background:linear-gradient(180deg, #3a485a, #1c262f); border-radius:16px; padding:18px; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
+                            <style>@keyframes rF { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }</style>
+                            <div style="position:absolute; width:1px; height:15px; background:white; left:30%; animation:rF 1s linear infinite;"></div>
+                            <div style="position:absolute; width:1px; height:15px; background:white; left:70%; animation:rF 1.2s linear infinite 0.3s;"></div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div><div style="font-size:10px; opacity:0.7;">BEIJING · RAINY</div><div style="font-size:32px; font-weight:bold; margin-top:4px;">${p[2]}</div></div>
+                                <div style="font-size:42px;">🌧️</div>
+                            </div>
+                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
+                        </div>` + containerEnd;
+                    }
+                }
 
-    // 1. 晴天卡片 (采用你喜欢的控制台精致风格)
-    if (raw.includes('101_W|') && raw.includes('晴')) {
-        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            html = containerStart + `
-            <div style="background:linear-gradient(135deg, #6284ff, #4facfe); border-radius:16px; padding:18px; color:#fff; box-shadow:0 10px 20px rgba(98,132,255,0.2); box-sizing:border-box;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · SUNNY</div>
-                        <div style="font-size:32px; font-weight:bold; margin-top:4px; line-height:1;">${p[2]}</div>
-                    </div>
-                    <div style="font-size:42px; line-height:1;">☀️</div>
-                </div>
-                <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;">
-                    <b>AQI ${p[3]}</b> · ${p[4]}
-                </div>
-            </div>` + containerEnd;
-        }
-    }
-    
-    // 2. 雨天卡片 (带雨滴动画)
-    else if (raw.includes('101_W|') && raw.includes('雨')) {
-        const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            html = containerStart + `
-            <div style="background:linear-gradient(180deg, #3a485a, #1c262f); border-radius:16px; padding:18px; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
-                <style>@keyframes rF { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }</style>
-                <div style="position:absolute; width:1px; height:15px; background:white; left:30%; animation:rF 1s linear infinite;"></div>
-                <div style="position:absolute; width:1px; height:15px; background:white; left:70%; animation:rF 1.2s linear infinite 0.3s;"></div>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div><div style="font-size:10px; opacity:0.7;">BEIJING · RAINY</div><div style="font-size:32px; font-weight:bold; margin-top:4px;">${p[2]}</div></div>
-                    <div style="font-size:42px;">🌧️</div>
-                </div>
-                <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
-            </div>` + containerEnd;
-        }
-    }
+                // 3. 治愈/深夜FM (109_E)
+                else if (raw.includes('109_E|')) {
+                    const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
+                    if (p) {
+                        html = containerStart + `
+                        <div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                                <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div>
+                                <div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div>
+                            </div>
+                            <div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div>
+                            <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div>
+                        </div>` + containerEnd;
+                    }
+                }
 
-    // 3. 治愈/深夜FM (109_E)
-    else if (raw.includes('109_E|')) {
-        const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            html = containerStart + `
-            <div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                    <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div>
-                    <div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div>
-                </div>
-                <div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div>
-                <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div>
-            </div>` + containerEnd;
-        }
-    }
-
-    // --- 最终渲染执行 ---
-    // 最终渲染逻辑：脚本只负责“放人”，不负责“穿衣”
-    if (html) {
-        if (bubble) {
-            // 给这个特定的气泡加一个唯一的 class 标志
-            bubble.classList.add('service-card-bubble');
-            bubble.style.cssText = ""; // 清空脚本干预，交给 CSS 面板
-        }
-        msg.classList.add('service-card-text');
-        msg.style.cssText = ""; // 清空脚本干预
-        msg.innerHTML = html;
-    }
-}
-        });
+                // --- 最终渲染执行 ---
+                if (html) {
+                    if (bubble) {
+                        bubble.classList.add('service-card-bubble');
+                        bubble.style.cssText = ""; // 彻底交给前端CSS控制
+                    }
+                    msg.classList.add('service-card-text');
+                    msg.style.cssText = ""; 
+                    msg.innerHTML = html;
+                }
+            }
+        }); // 闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
