@@ -7122,27 +7122,60 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.appendChild(card);
         }
     } 
-    // --- [分支 2]：服务号快讯 (天气/FM) ---
+   // --- [分支 2]：全能天气 (101_W) ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
-            const city = p[1] || "BEIJING";
+            const city = (p[1] || "BEIJING").toUpperCase(); // 强制大写更高级
             const temp = p[2] || "--°";
             const aqi = parseInt(p[3]) || 0;
             const desc = p[4] || "未知";
             const feel = (parseInt(temp) - 2) + "°";
             const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
             let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
-            const cfg = { w:"263", h:"267", is:"95", iy:"-43", ix:"5", gap:"0", al:"95" };
-            html = containerStart + `<div style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); backdrop-filter:blur(15px); font-family:-apple-system,system-ui,sans-serif;"><div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08));">${icon}</div><div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;"><div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">${city} · ${desc}</div><div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:5px;">${temp}</div><div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div></div><div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom:5px;"><div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;"><span>AQI · ${aqi}</span><span style="opacity:0.6;">体感 ${feel}</span></div><div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;"><div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div><div style="position:absolute; left:${aqiPos}%; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;"><span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height:1;">${aqi}</span><div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div></div></div></div></div>` + containerEnd;
+            
+            // 🎯 完美回归你的黄金数值
+            const cfg = {"w":"263","h":"267","is":"95","iy":"-43","ix":"5","t":"-54","gap":"0","al":"95"};
+
+            // 修正气泡整体位移
+            if (bubble) {
+                bubble.classList.add('service-card-bubble');
+                // 这里注入了黄金位移 t (-54px)
+                bubble.style.cssText = `background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin-top:${cfg.t}px !important; margin-left:0px !important; overflow:visible !important;`;
+            }
+
+            html = containerStart + `
+            <div style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; border:1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); backdrop-filter:blur(15px); font-family:-apple-system,system-ui,sans-serif;">
+                <div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08));">${icon}</div>
+                
+                <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px;">
+                    <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">
+                        ${desc} · ${city}
+                    </div>
+                    <div style="font-size:52px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-top:8px;">
+                        ${temp}
+                    </div>
+                    <div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">
+                        ${desc.includes('晴') ? '期待与你在阳光下相见' : '记得随身带把伞哦'} 
+                    </div>
+                </div>
+
+                <div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom:5px;">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
+                        <span>AQI · ${aqi} ${aqi < 50 ? '优' : '良'}</span>
+                        <span style="opacity:0.6;">体感 ${feel}</span>
+                    </div>
+                    <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
+                        <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
+                        <div style="position:absolute; left:${aqiPos}%; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height:1;">${aqi}</span>
+                            <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>` + containerEnd;
         }
-    } 
-    else if (raw.includes('109_E|')) {
-        const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            html = containerStart + `<div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;"><div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div><div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div></div><div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div><div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div></div>` + containerEnd;
-        }
-    } 
+    }
     // --- [分支 3]：红包系统 ---
     else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
         msg.classList.add('fixed');
