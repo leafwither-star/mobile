@@ -7097,122 +7097,21 @@ window.fetchAndPlayVoice = async function(rawLine) {
                     msg.appendChild(card);
                 }
             }
-             // --- 【第二步】如果是服务号快讯 (101, 108, 109, 113) ---
-else if (raw.includes('[UI_')) {
-                // 关键：绕过红包
-                if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
-
+            // --- 【第二步】如果是红包 (且确定不是通话) ---
+            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/))) {
                 msg.classList.add('fixed');
-                let html = '';
-                
-                // 统一使用 CSS 变量容器
-                const containerStart = `<div class="service-card-container">`;
-                const containerEnd = `</div>`;
-
-                // 1. 晴天卡片
-                if (raw.includes('101_W|') && raw.includes('晴')) {
-                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:linear-gradient(135deg, #6284ff, #4facfe); border-radius:16px; padding:18px; color:#fff; box-shadow:0 10px 20px rgba(98,132,255,0.2); box-sizing:border-box;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">BEIJING · SUNNY</div>
-                                    <div style="font-size:32px; font-weight:bold; margin-top:4px; line-height:1;">${p[2]}</div>
-                                </div>
-                                <div style="font-size:42px; line-height:1;">☀️</div>
-                            </div>
-                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;">
-                                <b>AQI ${p[3]}</b> · ${p[4]}
-                            </div>
-                        </div>` + containerEnd;
-                    }
-                }
-                
-                // 2. 雨天卡片
-                else if (raw.includes('101_W|') && raw.includes('雨')) {
-                    const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:linear-gradient(180deg, #3a485a, #1c262f); border-radius:16px; padding:18px; color:#fff; position:relative; overflow:hidden; box-sizing:border-box;">
-                            <style>@keyframes rF { 0%{transform:translateY(-100%) rotate(15deg);opacity:0} 100%{transform:translateY(200%) rotate(15deg);opacity:0.4} }</style>
-                            <div style="position:absolute; width:1px; height:15px; background:white; left:30%; animation:rF 1s linear infinite;"></div>
-                            <div style="position:absolute; width:1px; height:15px; background:white; left:70%; animation:rF 1.2s linear infinite 0.3s;"></div>
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div><div style="font-size:10px; opacity:0.7;">BEIJING · RAINY</div><div style="font-size:32px; font-weight:bold; margin-top:4px;">${p[2]}</div></div>
-                                <div style="font-size:42px;">🌧️</div>
-                            </div>
-                            <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px; font-size:12px;"><b>AQI ${p[3]}</b><br>${p[4]}</div>
-                        </div>` + containerEnd;
-                    }
-                }
-
-                // 3. 治愈/深夜FM (109_E)
-                else if (raw.includes('109_E|')) {
-                    const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
-                    if (p) {
-                        html = containerStart + `
-                        <div style="background:#121212; border-radius:12px; padding:18px; color:#eee; border:1px solid #333; box-sizing:border-box;">
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                                <div style="width:8px; height:8px; background:#d4af37; border-radius:50%; box-shadow:0 0 10px #d4af37;"></div>
-                                <div style="font-size:10px; color:#d4af37; font-weight:bold;">FM 109 LIVE</div>
-                            </div>
-                            <div style="font-size:16px; line-height:1.4; font-weight:500;">“${p[1]}”</div>
-                            <div style="font-size:12px; color:#666; margin-top:10px; border-left:2px solid #d4af37; padding-left:8px;">${p[2]}</div>
-                        </div>` + containerEnd;
-                    }
-                }
-
-                // --- 最终渲染执行 ---
-                if (html) {
-                    if (bubble) {
-                        bubble.classList.add('service-card-bubble');
-                        bubble.style.cssText = ""; // 彻底交给前端CSS控制
-                    }
-                    msg.classList.add('service-card-text');
-                    msg.style.cssText = ""; 
-                    msg.innerHTML = html;
-                }
+                // ... (此处保持你原有的红包渲染代码不变) ...
+                const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+                const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important;";
+                const card = document.createElement('div');
+                card.className = 'beautiful-packet';
+                card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+                card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
+                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
+                msg.innerHTML = ''; msg.appendChild(card);
             }
-            // --- 【第三步】如果是红包 ---
-else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-    msg.classList.add('fixed');
-    const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-    const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-
-    if (bubble) {
-        // 关键：增加 pointer-events: none，让点击穿透透明气泡
-        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important;";
-    }
-
-    const card = document.createElement('div');
-    card.className = 'beautiful-packet';
-    card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-    
-    // 关键：保持你的 -40px，但确保 pointer-events 为 auto 和 z-index 足够高
-    card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
-    
-    card.onclick = (e) => { 
-        e.stopPropagation(); 
-        e.preventDefault(); // 强力阻止酒馆原生逻辑
-        console.log("🚀 红包卡片被点击了，正在尝试调用 UI...");
-
-    // 定义调用函数
-    const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
-
-    if (typeof launch === 'function') {
-        launch(wish, amt);
-    } else {
-        console.error("❌ 错误：找不到 window.launchPerfectPacket 函数！请检查手机 UI 脚本是否已加载。");
-        // 备选方案：尝试触发自定义事件（如果你的主插件支持事件监听）
-        document.dispatchEvent(new CustomEvent('launchPacket', { detail: { wish, amt } }));
-    }
-};
-
-    msg.innerHTML = ''; 
-    msg.appendChild(card);
-}
-        }); // 闭合 forEach
+        });
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
