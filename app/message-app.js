@@ -7097,7 +7097,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
                     msg.appendChild(card);
                 }
             }
-             // --- 【第三步】如果是服务号快讯 (101, 108, 109, 113) ---
+             // --- 【第二步】如果是服务号快讯 (101, 108, 109, 113) ---
 else if (raw.includes('[UI_')) {
                 // 关键：绕过红包
                 if (raw.includes('beautiful-packet') || raw.includes('window.launch')) return;
@@ -7174,20 +7174,34 @@ else if (raw.includes('[UI_')) {
                     msg.innerHTML = html;
                 }
             }
-            // --- 【第二步】如果是红包 (且确定不是通话) ---
-            else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-                msg.classList.add('fixed');
-                // ... (此处保持你原有的红包渲染代码不变) ...
-                const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-                const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-                if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important;";
-                const card = document.createElement('div');
-                card.className = 'beautiful-packet';
-                card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-                card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 99 !important; min-width: 200px !important; display: block !important;";
-                card.onclick = (e) => { e.stopPropagation(); window.launchPerfectPacket(wish, amt); };
-                msg.innerHTML = ''; msg.appendChild(card);
-            }
+            // --- 【第三步】如果是红包 ---
+else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
+    msg.classList.add('fixed');
+    const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+    const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+
+    if (bubble) {
+        // 关键：增加 pointer-events: none，让点击穿透透明气泡
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important;";
+    }
+
+    const card = document.createElement('div');
+    card.className = 'beautiful-packet';
+    card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+    
+    // 关键：保持你的 -40px，但确保 pointer-events 为 auto 和 z-index 足够高
+    card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
+    
+    card.onclick = (e) => { 
+        e.stopPropagation(); 
+        e.preventDefault(); // 强力阻止酒馆原生逻辑
+        console.log("红包卡片被点击了"); // 你可以开F12看有没有这一行，有就说明互动通了
+        window.launchPerfectPacket(wish, amt); 
+    };
+
+    msg.innerHTML = ''; 
+    msg.appendChild(card);
+}
         }); // 闭合 forEach
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
