@@ -7189,7 +7189,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 3]：新闻资讯 (101_N) - 极限适配版 ---
+    // --- [分支 3]：新闻资讯 (101_N) - 电脑手机双优版 ---
     else if (raw.includes('101_N|')) {
         const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7199,13 +7199,33 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:90px; margin-bottom:4px; border-radius:24px; padding:12px 18px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1px solid rgba(0,0,0,0.08); position:relative; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; align-items:center; gap:5px; margin-bottom:4px;">
-                    <span style="background:#007aff; color:#fff; font-size:9px; padding:1px 5px; border-radius:4px; font-weight:900;">NEWS</span>
-                    <span style="font-size:9px; color:#a1a1a6; font-weight:800; letter-spacing:0.5px;">BEIJING</span>
+            <div class="service-card-container" style="
+                width: 195px; 
+                min-height: 80px; 
+                margin-bottom: 8px; 
+                border-radius: 12px; 
+                padding: 14px 16px; 
+                background: #ffffff; 
+                color: #1d1d1f; 
+                box-sizing: border-box; 
+                border: 1px solid #eeeeee; 
+                position: relative; 
+                /* 稍微增强电脑端的悬浮感 */
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+                font-family: -apple-system, system-ui, sans-serif; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center;
+                margin-left: 0px !important;">
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #007AFF; font-size: 10px; font-weight: 900; letter-spacing: 0.5px;">NEWS</span>
+                    <span style="font-size: 9px; color: #bbbbbb; font-weight: 500;">JUST NOW</span>
                 </div>
-                <div style="font-size:13.5px; color:#101010; font-weight:700; line-height:1.25; margin-bottom:3px;">${title}</div>
-                <div style="font-size:11.5px; color:#424245; line-height:1.35; opacity:0.85;">${summary}</div>
+                
+                <div style="font-size: 14px; color: #111; font-weight: 600; line-height: 1.35; margin-bottom: 6px;">${title}</div>
+                
+                <div style="font-size: 11.5px; color: #666; line-height: 1.5; font-weight: 400;">${summary}</div>
             </div>`;
             msg.innerHTML = html;
         }
