@@ -6552,7 +6552,9 @@ renderAddFriendTab() {
         "102": { name: "曹信", tag: "❤️", isSpecial: true, avatar: "你的Github链接" },
         "104": { name: "张主任", tag: "✨", isSpecial: false },
         "105": { name: "张小满", tag: "✨", isSpecial: false },
-    
+        "106": { name: "赵霆", tag: "🎓", isSpecial: false },
+        "105": { name: "苏蔓", tag: "🎓", isSpecial: false },
+      
        // --- 律所权力金字塔 ---
         "141": { name: "顾远山 (授薪合伙人)", tag: "⚖️", isSpecial: false }, 
         "142": { name: "秦克勤 (管委会)", tag: "⚖️", isSpecial: false }, 
@@ -6573,10 +6575,10 @@ renderAddFriendTab() {
         "160": { name: "律所后勤-王阿姨", tag: "💼", isSpecial: false },
         "161": { name: "钟意(内核组)", tag: "💼", isSpecial: false },
         "162": { name: "人力资源-邱总", tag: "💼", isSpecial: false },
-        "163": { name: "蒋承泽律师", tag: "💼", isSpecial: false },
+        "163": { name: "苏平周律师", tag: "💼", isSpecial: false },
         "164": { name: "档案室-小张", tag: "💼", isSpecial: false },
         "165": { name: "税务咨询-杜若", tag: "💼", isSpecial: false },
-        "166": { name: "方廷皓(金融组)", tag: "💼", isSpecial: false },
+        "166": { name: "信管部-何子晴", tag: "💼", isSpecial: false },
         "167": { name: "财务-周静", tag: "💼", isSpecial: false },
         "168": { name: "后勤-陈叔", tag: "💼", isSpecial: false },
         "169": { name: "顾远山秘书-Lily", tag: "💼", isSpecial: false },
