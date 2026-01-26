@@ -7134,7 +7134,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.appendChild(card);
         }
     } 
-  // --- [分支 2]：全能天气 (101_W) - 195px 灵魂回归版 ---
+  // --- [分支 2]：全能天气 (101_W) - 195px 最终定稿版 ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7155,15 +7155,15 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             <style>
                 @keyframes weatherFloat {
                     0%, 100% { transform: translateY(0); }
-                    50% { transform: translateY(-6px); }
+                    50% { transform: translateY(-5px); }
                 }
             </style>
             <div class="service-card-container" style="
                 width: 195px; 
-                min-height: 110px; 
+                min-height: 100px; 
                 margin-bottom: 8px; 
                 border-radius: 12px; 
-                padding: 16px 14px 12px 14px; 
+                padding: 12px 14px; 
                 background: #ffffff; 
                 color: #1d1d1f; 
                 box-sizing: border-box; 
@@ -7171,23 +7171,20 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                 position: relative; 
                 display: flex; 
                 flex-direction: column; 
-                justify-content: center;
-                margin-left: 0px !important;
-                overflow: hidden;">
+                justify-content: space-between;
+                margin-left: 0px !important;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; flex-direction: column;">
                         <span style="font-size: 9px; color: #86868b; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">${weekDay} · ${city}</span>
-                        <span style="font-size: 30px; font-weight: 700; color: #111; line-height: 1.1; margin-left: -1px;">${temp}</span>
-                        <span style="font-size: 12px; font-weight: 600; color: #3a3a3c;">${desc}</span>
+                        <span style="font-size: 28px; font-weight: 700; color: #111; line-height: 1.1; margin: 2px 0;">${temp}</span>
+                        <span style="font-size: 11px; font-weight: 600; color: #3a3a3c;">${desc}</span>
                     </div>
-                    <div style="font-size: 42px; animation: weatherFloat 4s ease-in-out infinite; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.08));">
-                        ${icon}
-                    </div>
+                    <div style="font-size: 42px; animation: weatherFloat 4s ease-in-out infinite; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.08));">${icon}</div>
                 </div>
 
-                <div style="margin-top: 4px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #86868b; margin-bottom: 6px;">
+                <div style="margin-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #86868b; margin-bottom: 5px;">
                         <span>空气质量 · ${aqi}</span>
                     </div>
                     <div style="width: 100%; height: 4px; background: rgba(0,0,0,0.06); border-radius: 4px; position: relative;">
