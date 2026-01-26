@@ -7189,7 +7189,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 3]：新闻资讯 (101_N) - 补偿版 ---
+    // --- [分支 3]：新闻资讯 (101_N) - 电脑手机双优版 ---
     else if (raw.includes('101_N|')) {
         const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7201,22 +7201,17 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             html = `
             <div class="service-card-container" style="
                 width: 195px; 
-                min-height: 85px; 
+                min-height: 80px; 
                 margin-bottom: 8px; 
                 border-radius: 12px; 
                 padding: 14px 16px; 
-                /* 补偿点1：使用超细的渐变背景，增加质感 */
-                background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%); 
+                background: #ffffff; 
                 color: #1d1d1f; 
                 box-sizing: border-box; 
-                /* 补偿点2：边框颜色深浅结合，模拟光影 */
-                border-top: 1px solid #eeeeee;
-                border-left: 1px solid #eeeeee;
-                border-right: 1.5px solid #e5e5e5;
-                border-bottom: 1.5px solid #e5e5e5;
+                border: 1px solid #eeeeee; 
                 position: relative; 
-                /* 补偿点3：双层阴影，让卡片在电脑端“浮起来” */
-                box-shadow: 0 2px 4px rgba(0,0,0,0.02), 0 8px 16px rgba(0,0,0,0.04); 
+                /* 稍微增强电脑端的悬浮感 */
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
                 font-family: -apple-system, system-ui, sans-serif; 
                 display: flex; 
                 flex-direction: column; 
@@ -7224,13 +7219,13 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                 margin-left: 0px !important;">
                 
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="background: #f0f7ff; color: #007AFF; font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: 900; letter-spacing: 0.5px;">NEWS</span>
+                    <span style="color: #007AFF; font-size: 10px; font-weight: 900; letter-spacing: 0.5px;">NEWS</span>
                     <span style="font-size: 9px; color: #bbbbbb; font-weight: 500;">JUST NOW</span>
                 </div>
                 
-                <div style="font-size: 14px; color: #111; font-weight: 600; line-height: 1.35; margin-bottom: 5px; letter-spacing: -0.2px;">${title}</div>
+                <div style="font-size: 14px; color: #111; font-weight: 600; line-height: 1.35; margin-bottom: 6px;">${title}</div>
                 
-                <div style="font-size: 11.5px; color: #666; line-height: 1.45;">${summary}</div>
+                <div style="font-size: 11.5px; color: #666; line-height: 1.5; font-weight: 400;">${summary}</div>
             </div>`;
             msg.innerHTML = html;
         }
