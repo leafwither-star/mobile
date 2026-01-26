@@ -395,22 +395,23 @@ if (typeof window.FriendRenderer === 'undefined') {
         const contacts = this.extractFriendsFromContext();
         if (contacts.length === 0) return `<div class="empty-state">暂无联系人</div>`;
 
+        // 1. 初始化容器
         const groups = { special: [], colleague: [], client: [], others: [] };
         
-        // 1. 【补回缺失：强制分流逻辑】
+        // 2. 增强版分流逻辑 (双重保险：即便数据层没打标，渲染层也强行分一次)
         contacts.forEach(c => {
             const idNum = parseInt(c.number);
-            if (c.isSpecial === true) {
-                groups.special.push(c);
-            } else if (idNum >= 141 && idNum <= 169) {
-                groups.colleague.push(c);
-            } else if (idNum >= 170 && idNum <= 220) {
-                groups.client.push(c);
-            } else {
-                groups.others.push(c);
-            }
+            // 优先看数据层是否有标签，没有则按 ID 区间即时判定
+            const type = c.groupType || (
+                c.isSpecial ? 'special' : 
+                (idNum >= 141 && idNum <= 169 ? 'colleague' : 
+                (idNum >= 170 && idNum <= 220 ? 'client' : 'others'))
+            );
+            if (groups[type]) groups[type].push(c);
+            else groups.others.push(c);
         });
 
+        // 3. 内部渲染 (彻底解决双时间轴)
         const renderItem = (contact) => {
             const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
             let avatarHTML = contact.avatar 
@@ -422,16 +423,17 @@ if (typeof window.FriendRenderer === 'undefined') {
                     ${avatarHTML}
                     <div class="message-content">
                         <div class="message-name">
-                            ${contact.name} 
+                            <span style="flex:1;">${contact.name}</span>
                             ${contact.hasUnreadTag ? '<span style="color:#ff3b30;font-size:10px;margin-left:4px;">●</span>' : ''}
                         </div>
                         <div class="message-text">${lastMessage}</div>
                     </div>
-                    <div style="font-size:10px; color:#bbb; min-width:35px; text-align:right; align-self:flex-start; margin-top:5px;">${contact.lastMessageTime || '08:00'}</div>
+                    <div class="message-time-sidebar" style="font-size:10px; color:#bbb; min-width:35px; text-align:right; align-self:flex-start; margin-top:5px;">
+                        ${contact.lastMessageTime || '08:00'}
+                    </div>
                 </div>`;
         };
 
-        // 2. 【补回缺失：避开语音脚本的箭头逻辑】
         const renderGroupWrapper = (title, list, icon) => {
             if (list.length === 0) return "";
             return `
@@ -450,16 +452,20 @@ if (typeof window.FriendRenderer === 'undefined') {
                 .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; }
                 .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; }
                 .contact-group-body { background: #fff; border-bottom: 0.5px solid #eee; }
+                /* 确保 message-name 内部没有多余的时间显示 */
+                .message-name { display: flex; align-items: center; width: 100%; justify-content: space-between; }
             </style>
+            
             <div class="special-list">
                 ${groups.special.map(renderItem).join('')}
                 ${groups.others.map(renderItem).join('')}
             </div>
+            
             ${renderGroupWrapper('律所权力金字塔', groups.colleague, '⚖️')}
             ${renderGroupWrapper('客户与项目合作', groups.client, '💎')}
         `;
     }
-
+    
     /**
      * 获取群成员数量
      */
