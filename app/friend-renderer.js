@@ -392,79 +392,93 @@ if (typeof window.FriendRenderer === 'undefined') {
     }
 
     renderFriendsHTML() {
-        const contacts = this.extractFriendsFromContext();
-        if (contacts.length === 0) return `<div class="empty-state">暂无联系人</div>`;
+    // 1. 提取原始数据
+    let contacts = this.extractFriendsFromContext();
+    if (contacts.length === 0) return `<div class="empty-state">暂无联系人</div>`;
 
-        // 1. 初始化容器
-        const groups = { special: [], colleague: [], client: [], others: [] };
+    // 2. 预处理：确保每个人都有 groupType 和 排序权重 (weight)
+    contacts = contacts.map(c => {
+        const idNum = parseInt(c.number);
+        // 计算权重：优先使用消息索引，没有则用时间戳
+        const weight = c.messageIndex || (c.addTime ? new Date(c.addTime).getTime() : 0);
         
-        // 2. 增强版分流逻辑 (双重保险：即便数据层没打标，渲染层也强行分一次)
-        contacts.forEach(c => {
-            const idNum = parseInt(c.number);
-            // 优先看数据层是否有标签，没有则按 ID 区间即时判定
-            const type = c.groupType || (
-                c.isSpecial ? 'special' : 
-                (idNum >= 141 && idNum <= 169 ? 'colleague' : 
-                (idNum >= 170 && idNum <= 220 ? 'client' : 'others'))
-            );
-            if (groups[type]) groups[type].push(c);
-            else groups.others.push(c);
-        });
+        // 判定分组标签
+        let gType = 'others';
+        if (c.isSpecial === true) {
+            gType = 'special';
+        } else if (idNum >= 141 && idNum <= 169) {
+            gType = 'colleague';
+        } else if (idNum >= 170 && idNum <= 220) {
+            gType = 'client';
+        }
 
-        // 3. 内部渲染 (彻底解决双时间轴)
-        const renderItem = (contact) => {
-            const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
-            let avatarHTML = contact.avatar 
-                ? `<div class="message-avatar" style="background-image: url('${contact.avatar}'); background-size: cover;"></div>`
-                : `<div class="message-avatar">${typeof this.getRandomAvatar === 'function' ? this.getRandomAvatar() : '👤'}</div>`;
+        return { ...c, groupType: gType, sortWeight: weight };
+    });
 
-            return `
-                <div class="message-item ${contact.isGroup ? 'group-item' : 'friend-item'}" data-friend-id="${contact.number}">
-                    ${avatarHTML}
-                    <div class="message-content">
-                        <div class="message-name">
-                            <span style="flex:1;">${contact.name}</span>
-                            ${contact.hasUnreadTag ? '<span style="color:#ff3b30;font-size:10px;margin-left:4px;">●</span>' : ''}
-                        </div>
-                        <div class="message-text">${lastMessage}</div>
-                    </div>
-                    <div class="message-time-sidebar" style="font-size:10px; color:#bbb; min-width:35px; text-align:right; align-self:flex-start; margin-top:5px;">
-                        ${contact.lastMessageTime || '08:00'}
-                    </div>
-                </div>`;
-        };
+    // 3. 定义组内容容器
+    const groups = { special: [], colleague: [], client: [], others: [] };
 
-        const renderGroupWrapper = (title, list, icon) => {
-            if (list.length === 0) return "";
-            return `
-                <div class="contact-group-header" onclick="const b=this.nextElementSibling; const s=b.style; s.display=s.display==='none'?'block':'none'; this.querySelector('.custom-arrow').style.transform=s.display==='none'?'rotate(0deg)':'rotate(90deg)';">
-                    <div class="group-title"><span>${icon} ${title}</span> <span class="group-count">${list.length}</span></div>
-                    <span class="custom-arrow" style="display:inline-block; transition: 0.2s; font-size:12px; color:#8b4513;">❯</span>
-                </div>
-                <div class="contact-group-body" style="display:none;">
-                    ${list.map(renderItem).join('')}
-                </div>`;
-        };
+    // 4. 分流并执行【组内排序】
+    contacts.forEach(c => {
+        groups[c.groupType].push(c);
+    });
 
+    // 对每个组内部进行倒序排列（最新的在最上面）
+    Object.keys(groups).forEach(key => {
+        groups[key].sort((a, b) => b.sortWeight - a.sortWeight);
+    });
+
+    // 5. 渲染单条 HTML (保持简洁，彻底杜绝双时间)
+    const renderItem = (contact) => {
+        const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
+        const displayTime = contact.lastMessageTime || "08:00";
+        
         return `
-            <style>
-                .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; margin-top:5px; }
-                .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; }
-                .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; }
-                .contact-group-body { background: #fff; border-bottom: 0.5px solid #eee; }
-                /* 确保 message-name 内部没有多余的时间显示 */
-                .message-name { display: flex; align-items: center; width: 100%; justify-content: space-between; }
-            </style>
-            
-            <div class="special-list">
-                ${groups.special.map(renderItem).join('')}
-                ${groups.others.map(renderItem).join('')}
+            <div class="message-item" data-friend-id="${contact.number}">
+                <div class="message-avatar" style="background-image: url('${contact.avatar || ''}'); background-size: cover;"></div>
+                <div class="message-content">
+                    <div class="message-name">
+                        <span style="font-weight:600;">${contact.name}</span>
+                        ${contact.hasUnreadTag ? '<span style="color:#ff3b30;margin-left:4px;">●</span>' : ''}
+                    </div>
+                    <div class="message-text">${lastMessage}</div>
+                </div>
+                <div class="message-time-sidebar" style="font-size:10px; color:#bbb; min-width:35px; text-align:right; align-self:flex-start; margin-top:5px;">
+                    ${displayTime}
+                </div>
+            </div>`;
+    };
+
+    // 6. 渲染折叠组 (custom-arrow 避开语音脚本)
+    const renderGroupWrapper = (title, list, icon) => {
+        if (list.length === 0) return "";
+        return `
+            <div class="contact-group-header" onclick="const b=this.nextElementSibling; const s=b.style; s.display=s.display==='none'?'block':'none'; this.querySelector('.custom-arrow').style.transform=s.display==='none'?'rotate(0deg)':'rotate(90deg)';">
+                <div class="group-title">${icon} ${title} <span class="group-count">${list.length}</span></div>
+                <span class="custom-arrow" style="display:inline-block; transition: 0.2s; font-size:12px;">❯</span>
             </div>
-            
-            ${renderGroupWrapper('律所权力金字塔', groups.colleague, '⚖️')}
-            ${renderGroupWrapper('客户与项目合作', groups.client, '💎')}
-        `;
-    }
+            <div class="contact-group-body" style="display:none;">
+                ${list.map(renderItem).join('')}
+            </div>`;
+    };
+
+    // 7. 组合最终 HTML
+    // 顺序：核心好友(special) -> 订阅号/其他(others) -> 同事组 -> 客户组
+    return `
+        <style>
+            .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; }
+            .group-title { font-size: 11px; font-weight: 900; color: #8b4513; }
+            .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; margin-left:4px; }
+            .message-name { display: flex; align-items: center; }
+        </style>
+        <div class="main-list-container">
+            ${groups.special.map(renderItem).join('')}
+            ${groups.others.map(renderItem).join('')}
+        </div>
+        ${renderGroupWrapper('律所权力金字塔', groups.colleague, '⚖️')}
+        ${renderGroupWrapper('客户与项目合作', groups.client, '💎')}
+    `;
+}
     
     /**
      * 获取群成员数量
