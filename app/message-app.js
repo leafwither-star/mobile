@@ -7197,7 +7197,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 3]：新闻资讯 (101_N) - 电脑手机双优版 ---
+    // --- [分支 3]：新闻资讯 (101_N) - 电脑手机双优加深版 ---
     else if (raw.includes('101_N|')) {
         const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7216,9 +7216,9 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                 background: #ffffff; 
                 color: #1d1d1f; 
                 box-sizing: border-box; 
-                border: 1px solid #eeeeee; 
+                /* 边框加深：同步为天气同款 #d1d1d6 */
+                border: 1.2px solid #d1d1d6; 
                 position: relative; 
-                /* 稍微增强电脑端的悬浮感 */
                 box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
                 font-family: -apple-system, system-ui, sans-serif; 
                 display: flex; 
@@ -7238,7 +7238,8 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 4]：政务/预警 (101_A) ---
+
+    // --- [分支 4]：政务/预警 (101_A) - 195px 紧凑磁贴版 ---
     else if (raw.includes('101_A|')) {
         const p = raw.match(/101_A\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7249,13 +7250,33 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
             html = `
             <style>@keyframes alertPulse { 0%, 100% {opacity:1} 50% {opacity:0.4} }</style>
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:20px 24px; background:#fff5f5; color:#1d1d1f; box-sizing:border-box; border:1.5px solid #ffcfd2; position:relative; box-shadow:0 15px 35px rgba(255,71,87,0.1); font-family:-apple-system,system-ui,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; align-items:center; gap:5px; color:#ff4757; font-size:10px; font-weight:900; margin-bottom:8px;">
-                    <div style="width:7px; height:7px; background:#ff4757; border-radius:50%; animation:alertPulse 1.2s infinite; flex-shrink:0;"></div>
-                    <span style="letter-spacing:0px;">SERVICE ALERT · 北京预警</span>
+            <div class="service-card-container" style="
+                width: 195px; 
+                min-height: 90px; 
+                margin-bottom: 8px; 
+                border-radius: 12px; 
+                padding: 14px 16px; 
+                background: #fff5f5; 
+                color: #1d1d1f; 
+                box-sizing: border-box; 
+                /* 预警边框颜色稍微偏红但保持深色感 */
+                border: 1.2px solid #ffcfd2; 
+                position: relative; 
+                box-shadow: 0 4px 12px rgba(255,71,87,0.08); 
+                font-family: -apple-system, system-ui, sans-serif; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center;
+                margin-left: 0px !important;">
+                
+                <div style="display: flex; align-items: center; gap: 5px; color: #ff4757; font-size: 9px; font-weight: 900; margin-bottom: 8px;">
+                    <div style="width: 6px; height: 6px; background: #ff4757; border-radius: 50%; animation: alertPulse 1.2s infinite; flex-shrink: 0;"></div>
+                    <span style="letter-spacing: 0.5px; text-transform: uppercase;">SERVICE ALERT</span>
                 </div>
-                <div style="font-size:14.5px; color:#d63031; font-weight:800; line-height:1.4; margin-bottom:6px;">${alertTitle}</div>
-                <div style="font-size:12.5px; color:#424245; line-height:1.5;">${alertDetail}</div>
+                
+                <div style="font-size: 13.5px; color: #d63031; font-weight: 800; line-height: 1.35; margin-bottom: 5px;">${alertTitle}</div>
+                
+                <div style="font-size: 11.5px; color: #424245; line-height: 1.45; font-weight: 400;">${alertDetail}</div>
             </div>`;
             msg.innerHTML = html;
         }
