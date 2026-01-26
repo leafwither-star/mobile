@@ -6952,10 +6952,11 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
 }
 
 /**
-     * 【第四部分：核心抓取与排序 (修复红点置顶)】
+     * 【第四部分：核心抓取与逻辑 - 分组+完整预览增强版】
      */
     const setupCoreLogic = () => {
         if (!window.friendRenderer) return;
+        
         window.friendRenderer.extractFriendsFromContext = function() {
             const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
             let lastValidIdx = -1;
@@ -6966,52 +6967,84 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
             chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
             
             let contacts = [];
-            CLOUD_IDS.forEach(fId => {
+            // 使用定义的 CLOUD_IDS，若未定义则从 PERMANENT_CONTACTS 提取
+            const currentIds = typeof CLOUD_IDS !== 'undefined' ? CLOUD_IDS : Object.keys(PERMANENT_CONTACTS);
+            
+            currentIds.forEach(fId => {
                 const info = PERMANENT_CONTACTS[fId];
-                let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
+                let item = { 
+                    character: info.name, 
+                    name: info.name, 
+                    number: fId, 
+                    lastMessage: "暂无消息", 
+                    lastMessageTime: "08:00", 
+                    messageIndex: -1, 
+                    hasUnreadTag: false,
+                    isSpecial: info.isSpecial || false,
+                    avatar: info.avatar || ""
+                };
+
+                // --- 调整后的分组判定逻辑 ---
+                const idNum = parseInt(fId);
+                
+                if (item.isSpecial) {
+                    // 1. 核心好友 (102, 103, 107 等) 优先级最高，不进组
+                    item.groupType = 'special'; 
+                } else if (idNum >= 141 && idNum <= 169) {
+                    // 2. 律所同事组
+                    item.groupType = 'colleague'; 
+                } else if (idNum >= 170 && idNum <= 220) {
+                    // 3. 客户项目组
+                    item.groupType = 'client'; 
+                } else {
+                    // 4. 其余所有人（包括 100, 101, 108-120 等订阅号）暂时不分组，直接显示在列表上
+                    item.groupType = 'others';
+                }
+
                 const lines = allMobileText.split('\n');
                 for (let j = lines.length - 1; j >= 0; j--) {
                     if (lines[j].includes(`|${fId}|`)) {
                         const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                         item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
+                        
                         const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音通话)\|([^\]]+)\]/);
-                       if (cMatch) {
-    // 1. 先拿到原始匹配内容（此时可能带有 <div> 等标签）
-    let content = cMatch[1].split('|')[0];
+                        if (cMatch) {
+                            // 1. 提取原始内容
+                            let content = cMatch[1].split('|')[0];
 
-    // 2. 【新增：强力清洗逻辑】
-    // A. 处理新的服务号 UI 格式
-    if (content.includes('UI_')) {
-        if (content.includes('101_N')) content = "[今日新闻]";
-        else if (content.includes('101_A')) content = "[政务预警]";
-        else if (content.includes('101_W')) content = "[天气快报]";
-        else if (content.includes('108_F')) content = "[时尚快讯]";
-        else if (content.includes('109_H')) content = "[暖心语录]";
-        else if (content.includes('109_E')) content = "[深夜FM]";
-        else if (content.includes('113_S')) content = "[匿名树洞]";
-        else content = "[服务通知]";
-    } 
-    // B. 原有的 HTML 清洗逻辑（保留，以防万一有旧格式）
-    else if (content.includes('<') && content.includes('>')) {
-        content = content
-            .replace(/<[^>]*>/g, '')   
-            .replace(/&nbsp;/g, ' ')   
-            .trim();
-        
-        if (!content) content = "[图文内容]";
-    }
+                            // 2. 【核心功能还原：强力清洗与预览转换】
+                            if (content.includes('UI_') || content.includes('101_') || content.includes('108_') || content.includes('109_')) {
+                                if (content.includes('101_N')) content = "[今日新闻]";
+                                else if (content.includes('101_A')) content = "[政务预警]";
+                                else if (content.includes('101_W')) content = "[天气快报]";
+                                else if (content.includes('108_F')) content = "[时尚快讯]";
+                                else if (content.includes('109_H')) content = "[暖心语录]";
+                                else if (content.includes('109_E')) content = "[深夜FM]";
+                                else if (content.includes('113_S')) content = "[匿名树洞]";
+                                else content = "[服务通知]";
+                            } 
+                            else if (content.includes('<') && content.includes('>')) {
+                                content = content
+                                    .replace(/<[^>]*>/g, '')   
+                                    .replace(/&nbsp;/g, ' ')   
+                                    .trim();
+                                if (!content) content = "[图文内容]";
+                            }
 
-    // 3. 将洗干净的内容赋值给预览（保持你原有的图片判定逻辑）
-    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-}
-                        item.messageIndex = j; break;
+                            // 3. 图片判定
+                            item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+                        }
+                        item.messageIndex = j; 
+                        break;
                     }
                 }
+                
                 // 未读权重逻辑
                 if (lastValidIdx !== -1) {
                     const lastMes = chatLog[lastValidIdx].mes;
                     if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]')) {
-                        item.hasUnreadTag = true; item.messageIndex += 1000000;
+                        item.hasUnreadTag = true; 
+                        item.messageIndex += 1000000;
                     }
                 }
                 contacts.push(item);
