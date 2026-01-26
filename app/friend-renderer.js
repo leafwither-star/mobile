@@ -392,61 +392,94 @@ if (typeof window.FriendRenderer === 'undefined') {
     }
 
     /**
-     * 渲染好友和群聊列表HTML
+     * 渲染好友和群聊列表HTML - 最终森系折叠版
      */
     renderFriendsHTML() {
-      // 先提取好友和群聊信息
-      const contacts = this.extractFriendsFromContext();
+        // 1. 提取排序好的好友数据
+        const contacts = this.extractFriendsFromContext();
 
-      if (contacts.length === 0) {
-        return `
+        if (contacts.length === 0) {
+            return `
                 <div class="empty-state">
                     <div class="empty-icon">💬</div>
                     <div class="empty-text">暂无联系人</div>
-                    <div class="empty-hint">点击右上角"添加"按钮添加好友或创建群聊</div>
+                </div>`;
+        }
+
+        // 2. 初始化分组容器
+        const groups = { special: [], colleague: [], client: [], others: [] };
+        
+        // 3. 将好友分流到不同组
+        contacts.forEach(c => {
+            const gType = c.groupType || 'others';
+            if (groups[gType]) {
+                groups[gType].push(c);
+            } else {
+                groups.others.push(c);
+            }
+        });
+
+        // 4. 定义内部渲染逻辑 (保留你原有的 escapeHtml 和样式判定)
+        const renderItem = (contact) => {
+            const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
+            
+            // 头像判定逻辑：如果有配置好的头像就用，没有就用你原有的渲染方式
+            let avatarHTML;
+            if (contact.avatar) {
+                avatarHTML = `<div class="message-avatar" style="background-image: url('${contact.avatar}'); background-size: cover; background-position: center;"></div>`;
+            } else if (contact.isGroup) {
+                avatarHTML = `<div class="message-avatar group-avatar"></div>`;
+            } else {
+                // 如果没有配置头像，尝试调用你原有的 getRandomAvatar()
+                avatarHTML = `<div class="message-avatar">${typeof this.getRandomAvatar === 'function' ? this.getRandomAvatar() : '👤'}</div>`;
+            }
+
+            return `
+                <div class="message-item ${contact.isGroup ? 'group-item' : 'friend-item'}" data-friend-id="${contact.number}" data-is-group="${contact.isGroup}">
+                    ${avatarHTML}
+                    <div class="message-content">
+                        <div class="message-name">
+                            ${contact.name} 
+                            ${contact.isGroup ? '<span class="group-badge">群聊</span>' : ''}
+                            ${contact.hasUnreadTag ? '<span style="color:#ff3b30;font-size:10px;margin-left:4px;">●</span>' : ''}
+                        </div>
+                        <div class="message-text">${lastMessage}</div>
+                    </div>
+                    <div style="font-size:10px; color:#bbb; min-width:30px; text-align:right;">${contact.lastMessageTime || ''}</div>
+                </div>`;
+        };
+
+        // 5. 定义折叠标题渲染模板
+        const renderGroupWrapper = (title, list, icon) => {
+            if (list.length === 0) return "";
+            return `
+                <div class="contact-group-header" onclick="const b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none'; this.querySelector('.arrow').innerText=b.style.display==='none'?'▶':'▼';">
+                    <div class="group-title"><span>${icon} ${title}</span> <span class="group-count">${list.length}</span></div>
+                    <span class="arrow">▶</span>
                 </div>
-            `;
-      }
+                <div class="contact-group-body" style="display:none;">
+                    ${list.map(renderItem).join('')}
+                </div>`;
+        };
 
-      // 渲染联系人列表
-      const contactsHTML = contacts
-        .map(contact => {
-          const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
-
-          if (contact.isGroup) {
-            // 群聊条目
-            return `
-                    <div class="message-item group-item" data-friend-id="${contact.number}" data-is-group="true">
-                        <div class="message-avatar group-avatar"></div>
-                        <div class="message-content">
-                            <div class="message-name">
-                                ${contact.name}
-                                <span class="group-badge">群聊</span>
-                            </div>
-                            <div class="message-text">${lastMessage}</div>
-                        </div>
-                        <div class="group-members-info">
-                            <span class="member-count">${this.getMemberCount(contact.members)}</span>
-                        </div>
-                    </div>
-                `;
-          } else {
-            // 个人好友条目
-            const avatar = this.getRandomAvatar();
-            return `
-                    <div class="message-item friend-item" data-friend-id="${contact.number}" data-is-group="false">
-                        <div class="message-avatar">${avatar}</div>
-                        <div class="message-content">
-                            <div class="message-name">${contact.name}</div>
-                            <div class="message-text">${lastMessage}</div>
-                        </div>
-                    </div>
-                `;
-          }
-        })
-        .join('');
-
-      return contactsHTML;
+        // 6. 最终 HTML 拼接
+        return `
+            <style>
+                .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; margin-top:5px; }
+                .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; }
+                .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; }
+                .arrow { font-size: 10px; color: #8b4513; }
+                .contact-group-body { background: #fff; border-bottom: 0.5px solid #eee; }
+            </style>
+            
+            <div class="special-list">
+                ${groups.special.map(renderItem).join('')}
+                ${groups.others.map(renderItem).join('')}
+            </div>
+            
+            ${renderGroupWrapper('律所权力金字塔', groups.colleague, '⚖️')}
+            ${renderGroupWrapper('客户与项目合作', groups.client, '💎')}
+        `;
     }
 
     /**
