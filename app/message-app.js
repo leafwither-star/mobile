@@ -7134,7 +7134,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.appendChild(card);
         }
     } 
-   // --- [分支 2]：全能天气 (101_W) ---
+  // --- [分支 2]：全能天气 (101_W) - 195px 磁贴版 ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7143,44 +7143,39 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             const aqi = parseInt(p[3]) || 0;
             const desc = p[4] || "晴";
             
-            // 获取动态星期
             const days = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
             const weekDay = days[new Date().getDay()];
 
-            const aqiPos = Math.min(Math.max((aqi / 300) * 100, 8), 92);
+            // AQI 位置计算：根据 100% 宽度适配
+            const aqiPos = Math.min(Math.max((aqi / 300) * 100, 5), 95);
             let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
             
-            // 🎯 黄金数值保持一致
-            const cfg = {"w":"263","h":"267","is":"95","iy":"-43","ix":"5","gap":"0","al":"95"};
+            // 🎯 195px 专用黄金数值
+            const cfg = {"w":"195", "minH":"140", "is":"55", "iy":"-15", "ix":"12"};
 
-            if (bubble) {
-                bubble.classList.add('service-card-bubble');
-                bubble.style.cssText = ""; 
-            }
-
+            if (bubble) bubble.classList.add('service-card-bubble');
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:${cfg.w}px; height:${cfg.h}px; border-radius:32px; padding:24px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; border: 1.5px solid rgba(0,0,0,0.1); position:relative; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.06); font-family:-apple-system,system-ui,sans-serif;">
-                <div style="position:absolute; right:${cfg.ix}px; top:calc(45% + ${cfg.iy}px); transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.08));">${icon}</div>
+            <div class="service-card-container" style="width:${cfg.w}px; min-height:${cfg.minH}px; margin-bottom:8px; border-radius:12px; padding:16px; background:linear-gradient(135deg,#ffffff 0%,#f1f4f9 100%); color:#1d1d1f; box-sizing:border-box; border: 1px solid #eeeeee; position:relative; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.05); font-family:-apple-system,system-ui,sans-serif; display:flex; flex-direction:column; justify-content:space-between; margin-left:0px !important;">
                 
-                <div style="position:relative; z-index:2; display:flex; flex-direction:column; gap:${cfg.gap}px; align-items: flex-start;">
-                    <div style="font-size:10px; font-weight:800; color:#86868b; letter-spacing:2px; text-transform:uppercase;">${weekDay} · ${city}</div>
-                    
-                    <div style="font-size:46px; font-weight:700; line-height:1; color:#101010; letter-spacing:-3px; margin-top:8px; margin-left:-6px;">${temp}</div>
-                    
-                    <div style="font-size:14px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div>
+                <div style="position:absolute; right:${cfg.ix}px; top:40%; transform:translateY(-50%); font-size:${cfg.is}px; animation:weatherFloat 6s ease-in-out infinite; z-index:1; filter:drop-shadow(0 8px 12px rgba(0,0,0,0.06));">${icon}</div>
+                
+                <div style="position:relative; z-index:2;">
+                    <div style="font-size:9px; font-weight:800; color:#86868b; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">${weekDay} · ${city}</div>
+                    <div style="font-size:38px; font-weight:700; line-height:1; color:#101010; letter-spacing:-2px; margin-left:-3px;">${temp}</div>
+                    <div style="font-size:12px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div>
                 </div>
 
-                <div style="position:relative; z-index:2; width:${cfg.al}%; margin-bottom:5px;">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#86868b; margin-bottom:14px;">
+                <div style="position:relative; z-index:2; margin-top:16px;">
+                    <div style="display:flex; justify-content:space-between; font-size:9px; font-weight:800; color:#86868b; margin-bottom:10px;">
                         <span>空气质量 · ${aqi}</span>
                     </div>
-                    <div style="width:100%; height:5px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
+                    <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:10px; position:relative;">
                         <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de);"></div>
-                        <div style="position:absolute; left:${aqiPos}%; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
-                            <span style="font-size:10px; font-weight:900; color:#fff; background:#1d1d1f; padding:2px 6px; border-radius:5px; line-height:1;">${aqi}</span>
-                            <div style="width:2px; height:12px; background:#1d1d1f; margin-top:1px;"></div>
+                        <div style="position:absolute; left:${aqiPos}%; top:-14px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:9px; font-weight:900; color:#fff; background:#1d1d1f; padding:1px 4px; border-radius:4px; line-height:1;">${aqi}</span>
+                            <div style="width:2px; height:8px; background:#1d1d1f; margin-top:1px;"></div>
                         </div>
                     </div>
                 </div>
