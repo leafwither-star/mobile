@@ -1844,7 +1844,7 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-// --- 【修改点 1：纯净版布局校准】 ---
+    // --- 【修改点 1：纯净版布局校准】 ---
     const applyModernLayout = () => {
         const listContainer = document.getElementById('message-list');
         if (!listContainer) return;
