@@ -7348,7 +7348,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         }
     }
 
-    // --- [分支 8]：树洞吐槽 (113_S) - 195px 磁贴版 ---
+    // --- [分支 8]：树洞吐槽 (113_S) - 195px 诙谐美化版 ---
     else if (raw.includes('UI_113_S|')) {
         const p = raw.match(/UI_113_S\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7358,9 +7358,44 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:195px; min-height:95px; margin-bottom:8px; border-radius:12px; padding:14px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.2px solid #d1d1d6; position:relative; display:flex; flex-direction:column; justify-content:center; margin-left:0px !important;">
-                <div style="font-size:9px; color:#aaa; margin-bottom:6px; border-bottom:1px dashed #eee; font-weight:800; letter-spacing:0.5px;"># SECRET HOLE NO.${sNum}</div>
-                <div style="font-size:12px; color:#333; line-height:1.5; font-weight:700; font-family:serif; font-style:italic;">“${sContent}”</div>
+            <div class="service-card-container" style="
+                width: 195px; 
+                min-height: 100px; 
+                margin-bottom: 8px; 
+                border-radius: 12px; 
+                padding: 14px; 
+                /* 换成活泼的明亮色调，像便利贴一样 */
+                background: #FFF9C4; 
+                color: #5D4037; 
+                box-sizing: border-box; 
+                border: 1.5px solid #FBC02D; 
+                position: relative; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center; 
+                margin-left: 0px !important;
+                box-shadow: 2px 4px 0px rgba(251, 192, 45, 0.2);">
+                
+                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+                    <span style="font-size: 16px;">🕳️</span>
+                    <div style="font-size: 9px; color: #AF8B00; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
+                        SECRET HOLE #${sNum}
+                    </div>
+                </div>
+
+                <div style="position: relative;">
+                    <div style="font-size: 13px; color: #3E2723; line-height: 1.5; font-weight: 700; font-family: 'Comic Sans MS', cursive, sans-serif;">
+                        “${sContent}”
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; display: flex; justify-content: flex-end; align-items: center; opacity: 0.7;">
+                    <span style="font-size: 8px; font-weight: 800; background: #FBC02D; color: #fff; padding: 1px 4px; border-radius: 3px;">
+                        🤫 匿名投稿
+                    </span>
+                </div>
+                
+                <div style="position: absolute; top: -5px; left: 50%; transform: translateX(-50%); width: 30px; height: 10px; background: rgba(251, 192, 45, 0.4); border-radius: 2px;"></div>
             </div>`;
             msg.innerHTML = html;
         }
