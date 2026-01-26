@@ -1848,98 +1848,31 @@ applyModernLayout() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    const timeMap = {};
-    const orderMap = {};
-    
-    // --- 核心修复 1：定义数据来源 ---
-    // 尝试获取永久联系人（从你注入的系统里取，如果没有就给个空对象）
+    // 1. 获取永久联系人和抓取数据 (保留用于红点判定)
     const permanentContacts = (typeof PERMANENT_CONTACTS !== 'undefined') ? PERMANENT_CONTACTS : {};
-    
-    // 尝试获取抓取到的好友数据
-    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
-                            ? window.friendRenderer.extractFriendsFromContext() : [];
-    
-    // 将抓取到的数据存入一个 Map 方便查找，同时处理报错隐患
+    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractedFriends !== 'undefined') 
+                            ? window.friendRenderer.extractedFriends : [];
     const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
-    
-    // 1. 获取数据并建立初始权重
-    extractedFriends.forEach(f => {
-        orderMap[f.number] = f.messageIndex || 0;
-        if (f.lastMessageTime) {
-            timeMap[f.number] = f.lastMessageTime;
-        } else if (f.addTime) {
-            const d = new Date(f.addTime);
-            timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        } else {
-            timeMap[f.number] = "08:00";
-        }
-    });
 
-    // 2. 扫描 DOM 校准权重（这部分保留，用于实时更新排序）
-    const mesBlocks = document.querySelectorAll('.mes');
-    mesBlocks.forEach(block => {
-        const text = block.innerText;
-        const mesId = parseInt(block.getAttribute('mesid') || 0); 
-        const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
-        const idMatch = text.match(/\|(\d+)\|/);
-        
-        if (idMatch) {
-            const id = idMatch[1];
-            if (timeMatch) timeMap[id] = timeMatch[1];
-            const isPeer = text.includes('[对方消息|');
-            const newWeight = isPeer ? (100000 + mesId) : mesId;
-            if (!orderMap[id] || newWeight > orderMap[id]) {
-                orderMap[id] = newWeight;
-            }
-        }
-    });
-
-    window.latestOrderMap = orderMap;
-
-    // 3. 执行排序
+    // 2. 仅处理红点逻辑和点击事件，不要再去 appendChild 破坏 DOM 结构
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    items.sort((a, b) => {
-        const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
-        const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
-        return weightB - weightA;
-    });
     
-    items.forEach(item => listContainer.appendChild(item));
-
-    // 4. 渲染时间戳和红点
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
-        
-        // --- 核心修复 2：安全地获取数据 ---
-        // 依次从 抓取数据、永久联系人 中寻找配置
         const dataFromContext = friendsDataMap.get(id);
         const dataFromPermanent = permanentContacts[id];
-        
-        // 如果两个地方都找不到，给一个默认对象防止报错
-        const data = dataFromContext || dataFromPermanent || { number: id, name: "未知好友" };
+        const data = dataFromContext || dataFromPermanent || { number: id };
 
-        const time = data.lastMessageTime || timeMap[id] || "08:00";
-        const latestOrder = data.messageIndex || orderMap[id] || 0;
+        // 使用 messageIndex 或从 DOM 扫描出的权重进行红点判定
+        const latestOrder = data.messageIndex || (window.latestOrderMap ? window.latestOrderMap[id] : 0);
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-        // --- 时间显示 ---
-        let timeSpan = item.querySelector('.custom-timestamp');
-        if (time) {
-            if (!timeSpan) {
-                timeSpan = document.createElement('span');
-                timeSpan.className = 'custom-timestamp';
-                item.appendChild(timeSpan);
-            }
-            timeSpan.innerText = time;
-        }
-
-        // --- 红点逻辑 ---
+        // --- 红点逻辑：仅在需要时添加 ---
         item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-        
-        // 只要有新消息权重（latestOrder > lastReadOrder）就显示红点
         if (latestOrder > lastReadOrder) {
             let dot = document.createElement('div');
             dot.className = 'unread-dot'; 
+            // 确保红点挂在头像上或指定位置，不要乱插
             item.appendChild(dot);
         }
 
@@ -1950,10 +1883,13 @@ applyModernLayout() {
                 localStorage.setItem(`lastRead_${id}`, latestOrder);
                 const d = item.querySelector('.unread-dot');
                 if (d) d.remove();
-                console.log(`[Message App] 已将好友 ${id} 标记为已读，权重: ${latestOrder}`);
             });
         }
     });
+
+    // --- 核心改动：彻底删掉原有的 items.sort 和 items.forEach(appendChild) 逻辑 ---
+    // 排序和分组现在交由 friend-renderer.js 的 renderFriendsHTML 处理
+    console.log("[Message App] 界面布局校准完成（已跳过破坏性排序）");
 }
     
     // 渲染添加好友界面
