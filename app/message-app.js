@@ -6553,7 +6553,7 @@ renderAddFriendTab() {
         "104": { name: "张主任", tag: "✨", isSpecial: false },
         "105": { name: "张小满", tag: "✨", isSpecial: false },
         "106": { name: "赵霆", tag: "🎓", isSpecial: false },
-        "105": { name: "苏蔓", tag: "🎓", isSpecial: false },
+        "107": { name: "苏蔓", tag: "🎓", isSpecial: false },
       
        // --- 律所权力金字塔 ---
         "141": { name: "顾远山 (授薪合伙人)", tag: "⚖️", isSpecial: false }, 
