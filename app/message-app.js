@@ -7134,7 +7134,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.appendChild(card);
         }
     } 
-  // --- [分支 2]：全能天气 (101_W) - 精修左右布局版 ---
+  // --- [分支 2]：全能天气 (101_W) - 手机极致瘦身版 ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7152,39 +7152,47 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
+            <style>
+                @keyframes weatherFloat {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-5px); }
+                }
+            </style>
             <div class="service-card-container" style="
                 width: 195px; 
-                min-height: 105px; 
+                min-height: 95px; 
                 margin-bottom: 8px; 
                 border-radius: 12px; 
-                padding: 12px 14px; 
+                padding: 14px 14px 10px 14px; 
                 background: #ffffff; 
                 color: #1d1d1f; 
                 box-sizing: border-box; 
-                /* 边框加深，增强存在感 */
                 border: 1.2px solid #d1d1d6; 
                 position: relative; 
                 display: flex; 
                 flex-direction: column; 
-                justify-content: space-between;
-                margin-left: 0px !important;">
+                justify-content: center;
+                margin-left: 0px !important;
+                overflow: hidden;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; flex-direction: column;">
-                        <span style="font-size: 9px; color: #86868b; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">${weekDay} · ${city}</span>
-                        <span style="font-size: 28px; font-weight: 700; color: #111; line-height: 1.1; margin: 2px 0;">${temp}</span>
-                        <span style="font-size: 11px; font-weight: 600; color: #3a3a3c;">${desc}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="display: flex; flex-direction: column; gap: 1px;">
+                        <span style="font-size: 8.5px; color: #86868b; font-weight: 800; letter-spacing: 0.3px;">${weekDay} · ${desc}</span>
+                        <span style="font-size: 24px; font-weight: 700; color: #111; line-height: 1; margin: 1px 0;">${temp}</span>
+                        <span style="font-size: 10px; font-weight: 600; color: #3a3a3c; opacity: 0.8;">${city}</span>
                     </div>
-                    <div style="font-size: 42px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.08));">${icon}</div>
+                    <div style="font-size: 36px; animation: weatherFloat 3s ease-in-out infinite; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.08));">
+                        ${icon}
+                    </div>
                 </div>
 
-                <div style="margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #86868b; margin-bottom: 5px;">
+                <div style="margin-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #86868b; margin-bottom: 4px;">
                         <span>AQI · ${aqi}</span>
                     </div>
-                    <div style="width: 100%; height: 4px; background: rgba(0,0,0,0.06); border-radius: 4px; position: relative;">
-                        <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; border-radius: 4px; background: linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de); opacity: 0.8;"></div>
-                        <div style="position: absolute; left: ${aqiPos}%; top: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; background: #1d1d1f; border-radius: 50%; border: 1.5px solid #fff;"></div>
+                    <div style="width: 100%; height: 3.5px; background: rgba(0,0,0,0.06); border-radius: 4px; position: relative;">
+                        <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; border-radius: 4px; background: linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de); opacity: 0.7;"></div>
+                        <div style="position: absolute; left: ${aqiPos}%; top: 50%; transform: translate(-50%, -50%); width: 5px; height: 5px; background: #1d1d1f; border-radius: 50%; border: 1px solid #fff;"></div>
                     </div>
                 </div>
             </div>`;
