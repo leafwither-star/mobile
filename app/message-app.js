@@ -7134,7 +7134,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.appendChild(card);
         }
     } 
-  // --- [分支 2]：全能天气 (101_W) - 紧凑深边框版 ---
+  // --- [分支 2]：全能天气 (101_W) - 精修左右布局版 ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7145,51 +7145,46 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             
             const days = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
             const weekDay = days[new Date().getDay()];
-
             const aqiPos = Math.min(Math.max((aqi / 300) * 100, 5), 95);
             let icon = desc.includes('晴') ? '☀️' : (desc.includes('雨') ? '🌧️' : '⛅');
-            
-            // 🎯 重新定义紧凑型数值
-            const cfg = {"w":"195", "h":"115", "is":"42", "iy":"-12", "ix":"16"};
 
             if (bubble) bubble.classList.add('service-card-bubble');
             msg.classList.add('service-card-text');
 
             html = `
             <div class="service-card-container" style="
-                width:${cfg.w}px; 
-                height:${cfg.h}px; 
-                margin-bottom:8px; 
-                border-radius:12px; 
-                padding:12px 14px; 
+                width: 195px; 
+                min-height: 105px; 
+                margin-bottom: 8px; 
+                border-radius: 12px; 
+                padding: 12px 14px; 
                 background: #ffffff; 
-                color:#1d1d1f; 
-                box-sizing:border-box; 
-                /* 加深边框：从 #eeeeee 换成更稳重的 #d1d1d6 */
+                color: #1d1d1f; 
+                box-sizing: border-box; 
+                /* 边框加深，增强存在感 */
                 border: 1.2px solid #d1d1d6; 
-                position:relative; 
-                overflow:hidden; 
-                display:flex; 
-                flex-direction:column; 
-                justify-content:space-between; 
-                margin-left:0px !important;">
+                position: relative; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: space-between;
+                margin-left: 0px !important;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; z-index: 2;">
-                    <div>
-                        <div style="font-size:9px; font-weight:800; color:#86868b; letter-spacing:0.5px; text-transform:uppercase;">${weekDay} · ${city}</div>
-                        <div style="font-size:32px; font-weight:700; line-height:1; color:#101010; margin-top:4px; margin-left:-2px;">${temp}</div>
-                        <div style="font-size:11px; font-weight:600; color:#3a3a3c; margin-top:2px;">${desc}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-size: 9px; color: #86868b; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">${weekDay} · ${city}</span>
+                        <span style="font-size: 28px; font-weight: 700; color: #111; line-height: 1.1; margin: 2px 0;">${temp}</span>
+                        <span style="font-size: 11px; font-weight: 600; color: #3a3a3c;">${desc}</span>
                     </div>
-                    <div style="font-size:${cfg.is}px; filter:drop-shadow(0 4px 8px rgba(0,0,0,0.1)); margin-top: 4px;">${icon}</div>
+                    <div style="font-size: 42px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.08));">${icon}</div>
                 </div>
 
-                <div style="position:relative; z-index:2; margin-top: 4px;">
-                    <div style="display:flex; justify-content:space-between; font-size:9px; font-weight:800; color:#86868b; margin-bottom:6px;">
+                <div style="margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #86868b; margin-bottom: 5px;">
                         <span>AQI · ${aqi}</span>
                     </div>
-                    <div style="width:100%; height:3.5px; background:rgba(0,0,0,0.08); border-radius:10px; position:relative;">
-                        <div style="position:absolute; left:0; top:0; height:100%; width:100%; border-radius:10px; background:linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de); opacity: 0.8;"></div>
-                        <div style="position:absolute; left:${aqiPos}%; top:50%; transform:translate(-50%, -50%); width:6px; height:6px; background:#1d1d1f; border-radius:50%; border:1.5px solid #fff;"></div>
+                    <div style="width: 100%; height: 4px; background: rgba(0,0,0,0.06); border-radius: 4px; position: relative;">
+                        <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; border-radius: 4px; background: linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30, #af52de); opacity: 0.8;"></div>
+                        <div style="position: absolute; left: ${aqiPos}%; top: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; background: #1d1d1f; border-radius: 50%; border: 1.5px solid #fff;"></div>
                     </div>
                 </div>
             </div>`;
