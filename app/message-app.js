@@ -1844,53 +1844,45 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-applyModernLayout() {
-    const listContainer = document.getElementById('message-list');
-    if (!listContainer) return;
+// --- 【修改点 1：纯净版布局校准】 ---
+    const applyModernLayout = () => {
+        const listContainer = document.getElementById('message-list');
+        if (!listContainer) return;
 
-    // 1. 获取永久联系人和抓取数据 (保留用于红点判定)
-    const permanentContacts = (typeof PERMANENT_CONTACTS !== 'undefined') ? PERMANENT_CONTACTS : {};
-    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractedFriends !== 'undefined') 
-                            ? window.friendRenderer.extractedFriends : [];
-    const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
+        // 获取抓取到的数据（用于红点对比）
+        const extractedFriends = (window.friendRenderer && window.friendRenderer.extractedFriends) || [];
+        const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
 
-    // 2. 仅处理红点逻辑和点击事件，不要再去 appendChild 破坏 DOM 结构
-    const items = Array.from(listContainer.querySelectorAll('.message-item'));
-    
-    items.forEach(item => {
-        const id = item.getAttribute('data-friend-id');
-        const dataFromContext = friendsDataMap.get(id);
-        const dataFromPermanent = permanentContacts[id];
-        const data = dataFromContext || dataFromPermanent || { number: id };
+        const items = Array.from(listContainer.querySelectorAll('.message-item'));
+        items.forEach(item => {
+            const id = item.getAttribute('data-friend-id');
+            const data = friendsDataMap.get(id) || { number: id };
 
-        // 使用 messageIndex 或从 DOM 扫描出的权重进行红点判定
-        const latestOrder = data.messageIndex || (window.latestOrderMap ? window.latestOrderMap[id] : 0);
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+            // 权重判定逻辑
+            const latestOrder = data.messageIndex || 0;
+            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
 
-        // --- 红点逻辑：仅在需要时添加 ---
-        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-        if (latestOrder > lastReadOrder) {
-            let dot = document.createElement('div');
-            dot.className = 'unread-dot'; 
-            // 确保红点挂在头像上或指定位置，不要乱插
-            item.appendChild(dot);
-        }
+            // 1. 只处理红点，绝对不准在此处 appendChild(timeSpan)
+            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+            if (latestOrder > lastReadOrder) {
+                let dot = document.createElement('div');
+                dot.className = 'unread-dot'; 
+                item.appendChild(dot);
+            }
 
-        // --- 绑定点击已读逻辑 ---
-        if (!item.dataset.layoutListener) {
-            item.dataset.layoutListener = "true";
-            item.addEventListener('click', () => {
-                localStorage.setItem(`lastRead_${id}`, latestOrder);
-                const d = item.querySelector('.unread-dot');
-                if (d) d.remove();
-            });
-        }
-    });
-
-    // --- 核心改动：彻底删掉原有的 items.sort 和 items.forEach(appendChild) 逻辑 ---
-    // 排序和分组现在交由 friend-renderer.js 的 renderFriendsHTML 处理
-    console.log("[Message App] 界面布局校准完成（已跳过破坏性排序）");
-}
+            // 2. 绑定已读事件
+            if (!item.dataset.layoutListener) {
+                item.dataset.layoutListener = "true";
+                item.addEventListener('click', () => {
+                    localStorage.setItem(`lastRead_${id}`, latestOrder);
+                    const d = item.querySelector('.unread-dot');
+                    if (d) d.remove();
+                });
+            }
+        });
+        // ❌ 删掉了原来的 items.sort 和 items.forEach(appendChild)
+        // 这样就不会把人从分组里拽出来了
+    };
     
     // 渲染添加好友界面
     renderAddFriend() {
