@@ -7189,7 +7189,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-    // --- [分支 3]：新闻资讯 (101_N) - 手机端适配优化版 ---
+    // --- [分支 3]：新闻资讯 (101_N) - 极限适配版 ---
     else if (raw.includes('101_N|')) {
         const p = raw.match(/101_N\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7199,13 +7199,13 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:115px; margin-bottom:4px; border-radius:28px; padding:16px 20px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1px solid rgba(0,0,0,0.08); position:relative; box-shadow:0 10px 25px rgba(0,0,0,0.04); font-family:-apple-system,system-ui,sans-serif; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-                    <span style="background:#007aff; color:#fff; font-size:9.5px; padding:1.5px 6px; border-radius:6px; font-weight:900; letter-spacing:0.5px;">NEWS</span>
-                    <span style="font-size:9.5px; color:#86868b; font-weight:800; letter-spacing:0.8px;">BEIJING TODAY</span>
+            <div class="service-card-container" style="width:263px; min-height:90px; margin-bottom:4px; border-radius:24px; padding:12px 18px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1px solid rgba(0,0,0,0.08); position:relative; display:flex; flex-direction:column; justify-content:center;">
+                <div style="display:flex; align-items:center; gap:5px; margin-bottom:4px;">
+                    <span style="background:#007aff; color:#fff; font-size:9px; padding:1px 5px; border-radius:4px; font-weight:900;">NEWS</span>
+                    <span style="font-size:9px; color:#a1a1a6; font-weight:800; letter-spacing:0.5px;">BEIJING</span>
                 </div>
-                <div style="font-size:14px; color:#101010; font-weight:700; line-height:1.35; margin-bottom:5px;">${title}</div>
-                <div style="font-size:12px; color:#424245; line-height:1.4; opacity:0.9;">${summary}</div>
+                <div style="font-size:13.5px; color:#101010; font-weight:700; line-height:1.25; margin-bottom:3px;">${title}</div>
+                <div style="font-size:11.5px; color:#424245; line-height:1.35; opacity:0.85;">${summary}</div>
             </div>`;
             msg.innerHTML = html;
         }
