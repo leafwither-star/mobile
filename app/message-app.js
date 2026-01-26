@@ -1844,8 +1844,8 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    // --- 【修改点 1：纯净版布局校准】 ---
-    const applyModernLayout = () => {
+    // --- 【修正：去掉 const，直接赋值】 ---
+    applyModernLayout = function() {
         const listContainer = document.getElementById('message-list');
         if (!listContainer) return;
 
@@ -1880,8 +1880,7 @@ if (typeof window.MessageApp === 'undefined') {
                 });
             }
         });
-        // ❌ 删掉了原来的 items.sort 和 items.forEach(appendChild)
-        // 这样就不会把人从分组里拽出来了
+        console.log("[Message App] 界面布局校准完成（红点模式）");
     };
     
     // 渲染添加好友界面
