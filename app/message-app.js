@@ -7281,7 +7281,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.innerHTML = html;
         }
     }
-      // --- [分支 5]：VOGUE时尚 (108_F) ---
+      // --- [分支 5]：VOGUE时尚 (108_F) - 195px 磁贴版 ---
     else if (raw.includes('108_F|')) {
         const p = raw.match(/108_F\|([^|]+)\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7292,17 +7292,17 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#000000; color:#ffffff; box-sizing:border-box; border:1px solid #333; position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:center; text-align:center; font-family:serif;">
-                <div style="font-size:16px; letter-spacing:6px; font-weight:900; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px; color:#fff;">VOGUE</div>
-                <div style="font-size:9px; color:#d4af37; letter-spacing:2px; margin-bottom:8px; font-weight:800;">${vSub}</div>
-                <div style="font-size:14px; font-weight:300; line-height:1.4; margin-bottom:8px; color:#eee;">“${vTitle}”</div>
-                <div style="font-size:9px; color:#666; letter-spacing:1px; font-weight:700;">${vBrand}</div>
+            <div class="service-card-container" style="width:195px; min-height:100px; margin-bottom:8px; border-radius:12px; padding:14px; background:#000; color:#fff; box-sizing:border-box; border:1.2px solid #333; position:relative; display:flex; flex-direction:column; justify-content:center; text-align:center; font-family:serif; margin-left:0px !important;">
+                <div style="font-size:14px; letter-spacing:4px; font-weight:900; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;">VOGUE</div>
+                <div style="font-size:8px; color:#d4af37; letter-spacing:1px; margin-bottom:4px; font-weight:800;">${vSub}</div>
+                <div style="font-size:11.5px; font-weight:300; line-height:1.3; color:#eee;">“${vTitle}”</div>
+                <div style="font-size:8px; color:#666; margin-top:6px;">${vBrand}</div>
             </div>`;
             msg.innerHTML = html;
         }
     }
 
-    // --- [分支 6]：治愈情感 (109_H) ---
+    // --- [分支 6]：治愈情感 (109_H) - 195px 磁贴版 ---
     else if (raw.includes('109_H|')) {
         const p = raw.match(/109_H\|([^\]]+)/);
         if (p) {
@@ -7311,16 +7311,15 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#fff9f0; color:#8c6d3f; box-sizing:border-box; border:1.5px solid #f9e8cc; position:relative; display:flex; flex-direction:column; justify-content:center; box-shadow:0 10px 25px rgba(214,158,46,0.05);">
-                <div style="font-size:10px; font-weight:900; color:#bda582; margin-bottom:10px; letter-spacing:1px;">深夜FM · 暖心语录</div>
-                <div style="font-size:14px; font-weight:600; line-height:1.6; color:#7a5a2d;">“${quote}”</div>
-                <div style="font-size:10px; color:#bda582; margin-top:10px; text-align:right; font-weight:800;">Warmth for you</div>
+            <div class="service-card-container" style="width:195px; min-height:95px; margin-bottom:8px; border-radius:12px; padding:14px; background:#fff9f0; color:#8c6d3f; box-sizing:border-box; border:1.2px solid #f2dec2; position:relative; display:flex; flex-direction:column; justify-content:center; margin-left:0px !important;">
+                <div style="font-size:9px; font-weight:900; color:#bda582; margin-bottom:6px;">深夜FM · 暖心</div>
+                <div style="font-size:12px; font-weight:600; line-height:1.5; color:#7a5a2d;">“${quote}”</div>
             </div>`;
             msg.innerHTML = html;
         }
     }
 
-    // --- [分支 7]：深夜黑金FM (109_E) ---
+    // --- [分支 7]：深夜黑金FM (109_E) - 195px 磁贴版 ---
     else if (raw.includes('109_E|')) {
         const p = raw.match(/109_E\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7331,29 +7330,25 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
             html = `
             <style>
-                @keyframes strongPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-                @keyframes barJump { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+                @keyframes barJump { 0%, 100% { height: 4px; } 50% { height: 10px; } }
             </style>
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#1a1a1a; color:#d4af37; box-sizing:border-box; border:1.5px solid #333; position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:center;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <div style="width:7px; height:7px; background:#d4af37; border-radius:50%; animation:strongPulse 2s infinite;"></div>
-                        <div style="font-size:10px; font-weight:900; letter-spacing:1.5px;">FM 109 · LIVE</div>
-                    </div>
-                    <div style="display:flex; align-items:flex-end; gap:2px; height:12px;">
+            <div class="service-card-container" style="width:195px; min-height:100px; margin-bottom:8px; border-radius:12px; padding:14px; background:#1a1a1a; color:#d4af37; box-sizing:border-box; border:1.2px solid #333; position:relative; display:flex; flex-direction:column; justify-content:center; margin-left:0px !important;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="font-size:9px; font-weight:900; letter-spacing:1px;">FM 109 · LIVE</div>
+                    <div style="display:flex; align-items:flex-end; gap:2px; height:10px;">
                         <div style="width:2px; background:#d4af37; animation:barJump 0.8s infinite 0.1s;"></div>
                         <div style="width:2px; background:#d4af37; animation:barJump 0.8s infinite 0.3s;"></div>
                         <div style="width:2px; background:#d4af37; animation:barJump 0.8s infinite 0.5s;"></div>
                     </div>
                 </div>
-                <div style="font-size:14.5px; color:#eee; font-weight:700; line-height:1.4; margin-bottom:8px;">“${eTitle}”</div>
-                <div style="font-size:11px; color:#888; border-left:2px solid #333; padding-left:10px; line-height:1.4;">${eText}</div>
+                <div style="font-size:12.5px; color:#eee; font-weight:700; line-height:1.35; margin-bottom:4px;">“${eTitle}”</div>
+                <div style="font-size:10px; color:#888; border-left:1.5px solid #d4af37; padding-left:8px;">${eText}</div>
             </div>`;
             msg.innerHTML = html;
         }
     }
 
-    // --- [分支 8]：树洞吐槽 (113_S) - 颜值提升版 ---
+    // --- [分支 8]：树洞吐槽 (113_S) - 195px 磁贴版 ---
     else if (raw.includes('UI_113_S|')) {
         const p = raw.match(/UI_113_S\|([^|]+)\|([^\]]+)/);
         if (p) {
@@ -7363,11 +7358,9 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             msg.classList.add('service-card-text');
 
             html = `
-            <div class="service-card-container" style="width:263px; min-height:130px; margin-bottom:4px; border-radius:32px; padding:22px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1px solid rgba(0,0,0,0.06); position:relative; display:flex; flex-direction:column; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
-                <div style="position:absolute; top:12px; left:50%; transform:translateX(-50%); width:12px; height:12px; background:#444; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.2); z-index:2;"></div>
-                <div style="font-size:10px; color:#aaa; margin-bottom:10px; border-bottom:1px dashed #eee; padding-top:8px; font-weight:800; letter-spacing:1px;"># SECRET HOLE NO.${sNum}</div>
-                <div style="font-size:14px; color:#333; line-height:1.6; font-weight:700; font-family:serif; font-style:italic;">“${sContent}”</div>
-                <div style="font-size:10px; color:#ccc; margin-top:10px; text-align:right; font-weight:600; text-transform:uppercase;">Anonymous Post</div>
+            <div class="service-card-container" style="width:195px; min-height:95px; margin-bottom:8px; border-radius:12px; padding:14px; background:#ffffff; color:#1d1d1f; box-sizing:border-box; border:1.2px solid #d1d1d6; position:relative; display:flex; flex-direction:column; justify-content:center; margin-left:0px !important;">
+                <div style="font-size:9px; color:#aaa; margin-bottom:6px; border-bottom:1px dashed #eee; font-weight:800; letter-spacing:0.5px;"># SECRET HOLE NO.${sNum}</div>
+                <div style="font-size:12px; color:#333; line-height:1.5; font-weight:700; font-family:serif; font-style:italic;">“${sContent}”</div>
             </div>`;
             msg.innerHTML = html;
         }
