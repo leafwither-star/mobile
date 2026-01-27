@@ -391,95 +391,64 @@ if (typeof window.FriendRenderer === 'undefined') {
       return div.innerHTML;
     }
 
+    /**
+     * 渲染好友和群聊列表HTML
+     */
     renderFriendsHTML() {
-    // 1. 提取原始数据
-    let contacts = this.extractFriendsFromContext();
-    if (contacts.length === 0) return `<div class="empty-state">暂无联系人</div>`;
+      // 先提取好友和群聊信息
+      const contacts = this.extractFriendsFromContext();
 
-    // 2. 预处理：确保每个人都有 groupType 和 排序权重 (weight)
-    contacts = contacts.map(c => {
-        const idNum = parseInt(c.number);
-        // 计算权重：优先使用消息索引，没有则用时间戳
-        const weight = c.messageIndex || (c.addTime ? new Date(c.addTime).getTime() : 0);
-        
-        // 判定分组标签
-        let gType = 'others';
-        if (c.isSpecial === true) {
-            gType = 'special';
-        } else if (idNum >= 141 && idNum <= 169) {
-            gType = 'colleague';
-        } else if (idNum >= 170 && idNum <= 220) {
-            gType = 'client';
-        }
-
-        return { ...c, groupType: gType, sortWeight: weight };
-    });
-
-    // 3. 定义组内容容器
-    const groups = { special: [], colleague: [], client: [], others: [] };
-
-    // 4. 分流并执行【组内排序】
-    contacts.forEach(c => {
-        groups[c.groupType].push(c);
-    });
-
-    // 对每个组内部进行倒序排列（最新的在最上面）
-    Object.keys(groups).forEach(key => {
-        groups[key].sort((a, b) => b.sortWeight - a.sortWeight);
-    });
-
-    // 5. 渲染单条 HTML (保持简洁，彻底杜绝双时间)
-    const renderItem = (contact) => {
-        const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
-        const displayTime = contact.lastMessageTime || "08:00";
-        
+      if (contacts.length === 0) {
         return `
-            <div class="message-item" data-friend-id="${contact.number}">
-                <div class="message-avatar" style="background-image: url('${contact.avatar || ''}'); background-size: cover;"></div>
-                <div class="message-content">
-                    <div class="message-name">
-                        <span style="font-weight:600;">${contact.name}</span>
-                        ${contact.hasUnreadTag ? '<span style="color:#ff3b30;margin-left:4px;">●</span>' : ''}
+                <div class="empty-state">
+                    <div class="empty-icon">💬</div>
+                    <div class="empty-text">暂无联系人</div>
+                    <div class="empty-hint">点击右上角"添加"按钮添加好友或创建群聊</div>
+                </div>
+            `;
+      }
+
+      // 渲染联系人列表
+      const contactsHTML = contacts
+        .map(contact => {
+          const lastMessage = this.escapeHtml(contact.lastMessage || '暂无消息');
+
+          if (contact.isGroup) {
+            // 群聊条目
+            return `
+                    <div class="message-item group-item" data-friend-id="${contact.number}" data-is-group="true">
+                        <div class="message-avatar group-avatar"></div>
+                        <div class="message-content">
+                            <div class="message-name">
+                                ${contact.name}
+                                <span class="group-badge">群聊</span>
+                            </div>
+                            <div class="message-text">${lastMessage}</div>
+                        </div>
+                        <div class="group-members-info">
+                            <span class="member-count">${this.getMemberCount(contact.members)}</span>
+                        </div>
                     </div>
-                    <div class="message-text">${lastMessage}</div>
-                </div>
-                <div class="message-time-sidebar" style="font-size:10px; color:#bbb; min-width:35px; text-align:right; align-self:flex-start; margin-top:5px;">
-                    ${displayTime}
-                </div>
-            </div>`;
-    };
+                `;
+          } else {
+            // 个人好友条目
+            const avatar = this.getRandomAvatar();
+            return `
+                    <div class="message-item friend-item" data-friend-id="${contact.number}" data-is-group="false">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-name">${contact.name}</div>
+                            <div class="message-text">${lastMessage}</div>
+                        </div>
+                    </div>
+                `;
+          }
+        })
+        .join('');
 
-    // 6. 渲染折叠组 (custom-arrow 避开语音脚本)
-    const renderGroupWrapper = (title, list, icon) => {
-        if (list.length === 0) return "";
-        return `
-            <div class="contact-group-header" onclick="const b=this.nextElementSibling; const s=b.style; s.display=s.display==='none'?'block':'none'; this.querySelector('.custom-arrow').style.transform=s.display==='none'?'rotate(0deg)':'rotate(90deg)';">
-                <div class="group-title">${icon} ${title} <span class="group-count">${list.length}</span></div>
-                <span class="custom-arrow" style="display:inline-block; transition: 0.2s; font-size:12px;">❯</span>
-            </div>
-            <div class="contact-group-body" style="display:none;">
-                ${list.map(renderItem).join('')}
-            </div>`;
-    };
+      return contactsHTML;
+    }
 
-    // 7. 组合最终 HTML
-    // 顺序：核心好友(special) -> 订阅号/其他(others) -> 同事组 -> 客户组
-    return `
-        <style>
-            .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; }
-            .group-title { font-size: 11px; font-weight: 900; color: #8b4513; }
-            .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; margin-left:4px; }
-            .message-name { display: flex; align-items: center; }
-        </style>
-        <div class="main-list-container">
-            ${groups.special.map(renderItem).join('')}
-            ${groups.others.map(renderItem).join('')}
-        </div>
-        ${renderGroupWrapper('律所权力金字塔', groups.colleague, '⚖️')}
-        ${renderGroupWrapper('客户与项目合作', groups.client, '💎')}
-    `;
-}
-    
     /**
      * 获取群成员数量
      */
