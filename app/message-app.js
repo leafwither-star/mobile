@@ -7429,48 +7429,39 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
             msg.innerHTML = html;
         }
     }
-      // --- [分支 9]：红包系统 (微创加固版) ---
+      // --- [分支 9]：红包系统 (微创精准定位版) ---
 else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-    // 【微创防重入锁】防止重复渲染导致的卡顿或错位
-    if (msg.querySelector('.packet-anchor-done')) return;
+    // 【防重入锁】
+    if (msg.getAttribute('data-rendered') === 'true') return;
 
     msg.classList.add('fixed');
     const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
     const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
 
-    // 1. 极致脱水：锁定容器高度和间距
+    // 清除间距
     if (bubble) {
-        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important; min-height:0 !important;";
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
     }
     msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
 
-    // 2. 构建原生节点：替代 innerHTML 拼接
-    const anchor = document.createElement('div');
-    anchor.className = 'packet-anchor-done';
-    anchor.style.cssText = "position:static !important; display:block !important; padding:0 !important; margin:0 !important;";
-
+    // 直接在 msg 内构建，不加额外包裹层防止位移叠加
     const card = document.createElement('div');
     card.className = 'beautiful-packet';
-    // 严格保留你指定的 -40px 和 -8px 定位
-    card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
+    // 将 -40px 微调为 -20px 解决太偏左的问题，margin-top 设为 0 挤掉空隙
+    card.style.cssText = "margin-left: -20px !important; margin-top: 0px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; cursor: pointer; pointer-events: auto !important;";
     
     card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
 
-    // 3. 绑定点击逻辑
     card.onclick = (e) => { 
         e.stopPropagation(); 
         const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
-        if (typeof launch === 'function') {
-            launch(wish, amt);
-        } else {
-            console.log("红包UI函数未找到", {wish, amt});
-        }
+        if (typeof launch === 'function') launch(wish, amt);
     };
 
-    // 4. 执行挂载
     msg.innerHTML = ''; 
-    anchor.appendChild(card);
-    msg.appendChild(anchor);
+    msg.appendChild(card);
+    // 标记已渲染
+    msg.setAttribute('data-rendered', 'true');
 }
 }); // 正确闭合 forEach
 
