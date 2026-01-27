@@ -7374,9 +7374,8 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
         }
     }
 
-    // --- [分支 8]：树洞吐槽 (113_S) - 芝士手绘版 ---
+    // --- [分支 8]：树洞吐槽 (113_S) - 芝士手绘 (上移版) ---
 else if (raw.includes('113_S|')) {
-    // 【防重入锁】确保复杂动画和DOM操作只执行一次
     if (msg.getAttribute('data-rendered') === 'true') return;
 
     const p = raw.match(/113_S\|([^|]+)\|([^\]]+)/);
@@ -7384,13 +7383,13 @@ else if (raw.includes('113_S|')) {
         const sNum = p[1] || "404";
         const sContent = p[2] || "";
         
-        // 1. 容器脱水：消除酒馆原生气泡的所有干扰间距
         if (bubble) {
-            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
+            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important; display:block !important;";
         }
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important; width:195px;";
+        
+        // 关键调整：通过 margin-top: -35px 强行上提位置
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top: -35px !important; position:static !important; min-height:0 !important; width:195px;";
 
-        // 2. 渲染手绘风卡片
         msg.innerHTML = `
         <style>
             @keyframes floatCute {
@@ -7418,7 +7417,8 @@ else if (raw.includes('113_S|')) {
             box-shadow: 4px 4px 0px #4E3620; 
             font-family: 'Comic Sans MS', 'PingFang SC', sans-serif;
             animation: floatCute 3s ease-in-out infinite;
-            pointer-events: auto;">
+            pointer-events: auto;
+            transform-origin: center top;">
             
             <div style="position: absolute; top: -10px; left: 10px; display: flex; gap: 2px; animation: wiggleEye 2s infinite;">
                 <div style="width: 12px; height: 12px; background: white; border: 2px solid #4E3620; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
@@ -7445,7 +7445,6 @@ else if (raw.includes('113_S|')) {
             </div>
         </div>`;
 
-        // 3. 标记渲染完成
         msg.setAttribute('data-rendered', 'true');
     }
 }
