@@ -7039,9 +7039,6 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
     const runUIUpdate = () => {
       // 0. 顶部标题强制修正 (新增部分)
         const titleEl = document.getElementById('app-title');
-      const listContainer = document.getElementById('message-list');
-      if (!listContainer) return;
-      
         if (titleEl) {
             const fIdMatch = titleEl.innerText.match(/\d+/);
             if (fIdMatch) {
@@ -7053,6 +7050,74 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
+        // --- 1. 列表重构 (带记忆的防闪烁版) ---
+        const listContainer = document.getElementById('message-list');
+        if (!listContainer) return;
+
+        // 【新增】：初始化全局展开状态记忆（如果不存在）
+        if (window.groupStates === undefined) {
+            window.groupStates = { colleague: false, client: false, service: false };
+        }
+
+        // 获取刚才加工好的带标签数据
+        const contacts = window.friendRenderer.extractFriendsFromContext();
+        
+        // 检查数据是否有变化，防止无谓的重绘
+        const currentDataHash = JSON.stringify(contacts.map(c => c.number + c.hasUnreadTag));
+        if (window.lastListData === currentDataHash) return; // 数据没变，直接跳过，保护点击事件
+        window.lastListData = currentDataHash;
+
+        const groups = {
+            colleague: { name: '律所权力金字塔', icon: '⚖️', html: '' },
+            client: { name: '客户与项目合作', icon: '💎', html: '' },
+            service: { name: '服务号矩阵', icon: '📢', html: '' }
+        };
+
+        let mainHtml = ''; 
+
+        contacts.forEach(c => {
+            const info = PERMANENT_CONTACTS[c.number];
+            if (!info) return;
+
+            // 注意：这里保留了你原本的 message-item 点击逻辑（SillyTavern 原生处理）
+            const itemHtml = `
+                <div class="message-item" data-friend-id="${c.number}">
+                    <div class="message-avatar" style="background-image: url('${info.avatar || ''}'); background-size: cover;"></div>
+                    <div class="message-content">
+                        <div class="message-name ${info.isSpecial ? 'special-friend-name' : ''}" style="display:flex; align-items:center;">
+                            <span style="font-weight:600;">${info.name}</span>
+                            <span style="margin-left:4px; font-size:10px; opacity:0.8;">${info.tag || ''}</span>
+                        </div>
+                        <div class="message-text" style="font-size:12px; color:#888; margin-top:2px;">${c.lastMessage}</div>
+                    </div>
+                    <div class="message-sidebar" style="text-align:right; min-width:40px;">
+                        <div style="font-size:10px; color:#bbb; margin-bottom:4px;">${c.lastMessageTime}</div>
+                        ${c.hasUnreadTag ? '<div class="unread-dot" style="width:8px; height:8px; background:#ff3b30; border-radius:50%; margin-left:auto;"></div>' : ''}
+                    </div>
+                </div>`;
+
+            if (c.groupType === 'none') { mainHtml += itemHtml; } 
+            else { groups[c.groupType].html += itemHtml; }
+        });
+
+        let finalHtml = mainHtml;
+        Object.keys(groups).forEach(key => {
+            if (groups[key].html) {
+                // 根据 window.groupStates[key] 决定显示还是隐藏
+                const isShow = window.groupStates[key];
+                finalHtml += `
+                    <div class="custom-group-container" style="border-top: 1px solid #f0f0f0;">
+                        <div class="group-header" onclick="window.groupStates['${key}'] = !window.groupStates['${key}']; runUIUpdate();" 
+                             style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa;">
+                            <span style="font-size: 11px; font-weight: 700; color: #666;">${groups[key].icon} ${groups[key].name}</span>
+                            <span style="font-size: 9px; color: #ccc; transition: 0.3s; transform: ${isShow ? 'rotate(90deg)' : 'rotate(0deg)'};">❯</span>
+                        </div>
+                        <div class="group-body" style="display: ${isShow ? 'block' : 'none'}; background: #ffffff;">${groups[key].html}</div>
+                    </div>`;
+            }
+        });
+
+        listContainer.innerHTML = finalHtml;
       
         // 2. 气泡转换 (通话 + 服务号 + 红包)
 document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
@@ -7422,81 +7487,8 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.classList.add('service-card-text');
         msg.innerHTML = html;
     }
-        }); // 闭合 forEach
-
-// --- [3. 列表渲染与分组挪移] ---
-    const contactsData = window.friendRenderer.extractFriendsFromContext();
-    // A. 确保组容器存在
-    const groupConfigs = { 
-        colleague: { name: '律所权力金字塔', icon: '⚖️' }, 
-        client: { name: '客户与项目合作', icon: '💎' }, 
-        service: { name: '服务号矩阵', icon: '📢' } 
-    };
-
-    Object.keys(groupConfigs).forEach(key => {
-        let groupWrap = document.getElementById(`group-wrap-${key}`);
-        if (!groupWrap) {
-            groupWrap = document.createElement('div');
-            groupWrap.id = `group-wrap-${key}`;
-            groupWrap.className = 'custom-group-container';
-            groupWrap.innerHTML = `
-                <div class="group-header" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa; border-bottom:1px solid #eee;">
-                    <span style="font-size: 11px; font-weight: 700; color: #666;">${groupConfigs[key].icon} ${groupConfigs[key].name}</span>
-                    <span class="group-arrow" style="font-size: 9px; color: #ccc; transition: 0.3s;">❯</span>
-                </div>
-                <div class="group-body" style="display: none; background: #ffffff;"></div>`;
-            
-            groupWrap.querySelector('.group-header').onclick = () => {
-                const body = groupWrap.querySelector('.group-body');
-                const arrow = groupWrap.querySelector('.group-arrow');
-                const isHidden = body.style.display === 'none';
-                body.style.display = isHidden ? 'block' : 'none';
-                arrow.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
-            };
-            listContainer.appendChild(groupWrap);
-        }
-    });
-
-    // B. 开始搬家并同步红点、时间
-    contactsData.forEach(c => {
-        const item = listContainer.querySelector(`.message-item[data-friend-id="${c.number}"]`);
-        if (!item) return;
-
-        // 强制红点逻辑
-        let dot = item.querySelector('.unread-dot');
-        if (c.hasUnreadTag) {
-            if (!dot) {
-                dot = document.createElement('div');
-                dot.className = 'unread-dot';
-                dot.style.cssText = "width:8px; height:8px; background:#ff3b30; border-radius:50%; position:absolute; right:15px; top:15px; z-index:10;";
-                item.style.position = 'relative'; 
-                item.appendChild(dot);
-            }
-        } else if (dot) {
-            dot.remove();
-        }
-
-        // 同步时间
-        let tSpan = item.querySelector('.custom-timestamp') || (()=>{ 
-            let s=document.createElement('span'); s.className='custom-timestamp'; 
-            const sidebar = item.querySelector('.message-time-sidebar') || item.querySelector('.message-sidebar') || item;
-            sidebar.appendChild(s); return s; 
-        })();
-        tSpan.innerText = c.lastMessageTime;
-
-        // 执行挪移
-        if (c.groupType !== 'none') {
-            const targetBody = document.querySelector(`#group-wrap-${c.groupType} .group-body`);
-            if (targetBody && item.parentElement !== targetBody) targetBody.appendChild(item);
-        } else {
-            const firstGroup = document.querySelector('.custom-group-container');
-            if (item.parentElement !== listContainer || (firstGroup && item.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING)) {
-                listContainer.insertBefore(item, firstGroup || null);
-            }
-        }
-    });
-      
-     // --- 4.微信语音联动：稳健轮询集成版 ---
+}); // 正确闭合 forEach
+     // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
                 // 1. 识别点击目标
