@@ -7029,8 +7029,6 @@ chatLog.forEach(e => {
         }
 
         // 2. 气泡转换 (通话 + 服务号 + 红包)
-const isDetailView = document.querySelector('.message-detail-view');
-        
         if (isDetailView || document.querySelector('.message-detail-content')) {
       
       document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
