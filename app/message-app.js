@@ -7082,36 +7082,45 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     const containerStart = `<div class="service-card-container">`;
     const containerEnd = `</div>`;
 
-    // --- [分支 1]：语音通话 (稳定隔离版) ---
+    // --- [分支 1]：语音通话 (防死循环+数据加固版) ---
 if (raw.includes('语音通话') || raw.includes('📞')) {
-    // 1. 极致脱水：清除所有内外边距
+    // 【防死循环锁】：如果已经渲染过且处于稳定状态，直接跳过，不再重复处理
+    if (msg.querySelector('.call-anchor-done')) return;
+
     if (bubble) {
         bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; display:block !important; position:relative !important; min-height:0 !important;";
     }
     msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
 
-    // 2. 数据解析
     const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
+    
+    // 1. 更稳健的状态解析
     let status = isSuccess ? "(已接通)" : "(未接通)";
-    const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
-    if (leftBracketIdx !== -1) {
-        status = raw.substring(leftBracketIdx).split(/[|\]]/)[0].trim();
+    const statusMatch = raw.match(/[\(（]([^|\]\)\uff09]+)[\)）]/);
+    if (statusMatch) status = `(${statusMatch[1]})`;
+
+    // 2. 暴力提取对话：直接正则匹配最后一部分
+    const cleanRaw = raw.replace('[UNREAD]', '').trim();
+    // 假设对话是以最后一个 | 之后的部分，或者根据你的格式 [时间|方向|姓名|ID|文字|通话信息|对话1|对话2]
+    const parts = cleanRaw.split('|').map(p => p.replace(/[\]\[]/g, '').trim());
+    
+    // 寻找包含“通话”或“时长”的索引
+    const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+    let dialogues = [];
+    if (statusIdx !== -1 && parts.length > statusIdx + 1) {
+        dialogues = parts.slice(statusIdx + 1);
     }
 
-    const cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-    const parts = cleanRaw.split('|').map(p => p.trim());
-    const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-    // 确保 dialogues 能正确拿到数据
-    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(/[\]\[]/g, '')) : [];
-    
     const titleEl = document.getElementById('app-title');
     const fId = (titleEl?.innerText.match(/\d+/) || ["103"])[0];
     const name = titleEl?.innerText.split(' ')[0] || "联系人";
 
-    // 3. 构建原生 DOM 节点 (防止 InnerHTML 死循环)
-    msg.innerHTML = ''; // 先清空一次
+    // 3. 构建原生节点
+    msg.innerHTML = '';
     const container = document.createElement('div');
-    container.style.cssText = "position:relative; width:195px; margin:2px 0; padding:0;";
+    // 添加标记类名 call-anchor-done
+    container.className = 'call-anchor-done'; 
+    container.style.cssText = "position:relative; width:195px; margin:0; padding:0;";
 
     const card = document.createElement('div');
     card.className = 'call-record-card';
@@ -7125,13 +7134,14 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
         preview.style.cssText = "display:none; white-space:pre-wrap; border:1px solid #eee; border-top:none; background:#fff; padding:10px; border-radius:0 0 8px 8px; font-size:12px; color:#666; width:100%; box-sizing:border-box;";
         preview.innerText = dialogues.join('\n');
 
-        // 绑定点击：进入大 UI
+        // 绑定逻辑：进入语音大 UI
         card.onclick = (e) => {
             e.stopPropagation();
+            console.log("正在启动通话UI，内容：", dialogues); // 调试用
             if (window.launchCallUI) window.launchCallUI(name, dialogues, fId);
         };
 
-        // 绑定展开：文字预览
+        // 绑定展开逻辑：文字预览
         const trigger = card.querySelector('.read-icon-btn');
         trigger.onclick = (e) => {
             e.stopPropagation();
