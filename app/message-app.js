@@ -6889,7 +6889,14 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidIdx = i; break; }
             }
             let allMobileText = "";
-            chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
+chatLog.forEach(e => { 
+    const raw = e.mes || "";
+    if(raw.includes('[手机快讯]')) {
+        // 核心改动：只拿 [手机快讯] 之后的内容，防止前面的小说正文干扰提取和排序
+        const splitParts = raw.split('[手机快讯]');
+        allMobileText += (splitParts[1] || "") + "\n"; 
+    }
+});
             
             let contacts = [];
             // 使用定义的 CLOUD_IDS，若未定义则从 PERMANENT_CONTACTS 提取
@@ -6974,7 +6981,12 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
                 contacts.push(item);
             });
-            return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
+            return contacts.sort((a, b) => {
+    // 1. 优先比消息索引 (比如有未读消息的会排在最前)
+    if (b.messageIndex !== a.messageIndex) return b.messageIndex - a.messageIndex;
+    // 2. 索引一样时（都没有消息），比时间字符串（"19:28" vs "08:00"）
+    return (b.lastMessageTime || "00:00").localeCompare(a.lastMessageTime || "00:00");
+});
         };
     };
 
