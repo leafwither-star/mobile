@@ -7342,7 +7342,7 @@ else if (raw.includes('109_H|')) {
         }
         
         // 2. 深度上移：将 margin-top 增加到 -45px
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; position:static !important; min-height:0 !important; width:195px;";
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-55px !important; position:static !important; min-height:0 !important; width:195px;";
 
         msg.innerHTML = `
         <style>
@@ -7424,7 +7424,7 @@ else if (raw.includes('113_S|')) {
         }
         
         // 关键调整：通过 margin-top: -35px 强行上提位置
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top: -35px !important; position:static !important; min-height:0 !important; width:195px;";
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top: -55px !important; position:static !important; min-height:0 !important; width:195px;";
 
         msg.innerHTML = `
         <style>
