@@ -7082,58 +7082,74 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     const containerStart = `<div class="service-card-container">`;
     const containerEnd = `</div>`;
 
-    // --- [分支 1]：语音通话 (修正漂浮版) ---
+    // --- [分支 1]：语音通话 (CSS 兼容修复版) ---
 if (raw.includes('语音通话') || raw.includes('📞')) {
-    msg.classList.add('fixed');
+    // 1. 强制重置气泡样式：消除所有定位干扰
+    if (bubble) {
+        bubble.style.cssText = `
+            background: transparent !important; 
+            border: none !important; 
+            box-shadow: none !important; 
+            padding: 0 !important; 
+            overflow: visible !important; 
+            display: block !important; 
+            position: relative !important;
+        `;
+    }
+
+    // 2. 提取数据 (保留你原有的逻辑)
     const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
-    
     let status = isSuccess ? "(已接通)" : "(未接通)";
     const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
     if (leftBracketIdx !== -1) {
         let afterBracket = raw.substring(leftBracketIdx);
         status = afterBracket.split(/[|\]]/)[0].trim();
     }
-
+    
     let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
     const parts = cleanRaw.split('|').map(p => p.trim());
     const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
     const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
-    
-    const titleEl = document.getElementById('app-title');
-    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
-    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
-    
-    // 统一使用 innerHTML 渲染，确保 DOM 结构被静态锁定
-    const contentHtml = isSuccess ? `
-        <div class="call-record-card" style="cursor:pointer; position: relative;">
-            <div class="call-row-top"><span>📞</span>语音通话</div>
-            <div class="call-row-bottom"><span>${status}</span><span class="read-icon-btn">📖 ▽</span></div>
-        </div>
-        <div class="call-text-preview" style="display:none; white-space: pre-wrap;">${dialogues.join('\n')}</div>
-    ` : `
-        <div class="call-record-card" style="cursor:default; position: relative;">
-            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
-            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
+    const titleEl = document.getElementById('app-title');
+    const fId = (titleEl?.innerText.match(/\d+/) || ["103"])[0];
+    const name = titleEl?.innerText.split(' ')[0] || "联系人";
+
+    // 3. 核心修复：使用一个“锚点容器”将卡片锁死在文档流中
+    // 强制 position: static 确保它随页面滚动
+    msg.innerHTML = `
+        <div class="call-anchor" style="position: static !important; display: block !important; width: 195px;">
+            <div class="call-record-card" style="margin: 0 !important; position: static !important;">
+                <div class="call-row-top" style="${!isSuccess ? 'color:#2f80ed;' : ''}">
+                    <span>${isSuccess ? '📞' : '🔹'}</span>语音通话
+                </div>
+                <div class="call-row-bottom" style="${!isSuccess ? 'color:#2f80ed; opacity:0.8;' : ''}">
+                    <span>${status}</span>
+                    ${isSuccess ? '<span class="read-icon-btn">📖 ▽</span>' : ''}
+                </div>
+            </div>
+            <div class="call-text-preview" style="display:none; white-space: pre-wrap; position: static !important; width: 100%; border: 1px solid #eee; border-top:none; background:#fff; padding:10px; border-radius:0 0 8px 8px; font-size:12px; color:#666;">${dialogues.join('\n')}</div>
         </div>
     `;
 
-    msg.innerHTML = contentHtml;
-
-    // 处理交互逻辑
+    // 4. 处理点击逻辑
     if (isSuccess) {
         const card = msg.querySelector('.call-record-card');
         const preview = msg.querySelector('.call-text-preview');
         const trigger = msg.querySelector('.read-icon-btn');
         
-        card.onclick = (e) => { e.stopPropagation(); window.launchCallUI(name, dialogues, fId); };
+        // 调用你发给我的第 2 部分：窗口 UI
+        card.onclick = (e) => { 
+            e.stopPropagation(); 
+            if (window.launchCallUI) window.launchCallUI(name, dialogues, fId); 
+        };
+
         trigger.onclick = (e) => {
             e.stopPropagation();
             const isHidden = preview.style.display === 'none';
             preview.style.display = isHidden ? 'block' : 'none';
             trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
-            card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
+            card.style.borderRadius = isHidden ? '0 0 8px 8px' : '8px'; // 修正圆角
         };
     }
 }
