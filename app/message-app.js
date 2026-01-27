@@ -7442,26 +7442,25 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     }
 }); // 正确闭合 forEach
 
-// --- 【微创手术：森系折叠分组挂载 - 精确 ID & 交互优化版】 ---
+// --- 【微创手术：森系折叠分组 + 未读动态外跳版】 ---
     try {
         const listContainer = document.querySelector('.list-body') || document.querySelector('.message-list');
         if (listContainer && !listContainer.querySelector('.contact-group-header')) {
             
             const allItems = Array.from(listContainer.querySelectorAll('.message-item'));
             
-            // 辅助函数：判断 ID 是否在范围内
             const isIdInRange = (idStr, start, end) => {
                 const id = parseInt(idStr);
                 return id >= start && id <= end;
             };
 
-            // 1. 定义精确的分组逻辑
-            const getGroupType = (id) => {
-                // 同事组：106, 107, 140-169
+            // 1. 定义 ID 归属逻辑
+            const getGroupType = (id, hasUnread) => {
+                // 【核心逻辑】：如果带有 [UNREAD] 标记，直接返回 null（即不进入任何折叠组，留在组外）
+                if (hasUnread) return null; 
+
                 if (id === '106' || id === '107' || isIdInRange(id, 140, 169)) return 'colleague';
-                // 客户组：170-220
                 if (isIdInRange(id, 170, 220)) return 'client';
-                // 服务号组：100, 101, 108-120
                 if (id === '100' || id === '101' || isIdInRange(id, 108, 120)) return 'service';
                 return null;
             };
@@ -7488,11 +7487,28 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
             // 3. 执行分流挂载
             const groupsMap = { colleague: [], client: [], service: [] };
+            const emergentItems = []; // 存放需要“拽”出来的未读好友
+
             allItems.forEach(item => {
-                const type = getGroupType(item.getAttribute('data-friend-id'));
-                if (type) groupsMap[type].push(item);
+                const fId = item.getAttribute('data-friend-id');
+                // 从你现有的数据源判断是否有未读
+                const data = window.friendRenderer?.extractFriendsFromContext?.().find(f => f.number === fId);
+                const hasUnread = data?.hasUnreadTag === true;
+
+                const type = getGroupType(fId, hasUnread);
+                
+                if (type) {
+                    groupsMap[type].push(item);
+                } else {
+                    // 没有组（普通人）或者有未读的人，直接 append 到容器最上方
+                    emergentItems.push(item);
+                }
             });
 
+            // 4. 先挂载“组外”成员（包括有未读消息的同事/客户）
+            emergentItems.forEach(item => listContainer.appendChild(item));
+
+            // 5. 再挂载折叠组
             Object.keys(GROUP_CONFIG).forEach(key => {
                 const config = GROUP_CONFIG[key];
                 const groupItems = groupsMap[key];
@@ -7500,7 +7516,6 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
                 if (groupItems.length > 0) {
                     const header = document.createElement('div');
                     header.className = 'contact-group-header';
-                    // 将▶换成了更稳重的 [ + ]
                     header.innerHTML = `
                         <div class="group-title"><span>${config.icon} ${config.title}</span> <span class="group-count">${groupItems.length}</span></div>
                         <span class="group-arrow">⊕</span> 
@@ -7512,7 +7527,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
 
                     header.onclick = (e) => {
                         e.preventDefault();
-                        e.stopPropagation(); // 关键：阻止冒泡，防止触发语音读取
+                        e.stopPropagation();
                         const isHidden = body.style.display === 'none';
                         body.style.display = isHidden ? 'block' : 'none';
                         header.querySelector('.group-arrow').innerText = isHidden ? '⊖' : '⊕';
@@ -7525,7 +7540,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
             });
         }
     } catch (err) {
-        console.warn("森系分组修正失败:", err);
+        console.warn("未读外跳分组修正失败:", err);
     }
       
      // --- 微信语音联动：稳健轮询集成版 ---
