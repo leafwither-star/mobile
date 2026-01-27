@@ -7429,43 +7429,49 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
             msg.innerHTML = html;
         }
     }
-      // --- [分支 9]：红包系统 ---
-    else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-        msg.classList.add('fixed');
-        const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-        const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important;";
-        const card = document.createElement('div');
-        card.className = 'beautiful-packet';
-        card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
-        card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
-        card.onclick = (e) => { 
-            e.stopPropagation(); 
-            const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
-            if (typeof launch === 'function') launch(wish, amt);
-        };
-        msg.innerHTML = ''; 
-        msg.appendChild(card);
-    }
+      // --- [分支 9]：红包系统 (微创加固版) ---
+else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
+    // 【微创防重入锁】防止重复渲染导致的卡顿或错位
+    if (msg.querySelector('.packet-anchor-done')) return;
 
-    // --- [通用渲染：全能版] ---
-    if (html) {
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
-            // 清空内联样式，确保 CSS 自定义区的透明背景生效
-            bubble.style.cssText = ""; 
-            
-            // 针对所有 UI 卡片，强制取消酒馆的内边距，让我们的 130px 准确定位
-            if (raw.includes('UI_')) {
-                bubble.style.padding = "0";
-                bubble.style.background = "transparent";
-                bubble.style.border = "none";
-                bubble.style.height = "auto"; 
-            }
-        }
-        msg.classList.add('service-card-text');
-        msg.innerHTML = html;
+    msg.classList.add('fixed');
+    const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+    const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+
+    // 1. 极致脱水：锁定容器高度和间距
+    if (bubble) {
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; pointer-events:none !important; min-height:0 !important;";
     }
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
+
+    // 2. 构建原生节点：替代 innerHTML 拼接
+    const anchor = document.createElement('div');
+    anchor.className = 'packet-anchor-done';
+    anchor.style.cssText = "position:static !important; display:block !important; padding:0 !important; margin:0 !important;";
+
+    const card = document.createElement('div');
+    card.className = 'beautiful-packet';
+    // 严格保留你指定的 -40px 和 -8px 定位
+    card.style.cssText = "margin-left: -40px !important; margin-top: -8px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; pointer-events: auto !important; cursor: pointer;";
+    
+    card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
+
+    // 3. 绑定点击逻辑
+    card.onclick = (e) => { 
+        e.stopPropagation(); 
+        const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
+        if (typeof launch === 'function') {
+            launch(wish, amt);
+        } else {
+            console.log("红包UI函数未找到", {wish, amt});
+        }
+    };
+
+    // 4. 执行挂载
+    msg.innerHTML = ''; 
+    anchor.appendChild(card);
+    msg.appendChild(anchor);
+}
 }); // 正确闭合 forEach
 
 // --- 【微创手术：森系折叠分组 + 未读动态外跳版】 ---
