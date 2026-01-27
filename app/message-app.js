@@ -1844,42 +1844,117 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    applyModernLayout = function() {
+applyModernLayout() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
-    // --- 强力防御：删除所有非 Renderer 生成的顽固时间戳 ---
-    // 这里的 .custom-timestamp 和 .time-tag 是我们之前测试发现的罪魁祸首类名
-    listContainer.querySelectorAll('.custom-timestamp, .time-tag').forEach(el => el.remove());
+    const timeMap = {};
+    const orderMap = {};
+    
+    // --- 核心修复 1：定义数据来源 ---
+    // 尝试获取永久联系人（从你注入的系统里取，如果没有就给个空对象）
+    const permanentContacts = (typeof PERMANENT_CONTACTS !== 'undefined') ? PERMANENT_CONTACTS : {};
+    
+    // 尝试获取抓取到的好友数据
+    const extractedFriends = (window.friendRenderer && typeof window.friendRenderer.extractFriendsFromContext === 'function') 
+                            ? window.friendRenderer.extractFriendsFromContext() : [];
+    
+    // 将抓取到的数据存入一个 Map 方便查找，同时处理报错隐患
+    const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
+    
+    // 1. 获取数据并建立初始权重
+    extractedFriends.forEach(f => {
+        orderMap[f.number] = f.messageIndex || 0;
+        if (f.lastMessageTime) {
+            timeMap[f.number] = f.lastMessageTime;
+        } else if (f.addTime) {
+            const d = new Date(f.addTime);
+            timeMap[f.number] = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } else {
+            timeMap[f.number] = "08:00";
+        }
+    });
 
+    // 2. 扫描 DOM 校准权重（这部分保留，用于实时更新排序）
+    const mesBlocks = document.querySelectorAll('.mes');
+    mesBlocks.forEach(block => {
+        const text = block.innerText;
+        const mesId = parseInt(block.getAttribute('mesid') || 0); 
+        const timeMatch = text.match(/\[时间\|(\d{1,2}:\d{2})\]/);
+        const idMatch = text.match(/\|(\d+)\|/);
+        
+        if (idMatch) {
+            const id = idMatch[1];
+            if (timeMatch) timeMap[id] = timeMatch[1];
+            const isPeer = text.includes('[对方消息|');
+            const newWeight = isPeer ? (100000 + mesId) : mesId;
+            if (!orderMap[id] || newWeight > orderMap[id]) {
+                orderMap[id] = newWeight;
+            }
+        }
+    });
+
+    window.latestOrderMap = orderMap;
+
+    // 3. 执行排序
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.sort((a, b) => {
+        const weightA = orderMap[a.getAttribute('data-friend-id')] || 0;
+        const weightB = orderMap[b.getAttribute('data-friend-id')] || 0;
+        return weightB - weightA;
+    });
+    
+    items.forEach(item => listContainer.appendChild(item));
+
+    // 4. 渲染时间戳和红点
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
-        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
         
-        // 这里的 latestOrder 获取方式要和 renderer 保持一致
-        const extracted = (window.friendRenderer && window.friendRenderer.extractedFriends) || [];
-        const data = extracted.find(f => f.number === id) || { messageIndex: 0 };
-        const latestOrder = data.messageIndex;
+        // --- 核心修复 2：安全地获取数据 ---
+        // 依次从 抓取数据、永久联系人 中寻找配置
+        const dataFromContext = friendsDataMap.get(id);
+        const dataFromPermanent = permanentContacts[id];
+        
+        // 如果两个地方都找不到，给一个默认对象防止报错
+        const data = dataFromContext || dataFromPermanent || { number: id, name: "未知好友" };
 
-        // 红点处理
-        if (latestOrder > lastReadOrder && !item.querySelector('.unread-dot')) {
+        const time = data.lastMessageTime || timeMap[id] || "08:00";
+        const latestOrder = data.messageIndex || orderMap[id] || 0;
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+
+        // --- 时间显示 ---
+        let timeSpan = item.querySelector('.custom-timestamp');
+        if (time) {
+            if (!timeSpan) {
+                timeSpan = document.createElement('span');
+                timeSpan.className = 'custom-timestamp';
+                item.appendChild(timeSpan);
+            }
+            timeSpan.innerText = time;
+        }
+
+        // --- 红点逻辑 ---
+        item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
+        
+        // 只要有新消息权重（latestOrder > lastReadOrder）就显示红点
+        if (latestOrder > lastReadOrder) {
             let dot = document.createElement('div');
             dot.className = 'unread-dot'; 
             item.appendChild(dot);
         }
 
-        // 绑定点击标记已读
+        // --- 绑定点击已读逻辑 ---
         if (!item.dataset.layoutListener) {
             item.dataset.layoutListener = "true";
             item.addEventListener('click', () => {
                 localStorage.setItem(`lastRead_${id}`, latestOrder);
                 const d = item.querySelector('.unread-dot');
                 if (d) d.remove();
+                console.log(`[Message App] 已将好友 ${id} 标记为已读，权重: ${latestOrder}`);
             });
         }
     });
-};
+}
     
     // 渲染添加好友界面
     renderAddFriend() {
@@ -6877,11 +6952,10 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
 }
 
 /**
-     * 【第四部分：核心抓取与逻辑 - 分组+完整预览增强版】
+     * 【第四部分：核心抓取与排序 (修复红点置顶)】
      */
     const setupCoreLogic = () => {
         if (!window.friendRenderer) return;
-        
         window.friendRenderer.extractFriendsFromContext = function() {
             const chatLog = (window.SillyTavern?.getContext?.() || {}).chat || [];
             let lastValidIdx = -1;
@@ -6889,104 +6963,60 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 if ((chatLog[i].mes || "").includes('[手机快讯]')) { lastValidIdx = i; break; }
             }
             let allMobileText = "";
-chatLog.forEach(e => { 
-    const raw = e.mes || "";
-    if(raw.includes('[手机快讯]')) {
-        // 核心改动：只拿 [手机快讯] 之后的内容，防止前面的小说正文干扰提取和排序
-        const splitParts = raw.split('[手机快讯]');
-        allMobileText += (splitParts[1] || "") + "\n"; 
-    }
-});
+            chatLog.forEach(e => { if((e.mes||"").includes('[手机快讯]')) allMobileText += e.mes + "\n"; });
             
             let contacts = [];
-            // 使用定义的 CLOUD_IDS，若未定义则从 PERMANENT_CONTACTS 提取
-            const currentIds = typeof CLOUD_IDS !== 'undefined' ? CLOUD_IDS : Object.keys(PERMANENT_CONTACTS);
-            
-            currentIds.forEach(fId => {
+            CLOUD_IDS.forEach(fId => {
                 const info = PERMANENT_CONTACTS[fId];
-                let item = { 
-                    character: info.name, 
-                    name: info.name, 
-                    number: fId, 
-                    lastMessage: "暂无消息", 
-                    lastMessageTime: "08:00", 
-                    messageIndex: -1, 
-                    hasUnreadTag: false,
-                    isSpecial: info.isSpecial || false,
-                    avatar: info.avatar || ""
-                };
-
-                // --- 调整后的分组判定逻辑 ---
-                const idNum = parseInt(fId);
-                
-                if (item.isSpecial) {
-                    // 1. 核心好友 (102, 103, 107 等) 优先级最高，不进组
-                    item.groupType = 'special'; 
-                } else if (idNum >= 141 && idNum <= 169) {
-                    // 2. 律所同事组
-                    item.groupType = 'colleague'; 
-                } else if (idNum >= 170 && idNum <= 220) {
-                    // 3. 客户项目组
-                    item.groupType = 'client'; 
-                } else {
-                    // 4. 其余所有人（包括 100, 101, 108-120 等订阅号）暂时不分组，直接显示在列表上
-                    item.groupType = 'others';
-                }
-
+                let item = { character: info.name, name: info.name, number: fId, lastMessage: "暂无消息", lastMessageTime: "08:00", messageIndex: -1, hasUnreadTag: false };
                 const lines = allMobileText.split('\n');
                 for (let j = lines.length - 1; j >= 0; j--) {
                     if (lines[j].includes(`|${fId}|`)) {
                         const tMatch = lines[j].match(/\[时间\|(\d{1,2}:\d{2})\]/);
                         item.lastMessageTime = tMatch ? tMatch[1] : "08:00";
-                        
                         const cMatch = lines[j].match(/\|(?:文字|图片|表情包|红包|语音通话)\|([^\]]+)\]/);
-                        if (cMatch) {
-                            // 1. 提取原始内容
-                            let content = cMatch[1].split('|')[0];
+                       if (cMatch) {
+    // 1. 先拿到原始匹配内容（此时可能带有 <div> 等标签）
+    let content = cMatch[1].split('|')[0];
 
-                            // 2. 【核心功能还原：强力清洗与预览转换】
-                            if (content.includes('UI_') || content.includes('101_') || content.includes('108_') || content.includes('109_')) {
-                                if (content.includes('101_N')) content = "[今日新闻]";
-                                else if (content.includes('101_A')) content = "[政务预警]";
-                                else if (content.includes('101_W')) content = "[天气快报]";
-                                else if (content.includes('108_F')) content = "[时尚快讯]";
-                                else if (content.includes('109_H')) content = "[暖心语录]";
-                                else if (content.includes('109_E')) content = "[深夜FM]";
-                                else if (content.includes('113_S')) content = "[匿名树洞]";
-                                else content = "[服务通知]";
-                            } 
-                            else if (content.includes('<') && content.includes('>')) {
-                                content = content
-                                    .replace(/<[^>]*>/g, '')   
-                                    .replace(/&nbsp;/g, ' ')   
-                                    .trim();
-                                if (!content) content = "[图文内容]";
-                            }
+    // 2. 【新增：强力清洗逻辑】
+    // A. 处理新的服务号 UI 格式
+    if (content.includes('UI_')) {
+        if (content.includes('101_N')) content = "[今日新闻]";
+        else if (content.includes('101_A')) content = "[政务预警]";
+        else if (content.includes('101_W')) content = "[天气快报]";
+        else if (content.includes('108_F')) content = "[时尚快讯]";
+        else if (content.includes('109_H')) content = "[暖心语录]";
+        else if (content.includes('109_E')) content = "[深夜FM]";
+        else if (content.includes('113_S')) content = "[匿名树洞]";
+        else content = "[服务通知]";
+    } 
+    // B. 原有的 HTML 清洗逻辑（保留，以防万一有旧格式）
+    else if (content.includes('<') && content.includes('>')) {
+        content = content
+            .replace(/<[^>]*>/g, '')   
+            .replace(/&nbsp;/g, ' ')   
+            .trim();
+        
+        if (!content) content = "[图文内容]";
+    }
 
-                            // 3. 图片判定
-                            item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
-                        }
-                        item.messageIndex = j; 
-                        break;
+    // 3. 将洗干净的内容赋值给预览（保持你原有的图片判定逻辑）
+    item.lastMessage = content.includes('http') ? "[图片/表情]" : content;
+}
+                        item.messageIndex = j; break;
                     }
                 }
-                
                 // 未读权重逻辑
                 if (lastValidIdx !== -1) {
                     const lastMes = chatLog[lastValidIdx].mes;
                     if (lastMes.includes(`|${fId}|`) && lastMes.includes('[UNREAD]')) {
-                        item.hasUnreadTag = true; 
-                        item.messageIndex += 1000000;
+                        item.hasUnreadTag = true; item.messageIndex += 1000000;
                     }
                 }
                 contacts.push(item);
             });
-            return contacts.sort((a, b) => {
-    // 1. 优先比消息索引 (比如有未读消息的会排在最前)
-    if (b.messageIndex !== a.messageIndex) return b.messageIndex - a.messageIndex;
-    // 2. 索引一样时（都没有消息），比时间字符串（"19:28" vs "08:00"）
-    return (b.lastMessageTime || "00:00").localeCompare(a.lastMessageTime || "00:00");
-});
+            return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
         };
     };
 
@@ -7007,31 +7037,43 @@ chatLog.forEach(e => {
                 }
             }
         }
-        // --- 1. 列表渲染 (完整重构版) ---
-        const listContainer = document.getElementById('message-list');
-        const isDetailView = document.querySelector('.message-detail-view');
+        // 1. 列表美化
+        document.querySelectorAll('.message-item').forEach(item => {
+            const fId = item.getAttribute('data-friend-id');
+            const info = PERMANENT_CONTACTS[fId];
+            if (!info) return;
 
-        // 如果在好友列表页面（且没打开聊天详情）
-        if (listContainer && !isDetailView) {
-            if (window.friendRenderer && typeof window.friendRenderer.renderFriendsHTML === 'function') {
-                
-                // 【这一行最关键】：直接用我们新写的渲染器替换掉整个列表
-                // 它会自动处理：名字颜色、特殊头像、排序、红包预览、以及唯一的时间戳
-                listContainer.innerHTML = window.friendRenderer.renderFriendsHTML();
-                
-                // 执行布局校准（如红点显示）
-                if (typeof applyModernLayout === 'function') {
-                    applyModernLayout();
-                }
+            const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
+            if (nameEl && !nameEl.hasAttribute('data-fixed')) {
+                nameEl.innerText = `${info.name} ${info.tag || ''}`;
+                if (info.isSpecial) nameEl.classList.add('special-friend-name');
+                nameEl.setAttribute('data-fixed', 'true');
             }
-            // 渲染完列表就结束了，不执行下面的气泡代码，防止冲突
-            return; 
-        }
+            if (info.isSpecial) {
+                const img = item.querySelector('img');
+                if (img && !img.classList.contains('special-friend-avatar')) img.classList.add('special-friend-avatar');
+            }
+
+            // 红点处理
+            const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
+            if (data) {
+                let dot = item.querySelector('.unread-dot');
+                if (data.hasUnreadTag) {
+                    if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
+                } else if(dot) dot.remove();
+                
+                let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
+                tSpan.innerText = data.lastMessageTime;
+            }
+
+            const lastMsgEl = item.querySelector('.message-last-msg, .friend-last-msg');
+            if (lastMsgEl && (lastMsgEl.innerText.includes('语音通话') || lastMsgEl.innerText.includes('📞'))) {
+                if (!lastMsgEl.querySelector('.force-call-tag')) lastMsgEl.innerHTML = '<span class="force-call-tag">[语音通话]</span>';
+            }
+        });
 
         // 2. 气泡转换 (通话 + 服务号 + 红包)
-        if (isDetailView || document.querySelector('.message-detail-content')) {
-      
-      document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
 
     const raw = msg.innerText;
@@ -7399,7 +7441,6 @@ chatLog.forEach(e => {
         msg.innerHTML = html;
     }
 }); // 正确闭合 forEach
-          }
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
