@@ -1844,28 +1844,32 @@ if (typeof window.MessageApp === 'undefined') {
         `;
     }
 
-    // --- 【修正：去掉 const，直接赋值】 ---
     applyModernLayout = function() {
     const listContainer = document.getElementById('message-list');
     if (!listContainer) return;
 
+    // --- 强力防御：删除所有非 Renderer 生成的顽固时间戳 ---
+    // 这里的 .custom-timestamp 和 .time-tag 是我们之前测试发现的罪魁祸首类名
+    listContainer.querySelectorAll('.custom-timestamp, .time-tag').forEach(el => el.remove());
+
     const items = Array.from(listContainer.querySelectorAll('.message-item'));
     items.forEach(item => {
         const id = item.getAttribute('data-friend-id');
-        
-        // 1. 权重判定 (只用于红点)
         const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-        // 从全局 map 获取最新权重
-        const latestOrder = (window.latestOrderMap && window.latestOrderMap[id]) ? window.latestOrderMap[id] : -1;
+        
+        // 这里的 latestOrder 获取方式要和 renderer 保持一致
+        const extracted = (window.friendRenderer && window.friendRenderer.extractedFriends) || [];
+        const data = extracted.find(f => f.number === id) || { messageIndex: 0 };
+        const latestOrder = data.messageIndex;
 
-        // 2. 红点逻辑：如果发现没有红点且需要红点，才添加。绝不碰时间戳！
+        // 红点处理
         if (latestOrder > lastReadOrder && !item.querySelector('.unread-dot')) {
             let dot = document.createElement('div');
             dot.className = 'unread-dot'; 
             item.appendChild(dot);
         }
 
-        // 3. 点击已读
+        // 绑定点击标记已读
         if (!item.dataset.layoutListener) {
             item.dataset.layoutListener = "true";
             item.addEventListener('click', () => {
@@ -6991,43 +6995,33 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
-        // 1. 列表美化
-        document.querySelectorAll('.message-item').forEach(item => {
-            const fId = item.getAttribute('data-friend-id');
-            const info = PERMANENT_CONTACTS[fId];
-            if (!info) return;
+        // --- 1. 列表渲染 (完整重构版) ---
+        const listContainer = document.getElementById('message-list');
+        const isDetailView = document.querySelector('.message-detail-view');
 
-            const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-            if (nameEl && !nameEl.hasAttribute('data-fixed')) {
-                nameEl.innerText = `${info.name} ${info.tag || ''}`;
-                if (info.isSpecial) nameEl.classList.add('special-friend-name');
-                nameEl.setAttribute('data-fixed', 'true');
-            }
-            if (info.isSpecial) {
-                const img = item.querySelector('img');
-                if (img && !img.classList.contains('special-friend-avatar')) img.classList.add('special-friend-avatar');
-            }
-
-            // 红点处理
-            const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
-            if (data) {
-                let dot = item.querySelector('.unread-dot');
-                if (data.hasUnreadTag) {
-                    if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
-                } else if(dot) dot.remove();
+        // 如果在好友列表页面（且没打开聊天详情）
+        if (listContainer && !isDetailView) {
+            if (window.friendRenderer && typeof window.friendRenderer.renderFriendsHTML === 'function') {
                 
-                let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
-                tSpan.innerText = data.lastMessageTime;
+                // 【这一行最关键】：直接用我们新写的渲染器替换掉整个列表
+                // 它会自动处理：名字颜色、特殊头像、排序、红包预览、以及唯一的时间戳
+                listContainer.innerHTML = window.friendRenderer.renderFriendsHTML();
+                
+                // 执行布局校准（如红点显示）
+                if (typeof applyModernLayout === 'function') {
+                    applyModernLayout();
+                }
             }
-
-            const lastMsgEl = item.querySelector('.message-last-msg, .friend-last-msg');
-            if (lastMsgEl && (lastMsgEl.innerText.includes('语音通话') || lastMsgEl.innerText.includes('📞'))) {
-                if (!lastMsgEl.querySelector('.force-call-tag')) lastMsgEl.innerHTML = '<span class="force-call-tag">[语音通话]</span>';
-            }
-        });
+            // 渲染完列表就结束了，不执行下面的气泡代码，防止冲突
+            return; 
+        }
 
         // 2. 气泡转换 (通话 + 服务号 + 红包)
-document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
+const isDetailView = document.querySelector('.message-detail-view');
+        
+        if (isDetailView || document.querySelector('.message-detail-content')) {
+      
+      document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     if (msg.closest('.message-item') || msg.closest('.friend-item')) return;
 
     const raw = msg.innerText;
@@ -7395,6 +7389,7 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.innerHTML = html;
     }
 }); // 正确闭合 forEach
+          }
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
