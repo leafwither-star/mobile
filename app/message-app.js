@@ -7441,6 +7441,75 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.innerHTML = html;
     }
 }); // 正确闭合 forEach
+
+// --- 【微创手术：森系折叠分组挂载】 ---
+    try {
+        const listContainer = document.querySelector('.list-body') || document.querySelector('.message-list');
+        if (listContainer && !listContainer.querySelector('.contact-group-header')) {
+            
+            // 1. 找到需要分组的元素
+            const allItems = Array.from(listContainer.querySelectorAll('.message-item'));
+            
+            // 2. 定义 ID 归属（根据你之前的脚本逻辑）
+            const GROUP_CONFIG = {
+                colleague: { title: '律所权力金字塔', icon: '⚖️', ids: ['101', '102'] }, // 填入同事 ID
+                client:    { title: '客户与项目合作', icon: '💎', ids: ['103', '104'] }  // 填入客户 ID
+            };
+
+            // 3. 创建样式（只创建一次）
+            if (!document.getElementById('forest-group-style')) {
+                const style = document.createElement('style');
+                style.id = 'forest-group-style';
+                style.innerHTML = `
+                    .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; margin-top:5px; border-radius: 8px 8px 0 0; }
+                    .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; }
+                    .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; }
+                    .arrow { font-size: 10px; color: #8b4513; transition: transform 0.2s; }
+                    .contact-group-body { background: rgba(255,255,255,0.5); border-radius: 0 0 8px 8px; margin-bottom: 8px; }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // 4. 执行微创插入
+            Object.keys(GROUP_CONFIG).forEach(key => {
+                const config = GROUP_CONFIG[key];
+                const groupItems = allItems.filter(item => config.ids.includes(item.getAttribute('data-friend-id')));
+
+                if (groupItems.length > 0) {
+                    // 创建折叠头
+                    const header = document.createElement('div');
+                    header.className = 'contact-group-header';
+                    header.innerHTML = `
+                        <div class="group-title"><span>${config.icon} ${config.title}</span> <span class="group-count">${groupItems.length}</span></div>
+                        <span class="arrow">▶</span>
+                    `;
+
+                    // 创建包裹容器
+                    const body = document.createElement('div');
+                    body.className = 'contact-group-body';
+                    body.style.display = 'none'; // 默认折叠
+
+                    // 点击事件
+                    header.onclick = (e) => {
+                        e.stopPropagation();
+                        const isHidden = body.style.display === 'none';
+                        body.style.display = isHidden ? 'block' : 'none';
+                        header.querySelector('.arrow').innerText = isHidden ? '▼' : '▶';
+                    };
+
+                    // 将匹配到的好友塞进这个 body
+                    groupItems.forEach(item => body.appendChild(item));
+
+                    // 将头和内容插入列表底部
+                    listContainer.appendChild(header);
+                    listContainer.appendChild(body);
+                }
+            });
+        }
+    } catch (err) {
+        console.warn("森系分组挂载失败:", err);
+    }
+      
      // --- 微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
