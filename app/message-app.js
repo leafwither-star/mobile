@@ -7016,20 +7016,7 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
                 contacts.push(item);
             });
-            // --- 排序与分组预处理 ---
-            return contacts.sort((a, b) => b.messageIndex - a.messageIndex).map(item => {
-                const idNum = parseInt(item.number);
-                let gType = 'none'; // 默认不进组（核心好友）
-
-                // 只有在没有未读红点时，才判定分组
-                if (!item.hasUnreadTag) {
-                    if (idNum >= 140 && idNum <= 169) gType = 'colleague';
-                    else if (idNum >= 170 && idNum <= 220) gType = 'client';
-                    else if ((idNum >= 100 && idNum <= 101) || (idNum >= 108 && idNum <= 120)) gType = 'service';
-                }
-
-                return { ...item, groupType: gType };
-            });
+            return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
         };
     };
 
@@ -7050,74 +7037,88 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
-        // --- 1. 列表重构 (带记忆的防闪烁版) ---
-        const listContainer = document.getElementById('message-list');
-        if (!listContainer) return;
+        // --- 1. 列表渲染与折叠逻辑重构 ---
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
 
-        // 【新增】：初始化全局展开状态记忆（如果不存在）
-        if (window.groupStates === undefined) {
-            window.groupStates = { colleague: false, client: false, service: false };
+    // A. 准备分类容器 (如果还没创建就创建它们)
+    let groupColleague = document.getElementById('group-colleague');
+    let groupClient = document.getElementById('group-client');
+    let groupService = document.getElementById('group-service');
+
+    if (!groupColleague) {
+        const createGroup = (id, name, icon) => {
+            const wrapper = document.createElement('div');
+            wrapper.id = id;
+            wrapper.innerHTML = `
+                <div class="group-header" onclick="const b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none'; this.querySelector('span').style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(90deg)';" 
+                     style="padding: 10px 16px; background: #f8f8f8; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; margin-top:5px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #666;">${icon} ${name}</div>
+                    <span style="font-size: 10px; transition: 0.3s; transform: rotate(0deg);">❯</span>
+                </div>
+                <div class="group-body" style="display: none;"></div>
+            `;
+            listContainer.appendChild(wrapper);
+            return wrapper.querySelector('.group-body');
+        };
+        groupColleague = createGroup('group-colleague', '律所权力金字塔', '⚖️');
+        groupClient = createGroup('group-client', '客户与项目合作', '💎');
+        groupService = createGroup('group-service', '服务号矩阵', '📢');
+    } else {
+        // 如果已经存在，清空内容准备重新填充
+        groupColleague = document.querySelector('#group-colleague .group-body');
+        groupClient = document.querySelector('#group-client .group-body');
+        groupService = document.querySelector('#group-service .group-body');
+    }
+
+    // B. 开始遍历处理每一个好友
+    document.querySelectorAll('.message-item').forEach(item => {
+        const fId = item.getAttribute('data-friend-id');
+        const info = PERMANENT_CONTACTS[fId];
+        if (!info) return;
+
+        // 获取实时数据（红点状态）
+        const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
+        const hasUnread = data ? data.hasUnreadTag : false;
+        const idNum = parseInt(fId);
+
+        // --- C. 核心美化逻辑 (名字/头像) ---
+        const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
+        if (nameEl && !nameEl.hasAttribute('data-fixed')) {
+            nameEl.innerText = `${info.name} ${info.tag || ''}`;
+            if (info.isSpecial) nameEl.classList.add('special-friend-name');
+            nameEl.setAttribute('data-fixed', 'true');
         }
 
-        // 获取刚才加工好的带标签数据
-        const contacts = window.friendRenderer.extractFriendsFromContext();
-        
-        // 检查数据是否有变化，防止无谓的重绘
-        const currentDataHash = JSON.stringify(contacts.map(c => c.number + c.hasUnreadTag));
-        if (window.lastListData === currentDataHash) return; // 数据没变，直接跳过，保护点击事件
-        window.lastListData = currentDataHash;
-
-        const groups = {
-            colleague: { name: '律所权力金字塔', icon: '⚖️', html: '' },
-            client: { name: '客户与项目合作', icon: '💎', html: '' },
-            service: { name: '服务号矩阵', icon: '📢', html: '' }
-        };
-
-        let mainHtml = ''; 
-
-        contacts.forEach(c => {
-            const info = PERMANENT_CONTACTS[c.number];
-            if (!info) return;
-
-            // 注意：这里保留了你原本的 message-item 点击逻辑（SillyTavern 原生处理）
-            const itemHtml = `
-                <div class="message-item" data-friend-id="${c.number}">
-                    <div class="message-avatar" style="background-image: url('${info.avatar || ''}'); background-size: cover;"></div>
-                    <div class="message-content">
-                        <div class="message-name ${info.isSpecial ? 'special-friend-name' : ''}" style="display:flex; align-items:center;">
-                            <span style="font-weight:600;">${info.name}</span>
-                            <span style="margin-left:4px; font-size:10px; opacity:0.8;">${info.tag || ''}</span>
-                        </div>
-                        <div class="message-text" style="font-size:12px; color:#888; margin-top:2px;">${c.lastMessage}</div>
-                    </div>
-                    <div class="message-sidebar" style="text-align:right; min-width:40px;">
-                        <div style="font-size:10px; color:#bbb; margin-bottom:4px;">${c.lastMessageTime}</div>
-                        ${c.hasUnreadTag ? '<div class="unread-dot" style="width:8px; height:8px; background:#ff3b30; border-radius:50%; margin-left:auto;"></div>' : ''}
-                    </div>
-                </div>`;
-
-            if (c.groupType === 'none') { mainHtml += itemHtml; } 
-            else { groups[c.groupType].html += itemHtml; }
-        });
-
-        let finalHtml = mainHtml;
-        Object.keys(groups).forEach(key => {
-            if (groups[key].html) {
-                // 根据 window.groupStates[key] 决定显示还是隐藏
-                const isShow = window.groupStates[key];
-                finalHtml += `
-                    <div class="custom-group-container" style="border-top: 1px solid #f0f0f0;">
-                        <div class="group-header" onclick="window.groupStates['${key}'] = !window.groupStates['${key}']; runUIUpdate();" 
-                             style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa;">
-                            <span style="font-size: 11px; font-weight: 700; color: #666;">${groups[key].icon} ${groups[key].name}</span>
-                            <span style="font-size: 9px; color: #ccc; transition: 0.3s; transform: ${isShow ? 'rotate(90deg)' : 'rotate(0deg)'};">❯</span>
-                        </div>
-                        <div class="group-body" style="display: ${isShow ? 'block' : 'none'}; background: #ffffff;">${groups[key].html}</div>
-                    </div>`;
+        // --- D. 动态归类逻辑 ---
+        if (!hasUnread) {
+            // 没有消息时，按 ID 归类进组
+            if (idNum >= 140 && idNum <= 169) {
+                groupColleague.appendChild(item);
+            } else if (idNum >= 170 && idNum <= 220) {
+                groupClient.appendChild(item);
+            } else if ((idNum >= 100 && idNum <= 101) || (idNum >= 108 && idNum <= 120)) {
+                groupService.appendChild(item);
+            } else {
+                // 核心好友或其他，保持在主列表顶部
+                listContainer.insertBefore(item, document.getElementById('group-colleague'));
             }
-        });
+        } else {
+            // 有消息 (hasUnread 为 true)，强制跳出到主列表最上方
+            listContainer.prepend(item);
+        }
 
-        listContainer.innerHTML = finalHtml;
+        // --- E. 原有的红点/时间处理逻辑 (保持不变) ---
+        if (data) {
+            let dot = item.querySelector('.unread-dot');
+            if (data.hasUnreadTag) {
+                if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
+            } else if(dot) dot.remove();
+            
+            let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
+            tSpan.innerText = data.lastMessageTime;
+        }
+    });
       
         // 2. 气泡转换 (通话 + 服务号 + 红包)
 document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
