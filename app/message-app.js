@@ -1846,42 +1846,36 @@ if (typeof window.MessageApp === 'undefined') {
 
     // --- 【修正：去掉 const，直接赋值】 ---
     applyModernLayout = function() {
-        const listContainer = document.getElementById('message-list');
-        if (!listContainer) return;
+    const listContainer = document.getElementById('message-list');
+    if (!listContainer) return;
 
-        // 获取抓取到的数据（用于红点对比）
-        const extractedFriends = (window.friendRenderer && window.friendRenderer.extractedFriends) || [];
-        const friendsDataMap = new Map(extractedFriends.map(f => [f.number, f]));
+    const items = Array.from(listContainer.querySelectorAll('.message-item'));
+    items.forEach(item => {
+        const id = item.getAttribute('data-friend-id');
+        
+        // 1. 权重判定 (只用于红点)
+        const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
+        // 从全局 map 获取最新权重
+        const latestOrder = (window.latestOrderMap && window.latestOrderMap[id]) ? window.latestOrderMap[id] : -1;
 
-        const items = Array.from(listContainer.querySelectorAll('.message-item'));
-        items.forEach(item => {
-            const id = item.getAttribute('data-friend-id');
-            const data = friendsDataMap.get(id) || { number: id };
+        // 2. 红点逻辑：如果发现没有红点且需要红点，才添加。绝不碰时间戳！
+        if (latestOrder > lastReadOrder && !item.querySelector('.unread-dot')) {
+            let dot = document.createElement('div');
+            dot.className = 'unread-dot'; 
+            item.appendChild(dot);
+        }
 
-            // 权重判定逻辑
-            const latestOrder = data.messageIndex || 0;
-            const lastReadOrder = parseInt(localStorage.getItem(`lastRead_${id}`) || 0);
-
-            // 1. 只处理红点，绝对不准在此处 appendChild(timeSpan)
-            item.querySelectorAll('.unread-dot, .unread-dot-custom').forEach(d => d.remove());
-            if (latestOrder > lastReadOrder) {
-                let dot = document.createElement('div');
-                dot.className = 'unread-dot'; 
-                item.appendChild(dot);
-            }
-
-            // 2. 绑定已读事件
-            if (!item.dataset.layoutListener) {
-                item.dataset.layoutListener = "true";
-                item.addEventListener('click', () => {
-                    localStorage.setItem(`lastRead_${id}`, latestOrder);
-                    const d = item.querySelector('.unread-dot');
-                    if (d) d.remove();
-                });
-            }
-        });
-        console.log("[Message App] 界面布局校准完成（红点模式）");
-    };
+        // 3. 点击已读
+        if (!item.dataset.layoutListener) {
+            item.dataset.layoutListener = "true";
+            item.addEventListener('click', () => {
+                localStorage.setItem(`lastRead_${id}`, latestOrder);
+                const d = item.querySelector('.unread-dot');
+                if (d) d.remove();
+            });
+        }
+    });
+};
     
     // 渲染添加好友界面
     renderAddFriend() {
