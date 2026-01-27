@@ -7082,76 +7082,73 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     const containerStart = `<div class="service-card-container">`;
     const containerEnd = `</div>`;
 
-    // --- [分支 1]：语音通话 (CSS 兼容修复版) ---
+    // --- [分支 1]：语音通话 (稳定隔离版) ---
 if (raw.includes('语音通话') || raw.includes('📞')) {
-    // 1. 强制重置气泡样式：消除所有定位干扰
+    // 1. 极致脱水：清除所有内外边距
     if (bubble) {
-        bubble.style.cssText = `
-            background: transparent !important; 
-            border: none !important; 
-            box-shadow: none !important; 
-            padding: 0 !important; 
-            overflow: visible !important; 
-            display: block !important; 
-            position: relative !important;
-        `;
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; display:block !important; position:relative !important; min-height:0 !important;";
     }
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
 
-    // 2. 提取数据 (保留你原有的逻辑)
+    // 2. 数据解析
     const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
     let status = isSuccess ? "(已接通)" : "(未接通)";
     const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
     if (leftBracketIdx !== -1) {
-        let afterBracket = raw.substring(leftBracketIdx);
-        status = afterBracket.split(/[|\]]/)[0].trim();
+        status = raw.substring(leftBracketIdx).split(/[|\]]/)[0].trim();
     }
-    
-    let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+
+    const cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
     const parts = cleanRaw.split('|').map(p => p.trim());
     const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
-
+    // 确保 dialogues 能正确拿到数据
+    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(/[\]\[]/g, '')) : [];
+    
     const titleEl = document.getElementById('app-title');
     const fId = (titleEl?.innerText.match(/\d+/) || ["103"])[0];
     const name = titleEl?.innerText.split(' ')[0] || "联系人";
 
-    // 3. 核心修复：使用一个“锚点容器”将卡片锁死在文档流中
-    // 强制 position: static 确保它随页面滚动
-    msg.innerHTML = `
-        <div class="call-anchor" style="position: static !important; display: block !important; width: 195px;">
-            <div class="call-record-card" style="margin: 0 !important; position: static !important;">
-                <div class="call-row-top" style="${!isSuccess ? 'color:#2f80ed;' : ''}">
-                    <span>${isSuccess ? '📞' : '🔹'}</span>语音通话
-                </div>
-                <div class="call-row-bottom" style="${!isSuccess ? 'color:#2f80ed; opacity:0.8;' : ''}">
-                    <span>${status}</span>
-                    ${isSuccess ? '<span class="read-icon-btn">📖 ▽</span>' : ''}
-                </div>
-            </div>
-            <div class="call-text-preview" style="display:none; white-space: pre-wrap; position: static !important; width: 100%; border: 1px solid #eee; border-top:none; background:#fff; padding:10px; border-radius:0 0 8px 8px; font-size:12px; color:#666;">${dialogues.join('\n')}</div>
-        </div>
-    `;
+    // 3. 构建原生 DOM 节点 (防止 InnerHTML 死循环)
+    msg.innerHTML = ''; // 先清空一次
+    const container = document.createElement('div');
+    container.style.cssText = "position:relative; width:195px; margin:2px 0; padding:0;";
 
-    // 4. 处理点击逻辑
+    const card = document.createElement('div');
+    card.className = 'call-record-card';
+    card.style.cssText = `margin:0 !important; position:relative; cursor:${isSuccess ? 'pointer' : 'default'};`;
+    
     if (isSuccess) {
-        const card = msg.querySelector('.call-record-card');
-        const preview = msg.querySelector('.call-text-preview');
-        const trigger = msg.querySelector('.read-icon-btn');
+        card.innerHTML = `<div class="call-row-top"><span>📞</span>语音通话</div><div class="call-row-bottom"><span>${status}</span><span class="read-icon-btn">📖 ▽</span></div>`;
         
-        // 调用你发给我的第 2 部分：窗口 UI
-        card.onclick = (e) => { 
-            e.stopPropagation(); 
-            if (window.launchCallUI) window.launchCallUI(name, dialogues, fId); 
+        const preview = document.createElement('div');
+        preview.className = 'call-text-preview';
+        preview.style.cssText = "display:none; white-space:pre-wrap; border:1px solid #eee; border-top:none; background:#fff; padding:10px; border-radius:0 0 8px 8px; font-size:12px; color:#666; width:100%; box-sizing:border-box;";
+        preview.innerText = dialogues.join('\n');
+
+        // 绑定点击：进入大 UI
+        card.onclick = (e) => {
+            e.stopPropagation();
+            if (window.launchCallUI) window.launchCallUI(name, dialogues, fId);
         };
 
+        // 绑定展开：文字预览
+        const trigger = card.querySelector('.read-icon-btn');
         trigger.onclick = (e) => {
             e.stopPropagation();
             const isHidden = preview.style.display === 'none';
             preview.style.display = isHidden ? 'block' : 'none';
             trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
-            card.style.borderRadius = isHidden ? '0 0 8px 8px' : '8px'; // 修正圆角
+            card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
         };
+
+        container.appendChild(card);
+        container.appendChild(preview);
+    } else {
+        card.innerHTML = `<div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div><div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>`;
+        container.appendChild(card);
     }
+
+    msg.appendChild(container);
 }
   // --- [分支 2]：全能天气 (101_W) - 195px 最终定稿版 ---
     else if (raw.includes('101_W|')) {
