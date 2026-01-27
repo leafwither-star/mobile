@@ -7442,72 +7442,90 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     }
 }); // 正确闭合 forEach
 
-// --- 【微创手术：森系折叠分组挂载】 ---
+// --- 【微创手术：森系折叠分组挂载 - 精确 ID & 交互优化版】 ---
     try {
         const listContainer = document.querySelector('.list-body') || document.querySelector('.message-list');
         if (listContainer && !listContainer.querySelector('.contact-group-header')) {
             
-            // 1. 找到需要分组的元素
             const allItems = Array.from(listContainer.querySelectorAll('.message-item'));
             
-            // 2. 定义 ID 归属（根据你之前的脚本逻辑）
-            const GROUP_CONFIG = {
-                colleague: { title: '律所权力金字塔', icon: '⚖️', ids: ['101', '102'] }, // 填入同事 ID
-                client:    { title: '客户与项目合作', icon: '💎', ids: ['103', '104'] }  // 填入客户 ID
+            // 辅助函数：判断 ID 是否在范围内
+            const isIdInRange = (idStr, start, end) => {
+                const id = parseInt(idStr);
+                return id >= start && id <= end;
             };
 
-            // 3. 创建样式（只创建一次）
+            // 1. 定义精确的分组逻辑
+            const getGroupType = (id) => {
+                // 同事组：106, 107, 140-169
+                if (id === '106' || id === '107' || isIdInRange(id, 140, 169)) return 'colleague';
+                // 客户组：170-220
+                if (isIdInRange(id, 170, 220)) return 'client';
+                // 服务号组：100, 101, 108-120
+                if (id === '100' || id === '101' || isIdInRange(id, 108, 120)) return 'service';
+                return null;
+            };
+
+            const GROUP_CONFIG = {
+                colleague: { title: '律所权力金字塔', icon: '⚖️' },
+                client:    { title: '客户与项目合作', icon: '💎' },
+                service:   { title: '官方服务号', icon: '🤖' }
+            };
+
+            // 2. 创建样式（更新了箭头样式，避免和语音图标混淆）
             if (!document.getElementById('forest-group-style')) {
                 const style = document.createElement('style');
                 style.id = 'forest-group-style';
                 style.innerHTML = `
-                    .contact-group-header { padding: 8px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; margin-top:5px; border-radius: 8px 8px 0 0; }
-                    .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; }
+                    .contact-group-header { padding: 10px 16px; background: #fdf5e6; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 0.5px solid #eee; margin-top:4px; }
+                    .group-title { font-size: 11px; font-weight: 900; color: #8b4513; display: flex; align-items: center; gap: 6px; pointer-events: none; }
                     .group-count { background: #8b4513; color: white; font-size: 9px; padding: 1px 5px; border-radius: 10px; opacity: 0.6; }
-                    .arrow { font-size: 10px; color: #8b4513; transition: transform 0.2s; }
-                    .contact-group-body { background: rgba(255,255,255,0.5); border-radius: 0 0 8px 8px; margin-bottom: 8px; }
+                    .group-arrow { font-size: 12px; color: #8b4513; font-weight: bold; pointer-events: none; }
+                    .contact-group-body { background: rgba(255,255,255,0.3); }
                 `;
                 document.head.appendChild(style);
             }
 
-            // 4. 执行微创插入
+            // 3. 执行分流挂载
+            const groupsMap = { colleague: [], client: [], service: [] };
+            allItems.forEach(item => {
+                const type = getGroupType(item.getAttribute('data-friend-id'));
+                if (type) groupsMap[type].push(item);
+            });
+
             Object.keys(GROUP_CONFIG).forEach(key => {
                 const config = GROUP_CONFIG[key];
-                const groupItems = allItems.filter(item => config.ids.includes(item.getAttribute('data-friend-id')));
+                const groupItems = groupsMap[key];
 
                 if (groupItems.length > 0) {
-                    // 创建折叠头
                     const header = document.createElement('div');
                     header.className = 'contact-group-header';
+                    // 将▶换成了更稳重的 [ + ]
                     header.innerHTML = `
                         <div class="group-title"><span>${config.icon} ${config.title}</span> <span class="group-count">${groupItems.length}</span></div>
-                        <span class="arrow">▶</span>
+                        <span class="group-arrow">⊕</span> 
                     `;
 
-                    // 创建包裹容器
                     const body = document.createElement('div');
                     body.className = 'contact-group-body';
-                    body.style.display = 'none'; // 默认折叠
+                    body.style.display = 'none';
 
-                    // 点击事件
                     header.onclick = (e) => {
-                        e.stopPropagation();
+                        e.preventDefault();
+                        e.stopPropagation(); // 关键：阻止冒泡，防止触发语音读取
                         const isHidden = body.style.display === 'none';
                         body.style.display = isHidden ? 'block' : 'none';
-                        header.querySelector('.arrow').innerText = isHidden ? '▼' : '▶';
+                        header.querySelector('.group-arrow').innerText = isHidden ? '⊖' : '⊕';
                     };
 
-                    // 将匹配到的好友塞进这个 body
                     groupItems.forEach(item => body.appendChild(item));
-
-                    // 将头和内容插入列表底部
                     listContainer.appendChild(header);
                     listContainer.appendChild(body);
                 }
             });
         }
     } catch (err) {
-        console.warn("森系分组挂载失败:", err);
+        console.warn("森系分组修正失败:", err);
     }
       
      // --- 微信语音联动：稳健轮询集成版 ---
