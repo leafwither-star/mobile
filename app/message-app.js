@@ -7374,61 +7374,81 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
         }
     }
 
-    // --- [分支 8]：树洞吐槽 (113_S) - 195px 森系木质版 ---
-    else if (raw.includes('UI_113_S|')) {
-        const p = raw.match(/UI_113_S\|([^|]+)\|([^\]]+)/);
-        if (p) {
-            const sNum = p[1] || "404";
-            const sContent = p[2] || "";
-            if (bubble) bubble.classList.add('service-card-bubble');
-            msg.classList.add('service-card-text');
+    // --- [分支 8]：树洞吐槽 (113_S) - 芝士手绘版 ---
+else if (raw.includes('113_S|')) {
+    // 【防重入锁】确保复杂动画和DOM操作只执行一次
+    if (msg.getAttribute('data-rendered') === 'true') return;
 
-            html = `
-            <style>
-                @keyframes leafSway {
-                    0%, 100% { transform: rotate(-5deg); }
-                    50% { transform: rotate(15deg); }
-                }
-            </style>
-            <div class="service-card-container" style="
-                width: 195px; 
-                min-height: 85px; 
-                margin-bottom: 8px; 
-                border-radius: 12px; 
-                padding: 12px 14px; 
-                background: #fdf5e6; 
-                color: #5d4037; 
-                box-sizing: border-box; 
-                border: 1.5px solid #8b4513; 
-                position: relative; 
-                display: flex; 
-                flex-direction: column; 
-                justify-content: space-between; 
-                margin-left: 0px !important;
-                box-shadow: 2px 2px 0px #d2b48c;">
-                
-                <div style="position: absolute; top: 4px; right: 8px; font-size: 14px; animation: leafSway 3s ease-in-out infinite;">🍃</div>
-
-                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-                    <span style="font-size: 12px;">🕳️</span>
-                    <div style="font-size: 9px; color: #8b4513; font-weight: 900; letter-spacing: 0.5px; opacity: 0.7;">
-                        THE HOLE #${sNum}
-                    </div>
-                </div>
-
-                <div style="font-size: 12px; color: #3e2723; line-height: 1.4; font-weight: 700; text-align: left; padding: 2px 0;">
-                    “${sContent}”
-                </div>
-
-                <div style="margin-top: 6px; display: flex; justify-content: flex-end;">
-                    <span style="font-size: 8px; font-weight: 800; background: #2e7d32; color: #ffffff; padding: 2px 6px; border-radius: 20px; display: flex; align-items: center; gap: 2px;">
-                        <span style="font-size: 9px;">🌲</span> 匿名吐槽站
-                    </span>
-                </div>
-            </div>`;
-            msg.innerHTML = html;
+    const p = raw.match(/113_S\|([^|]+)\|([^\]]+)/);
+    if (p) {
+        const sNum = p[1] || "404";
+        const sContent = p[2] || "";
+        
+        // 1. 容器脱水：消除酒馆原生气泡的所有干扰间距
+        if (bubble) {
+            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
         }
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important; width:195px;";
+
+        // 2. 渲染手绘风卡片
+        msg.innerHTML = `
+        <style>
+            @keyframes floatCute {
+                0%, 100% { transform: translateY(0) rotate(-1deg); }
+                50% { transform: translateY(-5px) rotate(1deg); }
+            }
+            @keyframes wiggleEye {
+                0%, 100% { transform: translateX(0); }
+                50% { transform: translateX(2px); }
+            }
+        </style>
+        <div class="service-card-container" style="
+            width: 195px; 
+            min-height: 100px; 
+            border-radius: 16px; 
+            padding: 15px; 
+            background: #FFD93D; 
+            color: #4E3620; 
+            box-sizing: border-box; 
+            border: 2px solid #4E3620; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            margin-left: 0px !important;
+            box-shadow: 4px 4px 0px #4E3620; 
+            font-family: 'Comic Sans MS', 'PingFang SC', sans-serif;
+            animation: floatCute 3s ease-in-out infinite;
+            pointer-events: auto;">
+            
+            <div style="position: absolute; top: -10px; left: 10px; display: flex; gap: 2px; animation: wiggleEye 2s infinite;">
+                <div style="width: 12px; height: 12px; background: white; border: 2px solid #4E3620; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 4px; height: 4px; background: #4E3620; border-radius: 50%;"></div>
+                </div>
+                <div style="width: 12px; height: 12px; background: white; border: 2px solid #4E3620; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 4px; height: 4px; background: #4E3620; border-radius: 50%;"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; margin-top: 5px;">
+                <div style="font-size: 10px; font-weight: 900; background: #4E3620; color: #FFD93D; padding: 1px 6px; border-radius: 4px;">
+                    #${sNum} 树洞
+                </div>
+                <span style="font-size: 14px;">👀</span>
+            </div>
+
+            <div style="font-size: 13px; line-height: 1.4; font-weight: 800; text-align: left; padding: 5px 0; word-break: break-all;">
+                “${sContent}”
+            </div>
+
+            <div style="margin-top: 8px; text-align: right; font-size: 9px; font-weight: 900; opacity: 0.8; border-top: 1px dashed rgba(78,54,32,0.3); padding-top: 6px;">
+                匿名吐槽站 · 咕噜咕噜 🫧
+            </div>
+        </div>`;
+
+        // 3. 标记渲染完成
+        msg.setAttribute('data-rendered', 'true');
     }
+}
       // --- [分支 9]：红包系统 (微创精准定位版) ---
 else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
     // 【防重入锁】
