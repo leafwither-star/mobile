@@ -7082,58 +7082,61 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
     const containerStart = `<div class="service-card-container">`;
     const containerEnd = `</div>`;
 
-    // --- [分支 1]：语音通话 ---
-    if (raw.includes('语音通话') || raw.includes('📞')) {
-        msg.classList.add('fixed');
-        const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
-        
-        let status = isSuccess ? "(已接通)" : "(未接通)";
-        const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
-        if (leftBracketIdx !== -1) {
-            let afterBracket = raw.substring(leftBracketIdx);
-            status = afterBracket.split(/[|\]]/)[0].trim();
-        }
+    // --- [分支 1]：语音通话 (修正漂浮版) ---
+if (raw.includes('语音通话') || raw.includes('📞')) {
+    msg.classList.add('fixed');
+    const isSuccess = !(raw.includes('未接通') || raw.includes('已挂断') || raw.includes('已拒绝'));
+    
+    let status = isSuccess ? "(已接通)" : "(未接通)";
+    const leftBracketIdx = raw.indexOf('(') !== -1 ? raw.indexOf('(') : raw.indexOf('（');
+    if (leftBracketIdx !== -1) {
+        let afterBracket = raw.substring(leftBracketIdx);
+        status = afterBracket.split(/[|\]]/)[0].trim();
+    }
 
-        let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
-        const parts = cleanRaw.split('|').map(p => p.trim());
-        const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
-        const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
-        
-        const titleEl = document.getElementById('app-title');
-        const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
-        const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
+    let cleanRaw = raw.replace('[📞VOICE_CALL]', '').replace('VOICE_CALL', '').replace('[UNREAD]', '').trim();
+    const parts = cleanRaw.split('|').map(p => p.trim());
+    const statusIdx = parts.findIndex(p => p.includes('通话') || p.includes('时长') || p.includes('未接'));
+    const dialogues = (statusIdx !== -1 && parts.length > statusIdx + 1) ? parts.slice(statusIdx + 1).map(d => d.replace(']', '')) : [];
+    
+    const titleEl = document.getElementById('app-title');
+    const fId = titleEl ? (titleEl.innerText.match(/\d+/) || ["103"])[0] : "103";
+    const name = titleEl ? titleEl.innerText.split(' ')[0] : "联系人";
 
-        if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; overflow:visible !important;";
+    
+    // 统一使用 innerHTML 渲染，确保 DOM 结构被静态锁定
+    const contentHtml = isSuccess ? `
+        <div class="call-record-card" style="cursor:pointer; position: relative;">
+            <div class="call-row-top"><span>📞</span>语音通话</div>
+            <div class="call-row-bottom"><span>${status}</span><span class="read-icon-btn">📖 ▽</span></div>
+        </div>
+        <div class="call-text-preview" style="display:none; white-space: pre-wrap;">${dialogues.join('\n')}</div>
+    ` : `
+        <div class="call-record-card" style="cursor:default; position: relative;">
+            <div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div>
+            <div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>
+        </div>
+    `;
+
+    msg.innerHTML = contentHtml;
+
+    // 处理交互逻辑
+    if (isSuccess) {
+        const card = msg.querySelector('.call-record-card');
+        const preview = msg.querySelector('.call-text-preview');
+        const trigger = msg.querySelector('.read-icon-btn');
         
-        const card = document.createElement('div');
-        card.className = 'call-record-card';
-        
-        if (isSuccess) {
-            card.innerHTML = `<div class="call-row-top"><span>📞</span>语音通话</div><div class="call-row-bottom"><span>${status}</span><span class="read-icon-btn">📖 ▽</span></div>`;
-            const preview = document.createElement('div');
-            preview.className = 'call-text-preview';
-            preview.innerText = dialogues.join('\n');
-            card.onclick = (e) => { e.stopPropagation(); window.launchCallUI(name, dialogues, fId); };
-            const trigger = card.querySelector('.read-icon-btn');
-            trigger.onclick = (e) => {
-                e.stopPropagation();
-                const isHidden = preview.style.display === 'none' || preview.style.display === '';
-                preview.style.display = isHidden ? 'block' : 'none';
-                trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
-                card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
-                card.style.borderBottom = isHidden ? 'none' : '1px solid #eeeeee';
-            };
-            msg.innerHTML = '';
-            msg.appendChild(card);
-            msg.appendChild(preview);
-        } else {
-            card.innerHTML = `<div class="call-row-top" style="color:#2f80ed;"><span style="font-size:12px;">🔹</span>语音通话</div><div class="call-row-bottom" style="color:#2f80ed; opacity:0.8;">${status}</div>`;
-            card.style.cursor = "default";
-            card.onclick = (e) => { e.stopPropagation(); };
-            msg.innerHTML = '';
-            msg.appendChild(card);
-        }
-    } 
+        card.onclick = (e) => { e.stopPropagation(); window.launchCallUI(name, dialogues, fId); };
+        trigger.onclick = (e) => {
+            e.stopPropagation();
+            const isHidden = preview.style.display === 'none';
+            preview.style.display = isHidden ? 'block' : 'none';
+            trigger.innerHTML = isHidden ? '📖 △' : '📖 ▽';
+            card.style.borderRadius = isHidden ? '8px 8px 0 0' : '8px';
+        };
+    }
+}
   // --- [分支 2]：全能天气 (101_W) - 195px 最终定稿版 ---
     else if (raw.includes('101_W|')) {
         const p = raw.match(/101_W\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)/);
