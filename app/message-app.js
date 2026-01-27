@@ -7448,7 +7448,7 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     const card = document.createElement('div');
     card.className = 'beautiful-packet';
     // 将 -40px 微调为 -20px 解决太偏左的问题，margin-top 设为 0 挤掉空隙
-    card.style.cssText = "margin-left: -20px !important; margin-top: 0px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; cursor: pointer; pointer-events: auto !important;";
+    card.style.cssText = "margin-left: 0px !important; margin-top: 0px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; cursor: pointer; pointer-events: auto !important;";
     
     card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
 
