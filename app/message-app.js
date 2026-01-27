@@ -7039,6 +7039,9 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
     const runUIUpdate = () => {
       // 0. 顶部标题强制修正 (新增部分)
         const titleEl = document.getElementById('app-title');
+      const listContainer = document.getElementById('message-list');
+      if (!listContainer) return;
+      
         if (titleEl) {
             const fIdMatch = titleEl.innerText.match(/\d+/);
             if (fIdMatch) {
@@ -7050,87 +7053,6 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
-        // --- 1. 列表渲染 (非破坏性节点挪移版) ---
-    const listContainer = document.getElementById('message-list');
-    if (!listContainer) return;
-
-    // A. 确保三个组容器存在，不存在则创建
-    const groupConfigs = {
-        colleague: { name: '律所权力金字塔', icon: '⚖️' },
-        client: { name: '客户与项目合作', icon: '💎' },
-        service: { name: '服务号矩阵', icon: '📢' }
-    };
-
-    Object.keys(groupConfigs).forEach(key => {
-        let groupWrap = document.getElementById(`group-wrap-${key}`);
-        if (!groupWrap) {
-            groupWrap = document.createElement('div');
-            groupWrap.id = `group-wrap-${key}`;
-            groupWrap.className = 'custom-group-container';
-            groupWrap.style.cssText = "border-top: 1px solid #f0f0f0; margin-bottom: 2px;";
-            groupWrap.innerHTML = `
-                <div class="group-header" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa;">
-                    <span style="font-size: 11px; font-weight: 700; color: #666;">${groupConfigs[key].icon} ${groupConfigs[key].name}</span>
-                    <span class="group-arrow" style="font-size: 9px; color: #ccc; transition: 0.3s;">❯</span>
-                </div>
-                <div class="group-body" style="display: none; background: #ffffff;"></div>
-            `;
-            // 点击折叠逻辑 (直接操作 DOM，不触发重绘)
-            groupWrap.querySelector('.group-header').onclick = () => {
-                const body = groupWrap.querySelector('.group-body');
-                const arrow = groupWrap.querySelector('.group-arrow');
-                const isHidden = body.style.display === 'none';
-                body.style.display = isHidden ? 'block' : 'none';
-                arrow.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
-            };
-            listContainer.appendChild(groupWrap);
-        }
-    });
-
-    // B. 获取数据并开始“挪积木”
-    const contactsData = window.friendRenderer.extractFriendsFromContext();
-    
-    contactsData.forEach(c => {
-        const item = listContainer.querySelector(`.message-item[data-friend-id="${c.number}"]`);
-        if (!item) return;
-
-        // 1. 先进行基础美化 (不用 innerHTML，保护原有事件)
-        const info = PERMANENT_CONTACTS[c.number];
-        if (info) {
-            const nameSpan = item.querySelector('.message-name') || item.querySelector('.friend-name');
-            if (nameSpan && !nameSpan.hasAttribute('data-fixed')) {
-                nameSpan.innerText = `${info.name} ${info.tag || ''}`;
-                if (info.isSpecial) nameSpan.classList.add('special-friend-name');
-                nameSpan.setAttribute('data-fixed', 'true');
-            }
-        }
-
-        // 2. 红点与时间更新
-        let dot = item.querySelector('.unread-dot');
-        if (c.hasUnreadTag) {
-            if (!dot) {
-                dot = document.createElement('div');
-                dot.className = 'unread-dot';
-                dot.style.cssText = "width:8px; height:8px; background:#ff3b30; border-radius:50%; margin-left:auto;";
-                const sidebar = item.querySelector('.message-time-sidebar') || item.querySelector('.message-sidebar');
-                if (sidebar) sidebar.prepend(dot);
-            }
-        } else if (dot) dot.remove();
-
-        // 3. 执行“搬家”逻辑
-        if (c.groupType !== 'none') {
-            const targetBody = document.querySelector(`#group-wrap-${c.groupType} .group-body`);
-            if (targetBody && item.parentElement !== targetBody) {
-                targetBody.appendChild(item); // 挪进组里
-            }
-        } else {
-            // 如果是核心好友或有新消息，确保他在主列表（且在组标签之前）
-            const firstGroup = document.querySelector('.custom-group-container');
-            if (item.parentElement !== listContainer || (firstGroup && item.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING)) {
-                listContainer.insertBefore(item, firstGroup || null);
-            }
-        }
-    });
       
         // 2. 气泡转换 (通话 + 服务号 + 红包)
 document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
@@ -7500,8 +7422,81 @@ document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
         msg.classList.add('service-card-text');
         msg.innerHTML = html;
     }
-}); // 正确闭合 forEach
-     // --- 微信语音联动：稳健轮询集成版 ---
+        }); // 闭合 forEach
+
+// --- [3. 列表渲染与分组挪移] ---
+    const contactsData = window.friendRenderer.extractFriendsFromContext();
+    // A. 确保组容器存在
+    const groupConfigs = { 
+        colleague: { name: '律所权力金字塔', icon: '⚖️' }, 
+        client: { name: '客户与项目合作', icon: '💎' }, 
+        service: { name: '服务号矩阵', icon: '📢' } 
+    };
+
+    Object.keys(groupConfigs).forEach(key => {
+        let groupWrap = document.getElementById(`group-wrap-${key}`);
+        if (!groupWrap) {
+            groupWrap = document.createElement('div');
+            groupWrap.id = `group-wrap-${key}`;
+            groupWrap.className = 'custom-group-container';
+            groupWrap.innerHTML = `
+                <div class="group-header" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa; border-bottom:1px solid #eee;">
+                    <span style="font-size: 11px; font-weight: 700; color: #666;">${groupConfigs[key].icon} ${groupConfigs[key].name}</span>
+                    <span class="group-arrow" style="font-size: 9px; color: #ccc; transition: 0.3s;">❯</span>
+                </div>
+                <div class="group-body" style="display: none; background: #ffffff;"></div>`;
+            
+            groupWrap.querySelector('.group-header').onclick = () => {
+                const body = groupWrap.querySelector('.group-body');
+                const arrow = groupWrap.querySelector('.group-arrow');
+                const isHidden = body.style.display === 'none';
+                body.style.display = isHidden ? 'block' : 'none';
+                arrow.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+            };
+            listContainer.appendChild(groupWrap);
+        }
+    });
+
+    // B. 开始搬家并同步红点、时间
+    contactsData.forEach(c => {
+        const item = listContainer.querySelector(`.message-item[data-friend-id="${c.number}"]`);
+        if (!item) return;
+
+        // 强制红点逻辑
+        let dot = item.querySelector('.unread-dot');
+        if (c.hasUnreadTag) {
+            if (!dot) {
+                dot = document.createElement('div');
+                dot.className = 'unread-dot';
+                dot.style.cssText = "width:8px; height:8px; background:#ff3b30; border-radius:50%; position:absolute; right:15px; top:15px; z-index:10;";
+                item.style.position = 'relative'; 
+                item.appendChild(dot);
+            }
+        } else if (dot) {
+            dot.remove();
+        }
+
+        // 同步时间
+        let tSpan = item.querySelector('.custom-timestamp') || (()=>{ 
+            let s=document.createElement('span'); s.className='custom-timestamp'; 
+            const sidebar = item.querySelector('.message-time-sidebar') || item.querySelector('.message-sidebar') || item;
+            sidebar.appendChild(s); return s; 
+        })();
+        tSpan.innerText = c.lastMessageTime;
+
+        // 执行挪移
+        if (c.groupType !== 'none') {
+            const targetBody = document.querySelector(`#group-wrap-${c.groupType} .group-body`);
+            if (targetBody && item.parentElement !== targetBody) targetBody.appendChild(item);
+        } else {
+            const firstGroup = document.querySelector('.custom-group-container');
+            if (item.parentElement !== listContainer || (firstGroup && item.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                listContainer.insertBefore(item, firstGroup || null);
+            }
+        }
+    });
+      
+     // --- 4.微信语音联动：稳健轮询集成版 ---
         if (!window.voiceEventBound) {
             document.addEventListener('click', (e) => {
                 // 1. 识别点击目标
