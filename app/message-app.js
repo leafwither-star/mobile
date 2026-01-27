@@ -7016,7 +7016,20 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
                 contacts.push(item);
             });
-            return contacts.sort((a, b) => b.messageIndex - a.messageIndex);
+            // --- 排序与分组预处理 ---
+            return contacts.sort((a, b) => b.messageIndex - a.messageIndex).map(item => {
+                const idNum = parseInt(item.number);
+                let gType = 'none'; // 默认不进组（核心好友）
+
+                // 只有在没有未读红点时，才判定分组
+                if (!item.hasUnreadTag) {
+                    if (idNum >= 140 && idNum <= 169) gType = 'colleague';
+                    else if (idNum >= 170 && idNum <= 220) gType = 'client';
+                    else if ((idNum >= 100 && idNum <= 101) || (idNum >= 108 && idNum <= 120)) gType = 'service';
+                }
+
+                return { ...item, groupType: gType };
+            });
         };
     };
 
@@ -7037,88 +7050,64 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
-        // --- 1. 列表渲染与折叠逻辑重构 ---
-    const listContainer = document.getElementById('message-list');
-    if (!listContainer) return;
+        // --- 1. 列表渲染 (分组跳出版) ---
+        const listContainer = document.getElementById('message-list');
+        if (!listContainer) return;
 
-    // A. 准备分类容器 (如果还没创建就创建它们)
-    let groupColleague = document.getElementById('group-colleague');
-    let groupClient = document.getElementById('group-client');
-    let groupService = document.getElementById('group-service');
-
-    if (!groupColleague) {
-        const createGroup = (id, name, icon) => {
-            const wrapper = document.createElement('div');
-            wrapper.id = id;
-            wrapper.innerHTML = `
-                <div class="group-header" onclick="const b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none'; this.querySelector('span').style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(90deg)';" 
-                     style="padding: 10px 16px; background: #f8f8f8; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; margin-top:5px;">
-                    <div style="font-size: 12px; font-weight: 600; color: #666;">${icon} ${name}</div>
-                    <span style="font-size: 10px; transition: 0.3s; transform: rotate(0deg);">❯</span>
-                </div>
-                <div class="group-body" style="display: none;"></div>
-            `;
-            listContainer.appendChild(wrapper);
-            return wrapper.querySelector('.group-body');
+        // 获取带分组信息的联系人数据
+        const contacts = window.friendRenderer.extractFriendsFromContext();
+        
+        // 准备三个组的 HTML 容器模板
+        const groups = {
+            colleague: { name: '律所权力金字塔', icon: '⚖️', html: '' },
+            client: { name: '客户与项目合作', icon: '💎', html: '' },
+            service: { name: '服务号矩阵', icon: '📢', html: '' }
         };
-        groupColleague = createGroup('group-colleague', '律所权力金字塔', '⚖️');
-        groupClient = createGroup('group-client', '客户与项目合作', '💎');
-        groupService = createGroup('group-service', '服务号矩阵', '📢');
-    } else {
-        // 如果已经存在，清空内容准备重新填充
-        groupColleague = document.querySelector('#group-colleague .group-body');
-        groupClient = document.querySelector('#group-client .group-body');
-        groupService = document.querySelector('#group-service .group-body');
-    }
 
-    // B. 开始遍历处理每一个好友
-    document.querySelectorAll('.message-item').forEach(item => {
-        const fId = item.getAttribute('data-friend-id');
-        const info = PERMANENT_CONTACTS[fId];
-        if (!info) return;
+        let mainHtml = ''; // 存放核心好友和“跳出来”的好友
 
-        // 获取实时数据（红点状态）
-        const data = window.friendRenderer.extractFriendsFromContext().find(f => f.number === fId);
-        const hasUnread = data ? data.hasUnreadTag : false;
-        const idNum = parseInt(fId);
+        // 遍历数据，生成 HTML
+        contacts.forEach(c => {
+            const info = PERMANENT_CONTACTS[c.number];
+            if (!info) return;
 
-        // --- C. 核心美化逻辑 (名字/头像) ---
-        const nameEl = item.querySelector('.message-name') || item.querySelector('.friend-name');
-        if (nameEl && !nameEl.hasAttribute('data-fixed')) {
-            nameEl.innerText = `${info.name} ${info.tag || ''}`;
-            if (info.isSpecial) nameEl.classList.add('special-friend-name');
-            nameEl.setAttribute('data-fixed', 'true');
-        }
+            // 生成单条好友的 HTML (复用你原本的样式)
+            const itemHtml = `
+                <div class="message-item" data-friend-id="${c.number}">
+                    <div class="message-avatar" style="background-image: url('${info.avatar || ''}');"></div>
+                    <div class="message-content">
+                        <div class="message-name ${info.isSpecial ? 'special-friend-name' : ''}">${info.name} ${info.tag || ''}</div>
+                        <div class="message-text">${c.lastMessage}</div>
+                    </div>
+                    <div class="message-time-sidebar">
+                        ${c.hasUnreadTag ? '<div class="unread-dot"></div>' : ''}
+                        <span class="custom-timestamp">${c.lastMessageTime}</span>
+                    </div>
+                </div>`;
 
-        // --- D. 动态归类逻辑 ---
-        if (!hasUnread) {
-            // 没有消息时，按 ID 归类进组
-            if (idNum >= 140 && idNum <= 169) {
-                groupColleague.appendChild(item);
-            } else if (idNum >= 170 && idNum <= 220) {
-                groupClient.appendChild(item);
-            } else if ((idNum >= 100 && idNum <= 101) || (idNum >= 108 && idNum <= 120)) {
-                groupService.appendChild(item);
+            if (c.groupType === 'none') {
+                mainHtml += itemHtml; // 进主列表
             } else {
-                // 核心好友或其他，保持在主列表顶部
-                listContainer.insertBefore(item, document.getElementById('group-colleague'));
+                groups[c.groupType].html += itemHtml; // 进折叠组
             }
-        } else {
-            // 有消息 (hasUnread 为 true)，强制跳出到主列表最上方
-            listContainer.prepend(item);
-        }
+        });
 
-        // --- E. 原有的红点/时间处理逻辑 (保持不变) ---
-        if (data) {
-            let dot = item.querySelector('.unread-dot');
-            if (data.hasUnreadTag) {
-                if(!dot) { dot=document.createElement('div'); dot.className='unread-dot'; item.appendChild(dot); }
-            } else if(dot) dot.remove();
-            
-            let tSpan = item.querySelector('.custom-timestamp') || (()=>{ let s=document.createElement('span'); s.className='custom-timestamp'; item.appendChild(s); return s; })();
-            tSpan.innerText = data.lastMessageTime;
-        }
-    });
+        // 渲染最终结构
+        let finalHtml = mainHtml;
+        Object.keys(groups).forEach(key => {
+            if (groups[key].html) {
+                finalHtml += `
+                    <div class="custom-group">
+                        <div class="group-header" onclick="const b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none';">
+                            <span>${groups[key].icon} ${groups[key].name}</span>
+                            <small>❯</small>
+                        </div>
+                        <div class="group-body" style="display:none;">${groups[key].html}</div>
+                    </div>`;
+            }
+        });
+
+        listContainer.innerHTML = finalHtml;
       
         // 2. 气泡转换 (通话 + 服务号 + 红包)
 document.querySelectorAll('.message-text:not(.fixed)').forEach(msg => {
