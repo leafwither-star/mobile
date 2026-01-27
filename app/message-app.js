@@ -7328,23 +7328,22 @@ if (raw.includes('语音通话') || raw.includes('📞')) {
         }
     }
 
-    // --- [分支 6]：治愈情感 (109_H) - 195px 暖心樱花版 ---
+    // --- [分支 6]：治愈情感 (109_H) - 195px 暖心樱花版 (位置修正) ---
 else if (raw.includes('109_H|')) {
-    // 【防重入锁】
     if (msg.getAttribute('data-rendered') === 'true') return;
 
     const p = raw.match(/109_H\|([^\]]+)/);
     if (p) {
         const quote = p[1] || "";
         
-        // 1. 容器处理：清除间距并上移
+        // 1. 容器极致脱水
         if (bubble) {
-            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
+            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important; display:block !important;";
         }
-        // margin-top: -20px 稍微上提，避免和下方消息粘连太紧
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-20px !important; position:static !important; min-height:0 !important; width:195px;";
+        
+        // 2. 深度上移：将 margin-top 增加到 -45px
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; position:static !important; min-height:0 !important; width:195px;";
 
-        // 2. 渲染新版 UI
         msg.innerHTML = `
         <style>
             @keyframes petalFall {
@@ -7361,8 +7360,8 @@ else if (raw.includes('109_H|')) {
             margin-left: 0px !important; box-shadow: 0 6px 12px rgba(255, 183, 197, 0.2);
             overflow: hidden; font-family: -apple-system, sans-serif;">
             
-            <div style="position: absolute; top: 0; left: 20%; animation: petalFall 4s linear infinite; font-size: 10px; pointer-events:none;">🌸</div>
-            <div style="position: absolute; top: 10%; left: 70%; animation: petalFall 6s linear infinite; animation-delay: 1.5s; font-size: 8px; pointer-events:none;">🌸</div>
+            <div style="position: absolute; top: 0; left: 25%; animation: petalFall 5s linear infinite; font-size: 10px; pointer-events:none;">🌸</div>
+            <div style="position: absolute; top: 10%; left: 75%; animation: petalFall 7s linear infinite; animation-delay: 2s; font-size: 8px; pointer-events:none;">🌸</div>
 
             <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 8px;">
                 <div style="width: 16px; height: 16px; background: #ffb7c5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 9px;">♪</div>
