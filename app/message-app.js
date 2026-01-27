@@ -7050,59 +7050,69 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
                 }
             }
         }
-        // --- 1. 列表渲染 (分组跳出版) ---
+        // --- 1. 列表重构 (带记忆的防闪烁版) ---
         const listContainer = document.getElementById('message-list');
         if (!listContainer) return;
 
-        // 获取带分组信息的联系人数据
+        // 【新增】：初始化全局展开状态记忆（如果不存在）
+        if (window.groupStates === undefined) {
+            window.groupStates = { colleague: false, client: false, service: false };
+        }
+
+        // 获取刚才加工好的带标签数据
         const contacts = window.friendRenderer.extractFriendsFromContext();
         
-        // 准备三个组的 HTML 容器模板
+        // 检查数据是否有变化，防止无谓的重绘
+        const currentDataHash = JSON.stringify(contacts.map(c => c.number + c.hasUnreadTag));
+        if (window.lastListData === currentDataHash) return; // 数据没变，直接跳过，保护点击事件
+        window.lastListData = currentDataHash;
+
         const groups = {
             colleague: { name: '律所权力金字塔', icon: '⚖️', html: '' },
             client: { name: '客户与项目合作', icon: '💎', html: '' },
             service: { name: '服务号矩阵', icon: '📢', html: '' }
         };
 
-        let mainHtml = ''; // 存放核心好友和“跳出来”的好友
+        let mainHtml = ''; 
 
-        // 遍历数据，生成 HTML
         contacts.forEach(c => {
             const info = PERMANENT_CONTACTS[c.number];
             if (!info) return;
 
-            // 生成单条好友的 HTML (复用你原本的样式)
+            // 注意：这里保留了你原本的 message-item 点击逻辑（SillyTavern 原生处理）
             const itemHtml = `
                 <div class="message-item" data-friend-id="${c.number}">
-                    <div class="message-avatar" style="background-image: url('${info.avatar || ''}');"></div>
+                    <div class="message-avatar" style="background-image: url('${info.avatar || ''}'); background-size: cover;"></div>
                     <div class="message-content">
-                        <div class="message-name ${info.isSpecial ? 'special-friend-name' : ''}">${info.name} ${info.tag || ''}</div>
-                        <div class="message-text">${c.lastMessage}</div>
+                        <div class="message-name ${info.isSpecial ? 'special-friend-name' : ''}" style="display:flex; align-items:center;">
+                            <span style="font-weight:600;">${info.name}</span>
+                            <span style="margin-left:4px; font-size:10px; opacity:0.8;">${info.tag || ''}</span>
+                        </div>
+                        <div class="message-text" style="font-size:12px; color:#888; margin-top:2px;">${c.lastMessage}</div>
                     </div>
-                    <div class="message-time-sidebar">
-                        ${c.hasUnreadTag ? '<div class="unread-dot"></div>' : ''}
-                        <span class="custom-timestamp">${c.lastMessageTime}</span>
+                    <div class="message-sidebar" style="text-align:right; min-width:40px;">
+                        <div style="font-size:10px; color:#bbb; margin-bottom:4px;">${c.lastMessageTime}</div>
+                        ${c.hasUnreadTag ? '<div class="unread-dot" style="width:8px; height:8px; background:#ff3b30; border-radius:50%; margin-left:auto;"></div>' : ''}
                     </div>
                 </div>`;
 
-            if (c.groupType === 'none') {
-                mainHtml += itemHtml; // 进主列表
-            } else {
-                groups[c.groupType].html += itemHtml; // 进折叠组
-            }
+            if (c.groupType === 'none') { mainHtml += itemHtml; } 
+            else { groups[c.groupType].html += itemHtml; }
         });
 
-        // 渲染最终结构
         let finalHtml = mainHtml;
         Object.keys(groups).forEach(key => {
             if (groups[key].html) {
+                // 根据 window.groupStates[key] 决定显示还是隐藏
+                const isShow = window.groupStates[key];
                 finalHtml += `
-                    <div class="custom-group">
-                        <div class="group-header" onclick="const b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none';">
-                            <span>${groups[key].icon} ${groups[key].name}</span>
-                            <small>❯</small>
+                    <div class="custom-group-container" style="border-top: 1px solid #f0f0f0;">
+                        <div class="group-header" onclick="window.groupStates['${key}'] = !window.groupStates['${key}']; runUIUpdate();" 
+                             style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fafafa;">
+                            <span style="font-size: 11px; font-weight: 700; color: #666;">${groups[key].icon} ${groups[key].name}</span>
+                            <span style="font-size: 9px; color: #ccc; transition: 0.3s; transform: ${isShow ? 'rotate(90deg)' : 'rotate(0deg)'};">❯</span>
                         </div>
-                        <div class="group-body" style="display:none;">${groups[key].html}</div>
+                        <div class="group-body" style="display: ${isShow ? 'block' : 'none'}; background: #ffffff;">${groups[key].html}</div>
                     </div>`;
             }
         });
