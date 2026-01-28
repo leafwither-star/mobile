@@ -7518,30 +7518,29 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     // 标记已渲染
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [新增分支]：文件传输 (DOCX/PDF) - 195px 商务版 ---
+  // --- [新增分支]：文件传输 (DOCX/PDF) - 律政精修版 ---
 else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
-    // 【防重入锁】
     if (msg.getAttribute('data-rendered') === 'true') return;
 
-    // 提取文件名（去除可能存在的括号）
     const fileName = raw.replace(/[\[\]]/g, '').trim();
     const isPDF = fileName.toLowerCase().includes('.pdf');
     const isExcel = fileName.toLowerCase().includes('.xlsx');
     
-    // 根据文件类型匹配颜色：Word蓝 / PDF红 / Excel绿
-    let themeColor = '#2b579a'; // Word 默认蓝
+    // 配色方案
+    let themeColor = '#2b579a'; // Word 蓝
     let fileIcon = 'W';
     if (isPDF) { themeColor = '#b30b00'; fileIcon = 'PDF'; }
     if (isExcel) { themeColor = '#217346'; fileIcon = 'X'; }
 
-    // 1. 容器脱水与位置修正 (参考新闻版 195px)
+    // 1. 彻底清除酒馆原生气泡样式，防止干扰
     if (bubble) {
-        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; min-height:0 !important;";
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; min-height:0 !important; display:block !important;";
     }
-    // margin-top: -45px 强行上提，贴合名字
-    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:195px; margin-left:0px !important;";
+    
+    // 2. 消息容器位置修正：-45px 上移对齐
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:195px !important; min-height:0 !important; margin-left:0px !important;";
 
-    // 2. 渲染 UI
+    // 3. 注入顺眼的预览版结构
     msg.innerHTML = `
     <div class="service-card-container" style="
         width: 195px; 
@@ -7554,7 +7553,8 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         gap: 10px; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         box-sizing: border-box;
-        font-family: -apple-system, system-ui, sans-serif;">
+        font-family: -apple-system, system-ui, sans-serif;
+        text-align: left;">
         
         <div style="
             width: 36px; 
@@ -7573,21 +7573,19 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
             <span style="color: white; font-size: 10px; font-weight: 900; letter-spacing: 0.5px;">${fileIcon}</span>
         </div>
 
-        <div style="flex: 1; min-width: 0; text-align: left;">
+        <div style="flex: 1; min-width: 0;">
             <div style="
                 font-size: 13px; 
-                color: #1d1d1f; 
+                color: #111111; 
                 font-weight: 600; 
                 line-height: 1.3; 
-                word-break: break-all;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;">
+                white-space: nowrap; 
+                overflow: hidden; 
+                text-overflow: ellipsis;">
                 ${fileName}
             </div>
-            <div style="font-size: 10.5px; color: #86868b; margin-top: 4px; font-weight: 400;">
-                1.2 MB · 已下载
+            <div style="font-size: 10.5px; color: #888888; margin-top: 4px; font-weight: 400;">
+                1.5 MB · 已下载
             </div>
         </div>
     </div>`;
