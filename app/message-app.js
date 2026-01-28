@@ -7518,37 +7518,82 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     // 标记已渲染
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [新增分支]：模拟文档渲染 (DOCX/PDF) ---
+  // --- [新增分支]：文件传输 (DOCX/PDF) - 195px 商务版 ---
 else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
+    // 【防重入锁】
     if (msg.getAttribute('data-rendered') === 'true') return;
 
+    // 提取文件名（去除可能存在的括号）
     const fileName = raw.replace(/[\[\]]/g, '').trim();
     const isPDF = fileName.toLowerCase().includes('.pdf');
-    const themeColor = isPDF ? '#b30b00' : '#2b579a'; // PDF红 vs Word蓝
-    const fileTypeLetter = isPDF ? 'PDF' : 'W';
-
-    if (bubble) bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important;";
+    const isExcel = fileName.toLowerCase().includes('.xlsx');
     
-    // 这里采用和树洞、电台一致的 -45px 上提逻辑，确保紧跟领导头像
-    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:210px;";
+    // 根据文件类型匹配颜色：Word蓝 / PDF红 / Excel绿
+    let themeColor = '#2b579a'; // Word 默认蓝
+    let fileIcon = 'W';
+    if (isPDF) { themeColor = '#b30b00'; fileIcon = 'PDF'; }
+    if (isExcel) { themeColor = '#217346'; fileIcon = 'X'; }
 
+    // 1. 容器脱水与位置修正 (参考新闻版 195px)
+    if (bubble) {
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; min-height:0 !important;";
+    }
+    // margin-top: -45px 强行上提，贴合名字
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:195px; margin-left:0px !important;";
+
+    // 2. 渲染 UI
     msg.innerHTML = `
-    <div style="width: 210px; background: #fff; border-radius: 10px; border: 1px solid #ddd; padding: 12px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
-        <div style="width: 40px; height: 50px; background: ${themeColor}; border-radius: 4px; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 5px; flex-shrink: 0;">
-            <div style="position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 14px 14px 0; border-color: transparent rgba(255,255,255,0.4) transparent transparent;"></div>
-            <span style="color: white; font-size: 10px; font-weight: 900;">${fileTypeLetter}</span>
+    <div class="service-card-container" style="
+        width: 195px; 
+        background: #ffffff; 
+        border-radius: 12px; 
+        border: 1.2px solid #d1d1d6; /* 同步新闻版边框色 */
+        padding: 12px; 
+        display: flex; 
+        align-items: center; 
+        gap: 10px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        box-sizing: border-box;
+        font-family: -apple-system, system-ui, sans-serif;">
+        
+        <div style="
+            width: 36px; 
+            height: 46px; 
+            background: ${themeColor}; 
+            border-radius: 4px; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-end; 
+            align-items: center; 
+            padding-bottom: 4px; 
+            flex-shrink: 0;
+            overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 12px 12px 0; border-color: transparent rgba(0,0,0,0.15) transparent transparent;"></div>
+            <span style="color: white; font-size: 10px; font-weight: 900; letter-spacing: 0.5px;">${fileIcon}</span>
         </div>
-        <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 13px; color: #1d1d1f; font-weight: 600; line-height: 1.3; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+
+        <div style="flex: 1; min-width: 0; text-align: left;">
+            <div style="
+                font-size: 13px; 
+                color: #1d1d1f; 
+                font-weight: 600; 
+                line-height: 1.3; 
+                word-break: break-all;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;">
                 ${fileName}
             </div>
-            <div style="font-size: 11px; color: #86868b; margin-top: 4px;">1.5 MB · 已下载</div>
+            <div style="font-size: 10.5px; color: #86868b; margin-top: 4px; font-weight: 400;">
+                1.2 MB · 已下载
+            </div>
         </div>
     </div>`;
 
     msg.setAttribute('data-rendered', 'true');
 }
-}); // 正确闭合 forEach
 
 // --- 【微创手术：森系折叠分组 + 未读动态外跳版】 ---
     try {
