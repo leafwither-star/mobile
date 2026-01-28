@@ -7549,7 +7549,7 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         background: #ffffff; 
         border-radius: 12px; 
         border: 1.2px solid #d1d1d6; 
-        padding: 12px 14px; 
+        padding: 6px 14px; 
         display: flex; 
         align-items: center; 
         gap: 12px; 
@@ -7558,7 +7558,7 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         font-family: -apple-system, system-ui, sans-serif;">
         
         <div style="
-            width: 36px; height: 46px; background: ${themeColor}; 
+            width: 32px; height: 40px; background: ${themeColor}; 
             border-radius: 4px; position: relative; display: flex; 
             flex-direction: column; justify-content: flex-end; 
             align-items: center; padding-bottom: 5px; flex-shrink: 0; 
