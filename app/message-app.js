@@ -7518,7 +7518,7 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     // 标记已渲染
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [新增分支]：文件传输 (DOCX/PDF) - 律政精修版 ---
+  // --- [强力纠偏版]：文件传输 (DOCX/PDF) ---
 else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     if (msg.getAttribute('data-rendered') === 'true') return;
 
@@ -7526,69 +7526,50 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     const isPDF = fileName.toLowerCase().includes('.pdf');
     const isExcel = fileName.toLowerCase().includes('.xlsx');
     
-    // 配色方案
     let themeColor = '#2b579a'; // Word 蓝
     let fileIcon = 'W';
     if (isPDF) { themeColor = '#b30b00'; fileIcon = 'PDF'; }
     if (isExcel) { themeColor = '#217346'; fileIcon = 'X'; }
 
-    // 1. 彻底清除酒馆原生气泡样式，防止干扰
-    if (bubble) {
-        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; min-height:0 !important; display:block !important;";
-    }
-    
-    // 2. 消息容器位置修正：-45px 上移对齐
-    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:195px !important; min-height:0 !important; margin-left:0px !important;";
-
-    // 3. 注入顺眼的预览版结构
+    // 先把内容塞进去
     msg.innerHTML = `
-    <div class="service-card-container" style="
-        width: 195px; 
-        background: #ffffff; 
-        border-radius: 12px; 
-        border: 1.2px solid #d1d1d6; /* 同步新闻版边框色 */
-        padding: 12px; 
-        display: flex; 
-        align-items: center; 
-        gap: 10px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        box-sizing: border-box;
-        font-family: -apple-system, system-ui, sans-serif;
-        text-align: left;">
+    <div class="service-card-container real-file-card" style="
+        width: 195px !important; 
+        background: #ffffff !important; 
+        border-radius: 12px !important; 
+        border: 1.2px solid #d1d1d6 !important;
+        padding: 12px !important; 
+        display: flex !important; 
+        align-items: center !important; 
+        gap: 10px !important; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+        box-sizing: border-box !important;
+        font-family: -apple-system, system-ui, sans-serif !important;
+        text-align: left !important;
+        margin-left: 0px !important;">
         
-        <div style="
-            width: 36px; 
-            height: 46px; 
-            background: ${themeColor}; 
-            border-radius: 4px; 
-            position: relative; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: flex-end; 
-            align-items: center; 
-            padding-bottom: 4px; 
-            flex-shrink: 0;
-            overflow: hidden;">
-            <div style="position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 12px 12px 0; border-color: transparent rgba(0,0,0,0.15) transparent transparent;"></div>
-            <span style="color: white; font-size: 10px; font-weight: 900; letter-spacing: 0.5px;">${fileIcon}</span>
+        <div style="width: 36px !important; height: 46px !important; background: ${themeColor} !important; border-radius: 4px !important; position: relative !important; display: flex !important; flex-direction: column !important; justify-content: flex-end !important; align-items: center !important; padding-bottom: 4px !important; flex-shrink: 0 !important; overflow: hidden !important;">
+            <div style="position: absolute !important; top: 0 !important; right: 0 !important; width: 0 !important; height: 0 !important; border-style: solid !important; border-width: 0 12px 12px 0 !important; border-color: transparent rgba(0,0,0,0.15) transparent transparent !important;"></div>
+            <span style="color: white !important; font-size: 10px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;">${fileIcon}</span>
         </div>
 
-        <div style="flex: 1; min-width: 0;">
-            <div style="
-                font-size: 13px; 
-                color: #111111; 
-                font-weight: 600; 
-                line-height: 1.3; 
-                white-space: nowrap; 
-                overflow: hidden; 
-                text-overflow: ellipsis;">
+        <div style="flex: 1 !important; min-width: 0 !important;">
+            <div style="font-size: 13px !important; color: #111 !important; font-weight: 600 !important; line-height: 1.3 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">
                 ${fileName}
             </div>
-            <div style="font-size: 10.5px; color: #888888; margin-top: 4px; font-weight: 400;">
+            <div style="font-size: 10.5px !important; color: #888 !important; margin-top: 4px !important; font-weight: 400 !important;">
                 1.5 MB · 已下载
             </div>
         </div>
     </div>`;
+
+    // 关键：延迟 50ms 再次强制修正父级容器
+    setTimeout(() => {
+        if (bubble) {
+            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; min-height:0 !important; display:block !important;";
+        }
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; margin-top:-45px !important; width:195px !important; min-height:0 !important; margin-left:0px !important; background:transparent !important; border:none !important; box-shadow:none !important;";
+    }, 50);
 
     msg.setAttribute('data-rendered', 'true');
 }
