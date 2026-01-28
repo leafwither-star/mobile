@@ -7594,6 +7594,7 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
 
     msg.setAttribute('data-rendered', 'true');
 }
+}); // 正确闭合 forEach
 
 // --- 【微创手术：森系折叠分组 + 未读动态外跳版】 ---
     try {
