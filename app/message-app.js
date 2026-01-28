@@ -7518,35 +7518,30 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     // 标记已渲染
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 10]：文件传输 (DOCX/PDF) - 随机大小+换行增强版 ---
+  // --- [分支 10]：文件传输 (DOCX/PDF) - 垂直居中精修版 ---
 else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     if (msg.getAttribute('data-rendered') === 'true') return;
 
     const fileName = raw.replace(/[\[\]]/g, '').trim();
     const isPDF = fileName.toLowerCase().includes('.pdf');
-    const isExcel = fileName.toLowerCase().includes('.xlsx');
-    
-    // 1. 随机生成文件大小 (1.2 到 12.0 之间)
-    const randomSize = (Math.random() * (12.0 - 1.2) + 1.2).toFixed(1);
-    
-    let themeColor = '#2b579a'; 
-    let fileIcon = 'W';
-    if (isPDF) { themeColor = '#b30b00'; fileIcon = 'PDF'; }
-    if (isExcel) { themeColor = '#217346'; fileIcon = 'X'; }
+    const themeColor = isPDF ? '#b30b00' : '#2b579a';
+    const fileIcon = isPDF ? 'PDF' : 'W';
 
+    // 1. 激活 CSS 极致镇压类名
     if (bubble) bubble.classList.add('service-card-bubble');
     msg.classList.add('service-card-text');
 
+    // 2. 构造 HTML：核心是 flex 居中和固定行高
     html = `
     <div class="service-card-container" style="
         width: 195px; 
-        min-height: 60px; 
+        height: 60px; /* 【高度锁定】：你可以根据摇杆数值改这个数字 */
         background: #ffffff; 
         border-radius: 12px; 
         border: 1.2px solid #d1d1d6; 
-        padding: 10px 12px; 
+        padding: 0 12px; /* 侧边距 12px，上下由 height 和 align-center 控制 */
         display: flex; 
-        align-items: center; 
+        align-items: center; /* 【关键】：确保所有内容垂直居中，不往外掉 */
         gap: 10px; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         box-sizing: border-box;
@@ -7554,7 +7549,12 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         text-align: left;
         margin-left: 0px !important;">
         
-        <div style="width: 32px; height: 42px; background: ${themeColor}; border-radius: 4px; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 4px; flex-shrink: 0; overflow: hidden;">
+        <div style="
+            width: 32px; height: 40px; background: ${themeColor}; 
+            border-radius: 4px; position: relative; display: flex; 
+            flex-direction: column; justify-content: flex-end; 
+            align-items: center; padding-bottom: 4px; flex-shrink: 0; 
+            overflow: hidden;">
             <div style="position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent rgba(255,255,255,0.3) transparent transparent;"></div>
             <span style="color: white; font-size: 9px; font-weight: 900;">${fileIcon}</span>
         </div>
@@ -7564,13 +7564,15 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
                 font-size: 12.5px; 
                 color: #111; 
                 font-weight: 600; 
-                line-height: 1.3; 
-                word-break: break-all; 
-                margin-bottom: 2px;">
+                line-height: 1.1; /* 【锁定行高】 */
+                white-space: nowrap; 
+                overflow: hidden; 
+                text-overflow: ellipsis;
+                margin-bottom: 3px;">
                 ${fileName}
             </div>
             <div style="font-size: 10px; color: #8e8e93; line-height: 1; font-weight: 400;">
-                ${randomSize} MB · 已下载
+                1.2 MB · 已下载
             </div>
         </div>
     </div>`;
