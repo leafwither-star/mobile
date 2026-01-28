@@ -7518,73 +7518,62 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
     // 标记已渲染
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 10]：文件传输 (DOCX/PDF) - 彻底拆壳版 ---
+  // --- [分支 10]：文件传输 (DOCX/PDF) - 完美对齐 CSS 版 ---
 else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     if (msg.getAttribute('data-rendered') === 'true') return;
 
     const fileName = raw.replace(/[\[\]]/g, '').trim();
     const isPDF = fileName.toLowerCase().includes('.pdf');
-    const themeColor = isPDF ? '#b30b00' : '#2b579a';
-    const fileIcon = isPDF ? 'PDF' : 'W';
+    const isExcel = fileName.toLowerCase().includes('.xlsx');
+    
+    // 1. 配色与图标
+    let themeColor = '#2b579a'; // Word 蓝
+    let fileIcon = 'W';
+    if (isPDF) { themeColor = '#b30b00'; fileIcon = 'PDF'; }
+    if (isExcel) { themeColor = '#217346'; fileIcon = 'X'; }
 
-    // 【核心手术】：把外面那个讨厌的大白框（bubble）彻底变透明并压缩
-    if (bubble) {
-        // 强制抹除大气泡的所有视觉特征
-        bubble.style.cssText = `
-            background: transparent !important; 
-            border: none !important; 
-            box-shadow: none !important; 
-            padding: 0 !important; 
-            margin: 0 !important; 
-            min-height: 0 !important;
-            width: auto !important;
-            display: block !important;
-        `;
-        // 如果大气泡有父级，也确保它不撑开高度
-        if (bubble.parentNode) bubble.parentNode.style.minHeight = "0";
-    }
+    // 2. 核心动作：穿上“极致镇压”制服
+    if (bubble) bubble.classList.add('service-card-bubble'); // 激活 CSS 镇压
+    msg.classList.add('service-card-text'); // 激活 CSS 透明逻辑
 
-    // 【定位修正】：调整 msg 的位置，让它凌空贴合人名
-    msg.classList.add('service-card-text');
-    msg.style.cssText = `
-        display: block !important; 
-        padding: 0 !important; 
-        margin: 0 !important; 
-        margin-top: -35px !important; /* 如果太靠上就调成 -30 */
-        margin-left: 0px !important; 
-        width: 195px !important;
-        background: transparent !important;
-        border: none !important;
-    `;
-
-    // 【注入卡片】：这就是你觉得顺眼的那个预览结构
-    msg.innerHTML = `
+    // 3. 构造 HTML（调整了内部边距使高度更顺眼）
+    html = `
     <div class="service-card-container" style="
         width: 195px; 
         background: #ffffff; 
         border-radius: 12px; 
         border: 1.2px solid #d1d1d6; 
-        padding: 10px 12px; 
+        padding: 10px 14px; 
         display: flex; 
         align-items: center; 
-        gap: 10px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        gap: 12px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         box-sizing: border-box;
-        font-family: -apple-system, system-ui, sans-serif;">
+        font-family: -apple-system, system-ui, sans-serif;
+        text-align: left;
+        margin-left: 0px !important;">
         
-        <div style="width: 32px; height: 42px; background: ${themeColor}; border-radius: 4px; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 4px; flex-shrink: 0; overflow: hidden;">
+        <div style="
+            width: 34px; height: 44px; background: ${themeColor}; 
+            border-radius: 4px; position: relative; display: flex; 
+            flex-direction: column; justify-content: flex-end; 
+            align-items: center; padding-bottom: 5px; flex-shrink: 0; 
+            overflow: hidden;">
             <div style="position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent rgba(255,255,255,0.3) transparent transparent;"></div>
-            <span style="color: white; font-size: 9px; font-weight: 900;">${fileIcon}</span>
+            <span style="color: white; font-size: 10px; font-weight: 900;">${fileIcon}</span>
         </div>
 
-        <div style="flex: 1; min-width: 0; text-align: left;">
-            <div style="font-size: 13px; color: #111; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13px; color: #111; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${fileName}
             </div>
-            <div style="font-size: 10px; color: #8e8e93; margin-top: 3px;">1.5 MB · 已下载</div>
+            <div style="font-size: 10px; color: #8e8e93; margin-top: 3px; font-weight: 400;">
+                1.5 MB · 已下载
+            </div>
         </div>
     </div>`;
 
+    msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
 }); // 正确闭合 forEach
