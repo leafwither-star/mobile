@@ -6787,23 +6787,40 @@ window.fetchAndPlayVoice = async function(rawLine) {
     if (!cleanText) return;
 
     try {
-        // 拼接本地 API 地址
-        const apiUrl = `http://localhost:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
+        const localSpeaker = speakerName.includes("李至中") ? "李至中备选1" : "陈一众备选1";
+        const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
 
-        // 停止当前正在播放的声音
+        // 停止当前所有声音
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
 
-        // 加载并播放
-        const audio = new Audio(apiUrl);
+        const audio = new Audio();
         audio.className = "soul-current-audio";
-        
+        audio.crossOrigin = "anonymous"; // 核心：允许跨域获取音频
+        audio.src = apiUrl;              // 必须在设置 crossOrigin 之后赋值
+
+        console.log("[TTS发起请求] 目标地址:", apiUrl);
+
         return new Promise(res => { 
-            audio.onended = () => { audio.remove(); res(); };
-            audio.onerror = () => { console.error("本地语音接口无响应"); res(); };
-            audio.play().catch(e => { console.warn("播放尝试被拦截", e); res(); });
+            audio.onplay = () => {
+                console.log("[TTS播放成功]");
+            };
+            audio.onended = () => { 
+                audio.remove(); 
+                res(); 
+            };
+            audio.onerror = (e) => { 
+                console.error("[TTS连接失败] 可能是被浏览器拦截:", e); 
+                res(); // 报错也得放行，防止UI死锁
+            };
+            
+            // 尝试播放
+            audio.play().catch(err => {
+                console.warn("[TTS自动播放受阻] 点击页面任意处再试", err);
+                res();
+            });
         });
     } catch (e) { 
-        console.error("本地语音播报失败:", e); 
+        console.error("本地语音逻辑崩溃:", e); 
     }
 }; // 函数结束
   
