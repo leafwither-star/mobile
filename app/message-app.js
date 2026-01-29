@@ -6780,47 +6780,33 @@ window.fetchAndPlayVoice = async function(rawLine) {
         cleanText = rawLine.trim();
     }
 
-    // --- 嗓音分配 ---
-    if (speakerName.includes("李至中")) {
-        voiceId = "Chinese (Mandarin)_Sincere_Adult";
-    } else {
-        voiceId = "Chinese (Mandarin)_Reliable_Executive";
-    }
+    // --- 嗓音映射：直接在这里决定角色音色 ---
+    let localSpeaker = speakerName.includes("李至中") ? "李至中备选1" : "陈一众备选1";
 
     console.log(`[TTS播报] 识别角色: ${speakerName}, 实际朗读: ${cleanText}`);
     if (!cleanText) return;
 
     try {
-        // 使用 GLOBAL_ 打头的全局变量
-        const response = await fetch(`https://api.minimaxi.com/v1/t2a_v2?GroupId=${GLOBAL_GROUP_ID}`, {
-            method: 'POST',
-            headers: { 
-                'Authorization': 'Bearer ' + GLOBAL_API_KEY.trim(),
-                'Content-Type': 'application/json' 
-            },
-            body: JSON.stringify({
-                "model": "speech-2.8-hd",
-                "text": cleanText, 
-                "voice_setting": { "voice_id": voiceId, "speed": 0.9, "pitch": 0 },
-                "voice_modify": { "sound_effects": "lofi_telephone" },
-                "audio_setting": { "sample_rate": 32000, "format": "mp3" },
-                "output_format": "url"
-            })
+        // 拼接本地 API 地址
+        const apiUrl = `http://localhost:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
+
+        // 停止当前正在播放的声音
+        document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+
+        // 加载并播放
+        const audio = new Audio(apiUrl);
+        audio.className = "soul-current-audio";
+        
+        return new Promise(res => { 
+            audio.onended = () => { audio.remove(); res(); };
+            audio.onerror = () => { console.error("本地语音接口无响应"); res(); };
+            audio.play().catch(e => { console.warn("播放尝试被拦截", e); res(); });
         });
-
-        const result = await response.json();
-        if (result.data?.audio) {
-            document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-            const audio = new Audio(result.data.audio);
-            audio.className = "soul-current-audio";
-            return new Promise(res => { 
-                audio.onended = () => { audio.remove(); res(); };
-                audio.play();
-            });
-        }
-    } catch (e) { console.error("语音播报失败:", e); }
-};
-
+    } catch (e) { 
+        console.error("本地语音播报失败:", e); 
+    }
+}; // 函数结束
+  
 // --- 下面接 launchCallUI 和 launchPerfectPacket，内部直接调用 fetchAndPlayVoice 即可 ---
   
     // 语音通话 UI 逻辑 (完美保留原有 UI + 新增 MiniMax 语音同步)
