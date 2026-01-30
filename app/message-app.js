@@ -6781,7 +6781,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
     }
 
     // --- 嗓音映射：直接在这里决定角色音色 ---
-    let localSpeaker = speakerName.includes("李至中") ? "李至中备选3" : "陈一众备选1";
+    let localSpeaker = speakerName.includes("李至中") ? "李至中备选2" : "陈一众备选1";
 
     console.log(`[TTS播报] 识别角色: ${speakerName}, 实际朗读: ${cleanText}`);
     if (!cleanText) return;
