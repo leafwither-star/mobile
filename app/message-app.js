@@ -6788,7 +6788,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
 
     try {
         const localSpeaker = speakerName.includes("李至中") ? "李至中备选3" : "陈一众备选1";
-        const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
+        const apiUrl = `http://192.168.110.204:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
 
         // 停止当前所有声音
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
