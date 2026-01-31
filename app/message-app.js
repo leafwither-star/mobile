@@ -6758,7 +6758,7 @@ const GLOBAL_GROUP_ID = "2014232095953523532";
 window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
     if (!rawLine) return;
 
-    // 1. 提取文本和角色（保持你原有的解析逻辑）
+    // --- 1. 角色与文本解析 ---
     let speakerName = "陈一众"; 
     let cleanText = "";
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
@@ -6774,79 +6774,54 @@ window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
+    const normalizedText = cleanText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); 
+    const textLen = normalizedText.length;
+    // 生成唯一指纹
+    const voiceFingerprint = `v_cache_${localSpeaker}_len${textLen}_${btoa(unescape(encodeURIComponent(normalizedText)))}`;
 
-  // 1. 定义归一化文本（去掉标点空格）
-    const normalizedText = cleanText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-    // 【强力去噪版指纹】：忽略所有空格、特殊符号和换行，只针对核心文字和音色生成指纹
-const textLen = normalizedText.length;
-const voiceFingerprint = `v_cache_${localSpeaker}_len${textLen}_${btoa(unescape(encodeURIComponent(normalizedText)))}`;
-
-console.log(`[TTS调试] 文本: "${cleanText}" | 归一化: "${normalizedText}" | 长度: ${textLen}`);
-console.log(`[TTS调试] 生成指纹: ${voiceFingerprint}`);
+    const serverUrl = `http://43.133.165.233:8001`; 
 
     try {
-        // 停止当前声音
+        // 停止之前的播放
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-
+        
         const audio = new Audio();
         audio.className = "soul-current-audio";
         audio.crossOrigin = "anonymous";
 
-        // --- 核心：检查 IndexedDB 存档 ---
-        const cachedData = await getIndexedDBItem(voiceFingerprint);
-
-        if (cachedData && !forceRefresh) {
-            console.log("[TTS] 🚀 命中本地存档:", voiceFingerprint);
-            audio.src = URL.createObjectURL(cachedData);
+        // --- 策略 1：检索云端“藏经阁” ---
+        console.log(`[TTS] 检索云端: ${voiceFingerprint}`);
+        const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`);
+        
+        if (serverCheck.ok) {
+            console.log("🏰 命中服务器永久存储！");
+            const blob = await serverCheck.blob();
+            audio.src = URL.createObjectURL(blob);
         } else {
-            console.log("[TTS] 📡 发起新生成请求...");
+            // --- 策略 2：请求 API 生成 ---
+            console.log("[TTS] 云端无存档，请求本地 TTS API...");
             const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
-            
             const response = await fetch(apiUrl);
             const blob = await response.blob();
             
-            // 存入临时缓存（等待锁定）
+            // 暂存供保存按钮使用
             window.lastVoiceBlob = blob;
             window.lastVoiceFP = voiceFingerprint;
-            
             audio.src = URL.createObjectURL(blob);
         }
 
         return new Promise(res => {
             audio.onended = () => { audio.remove(); res(); };
-            audio.play().catch(err => { console.warn("播放受阻:", err); res(); });
+            audio.play().catch(err => { 
+                console.warn("播放受阻，可能是浏览器权限问题:", err); 
+                res(); 
+            });
         });
-
     } catch (e) {
-        console.error("TTS 存档逻辑错误:", e);
+        console.error("语音链条错误:", e);
     }
-};
+}; // 这里才是函数结束的正确位置
 
-// --- IndexedDB 简单辅助函数 (放在脚本末尾即可) ---
-async function getIndexedDBItem(key) {
-    return new Promise(res => {
-        const request = indexedDB.open("VoiceArchive", 1);
-        request.onupgradeneeded = e => e.target.result.createObjectStore("voices");
-        request.onsuccess = e => {
-            const db = e.target.result;
-            const tx = db.transaction("voices", "readonly");
-            const store = tx.objectStore("voices");
-            const getReq = store.get(key);
-            getReq.onsuccess = () => res(getReq.result);
-            getReq.onerror = () => res(null);
-        };
-    });
-}
-
-async function saveToIndexedDB(key, blob) {
-    const request = indexedDB.open("VoiceArchive", 1);
-    request.onsuccess = e => {
-        const db = e.target.result;
-        const tx = db.transaction("voices", "readwrite");
-        tx.objectStore("voices").put(blob, key);
-        console.log("✅ 语音已永久存入 IndexedDB 仓库");
-    };
-}
   
 // --- 下面接 launchCallUI 和 launchPerfectPacket，内部直接调用 fetchAndPlayVoice 即可 ---
   
@@ -6929,46 +6904,60 @@ async function saveToIndexedDB(key, blob) {
 
       // --- 最终版：按钮逻辑 (保存 + 挂断) ---
 
-// 1. 先处理【保存按钮】逻辑
+// 1. 处理【保存至云端】逻辑
 const saveBtn = document.getElementById('soul-save-btn');
 if (saveBtn) {
-    saveBtn.onclick = (e) => {
+    saveBtn.onclick = async (e) => {
         e.stopPropagation(); // 防止点击穿透
-        // 检查全局变量是否存在（由 fetchAndPlayVoice 产生）
+        
+        // 检查全局变量是否存在
         if (window.lastVoiceBlob && window.lastVoiceFP) {
-            saveToIndexedDB(window.lastVoiceFP, window.lastVoiceBlob);
-            saveBtn.style.background = "#34c759"; // 变成成功绿
-            saveBtn.innerHTML = "✅";
-            setTimeout(() => {
-                saveBtn.style.background = "rgba(255,255,255,0.15)";
-                saveBtn.innerHTML = "💾";
-            }, 2000);
+            try {
+                // --- 核心改动：推送到你的云端服务器 ---
+                const response = await fetch(`http://43.133.165.233:8001/save-voice/${window.lastVoiceFP}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'audio/wav' },
+                    body: window.lastVoiceBlob
+                });
+
+                if (response.ok) {
+                    saveBtn.style.background = "#34c759"; // 变成成功绿
+                    saveBtn.innerHTML = "☁️"; // 变成云朵图标，表示已存入云端
+                    console.log("☁️ 语音已成功存入云端文件系统");
+                    
+                    // 2秒后恢复原样
+                    setTimeout(() => {
+                        saveBtn.style.background = "rgba(255,255,255,0.15)";
+                        saveBtn.innerHTML = "💾";
+                    }, 2000);
+                } else {
+                    throw new Error("服务器响应失败");
+                }
+            } catch (err) {
+                console.error("云端保存失败:", err);
+                alert("云端保存失败，请检查 8001 端口是否开启");
+            }
         } else {
             alert("语音还在加载中，请稍后再试哦~");
         }
     };
 }
 
-// 2. 再处理【挂断按钮】逻辑
+// 2. 再处理【挂断按钮】逻辑 (这部分保持原样即可)
 const closeBtn = document.getElementById('soul-close-btn');
 if (closeBtn) {
-    // 图标初始化
     closeBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="30" height="30" style="transform: rotate(135deg);">
             <path fill="white" d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
         </svg>`;
     
     closeBtn.onclick = () => { 
-        // 播放挂断音效
         const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"); 
         endSound.volume = 0.5;
         endSound.play().catch(()=>{});
 
-        // 清理计时器和声音
         clearInterval(tInt); 
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-        
-        // 移除整个通话界面
         setTimeout(() => { overlay.remove(); }, 150);
     };
 }
