@@ -6775,8 +6775,11 @@ window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
     
-    // 生成唯一指纹：角色 + 文本内容
-    const voiceFingerprint = `v_cache_${btoa(unescape(encodeURIComponent(localSpeaker + cleanText))).substring(0, 20)}`;
+    // 【强力去噪版指纹】：忽略所有空格、特殊符号和换行，只针对核心文字和音色生成指纹
+const normalizedText = cleanText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); // 只保留中英文字符和数字
+const voiceFingerprint = `v_cache_${btoa(unescape(encodeURIComponent(localSpeaker + normalizedText))).substring(0, 24)}`;
+
+console.log(`[TTS调试] 当前文本: "${cleanText}" -> 归一化: "${normalizedText}" -> 指纹: ${voiceFingerprint}`);
 
     try {
         // 停止当前声音
