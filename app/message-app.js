@@ -6753,26 +6753,19 @@ const GLOBAL_API_KEY = "sk-api-GrT5JQEsxMW3uuOzlx7vsgT8WoLW99MkJd6D-Wq4xlTcqgwOm
 const GLOBAL_GROUP_ID = "2014232095953523532";
 
 /**
- * 终极 TTS 引擎：支持微信语音格式提取 & 通话记录格式提取
+ * 强化版 TTS：支持本地持久化存档 (IndexedDB)
  */
-window.fetchAndPlayVoice = async function(rawLine) {
+window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
     if (!rawLine) return;
 
-    // 内部直接使用外部定义的全局变量
-    let voiceId = "Chinese (Mandarin)_Reliable_Executive"; 
+    // 1. 提取文本和角色（保持你原有的解析逻辑）
     let speakerName = "陈一众"; 
     let cleanText = "";
-
-    // --- 逻辑 A：处理微信语音插件格式 ---
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
         const nameMatch = rawLine.match(/\|([^|]+)\|103\|/); 
         speakerName = nameMatch ? nameMatch[1] : "陈一众";
-        cleanText = rawLine.replace(/\[.*?\]/g, '')
-                          .replace(/[▶\d:：语音\s]+/g, '')
-                          .trim();
-    } 
-    // --- 逻辑 B：处理通话记录格式 ---
-    else if (rawLine.includes("：") || rawLine.includes(":")) {
+        cleanText = rawLine.replace(/\[.*?\]/g, '').replace(/[▶\d:：语音\s]+/g, '').trim();
+    } else if (rawLine.includes("：") || rawLine.includes(":")) {
         const parts = rawLine.split(/[：:]/);
         speakerName = parts[0].trim();
         cleanText = parts.slice(1).join("：").trim();
@@ -6780,49 +6773,74 @@ window.fetchAndPlayVoice = async function(rawLine) {
         cleanText = rawLine.trim();
     }
 
-    // --- 嗓音映射：直接在这里决定角色音色 ---
-    let localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-
-    console.log(`[TTS播报] 识别角色: ${speakerName}, 实际朗读: ${cleanText}`);
-    if (!cleanText) return;
+    const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
+    
+    // 生成唯一指纹：角色 + 文本内容
+    const voiceFingerprint = `v_cache_${btoa(unescape(encodeURIComponent(localSpeaker + cleanText))).substring(0, 20)}`;
 
     try {
-        const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-        const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}&instruct=`;
-
-        // 停止当前所有声音
+        // 停止当前声音
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
 
         const audio = new Audio();
         audio.className = "soul-current-audio";
-        audio.crossOrigin = "anonymous"; // 核心：允许跨域获取音频
-        audio.src = apiUrl;              // 必须在设置 crossOrigin 之后赋值
+        audio.crossOrigin = "anonymous";
 
-        console.log("[TTS发起请求] 目标地址:", apiUrl);
+        // --- 核心：检查 IndexedDB 存档 ---
+        const cachedData = await getIndexedDBItem(voiceFingerprint);
 
-        return new Promise(res => { 
-            audio.onplay = () => {
-                console.log("[TTS播放成功]");
-            };
-            audio.onended = () => { 
-                audio.remove(); 
-                res(); 
-            };
-            audio.onerror = (e) => { 
-                console.error("[TTS连接失败] 可能是被浏览器拦截:", e); 
-                res(); // 报错也得放行，防止UI死锁
-            };
+        if (cachedData && !forceRefresh) {
+            console.log("[TTS] 🚀 命中本地存档:", voiceFingerprint);
+            audio.src = URL.createObjectURL(cachedData);
+        } else {
+            console.log("[TTS] 📡 发起新生成请求...");
+            const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
             
-            // 尝试播放
-            audio.play().catch(err => {
-                console.warn("[TTS自动播放受阻] 点击页面任意处再试", err);
-                res();
-            });
+            const response = await fetch(apiUrl);
+            const blob = await response.blob();
+            
+            // 存入临时缓存（等待锁定）
+            window.lastVoiceBlob = blob;
+            window.lastVoiceFP = voiceFingerprint;
+            
+            audio.src = URL.createObjectURL(blob);
+        }
+
+        return new Promise(res => {
+            audio.onended = () => { audio.remove(); res(); };
+            audio.play().catch(err => { console.warn("播放受阻:", err); res(); });
         });
-    } catch (e) { 
-        console.error("本地语音逻辑崩溃:", e); 
+
+    } catch (e) {
+        console.error("TTS 存档逻辑错误:", e);
     }
-}; // 函数结束
+};
+
+// --- IndexedDB 简单辅助函数 (放在脚本末尾即可) ---
+async function getIndexedDBItem(key) {
+    return new Promise(res => {
+        const request = indexedDB.open("VoiceArchive", 1);
+        request.onupgradeneeded = e => e.target.result.createObjectStore("voices");
+        request.onsuccess = e => {
+            const db = e.target.result;
+            const tx = db.transaction("voices", "readonly");
+            const store = tx.objectStore("voices");
+            const getReq = store.get(key);
+            getReq.onsuccess = () => res(getReq.result);
+            getReq.onerror = () => res(null);
+        };
+    });
+}
+
+async function saveToIndexedDB(key, blob) {
+    const request = indexedDB.open("VoiceArchive", 1);
+    request.onsuccess = e => {
+        const db = e.target.result;
+        const tx = db.transaction("voices", "readwrite");
+        tx.objectStore("voices").put(blob, key);
+        console.log("✅ 语音已永久存入 IndexedDB 仓库");
+    };
+}
   
 // --- 下面接 launchCallUI 和 launchPerfectPacket，内部直接调用 fetchAndPlayVoice 即可 ---
   
@@ -6848,7 +6866,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
             </div>
             <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
-            <div style="margin-bottom: 50px;"><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
+            <div style="margin-bottom: 50px;"><div id="soul-save-btn" style="width: 55px; height: 55px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; color: white; margin-bottom: 20px; transition: 0.3s;" title="锁定这段语音">💾</div><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
         `;
         container.appendChild(overlay);
 
@@ -6903,30 +6921,51 @@ window.fetchAndPlayVoice = async function(rawLine) {
         // 首次启动延迟
         setTimeout(next, 1000);
 
-      // --- 最终版：关闭按钮（图标初始化 + 挂断逻辑） ---
-        const closeBtn = document.getElementById('soul-close-btn');
-        if (closeBtn) {
-            // 1. 【立即执行】把粉色话筒换成纯白 SVG
-            closeBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="30" height="30" style="transform: rotate(135deg);">
-                    <path fill="white" d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
-                </svg>`;
-            
-            // 2. 【点击触发】挂断逻辑
-            closeBtn.onclick = () => { 
-                // 播放清脆音效
-                const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"); 
-                endSound.volume = 0.5;
-                endSound.play().catch(()=>{});
+      // --- 最终版：按钮逻辑 (保存 + 挂断) ---
 
-                // 核心清理逻辑
-                clearInterval(tInt); 
-                document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-                
-                // 150ms 后移除界面
-                setTimeout(() => { overlay.remove(); }, 150);
-            };
+// 1. 先处理【保存按钮】逻辑
+const saveBtn = document.getElementById('soul-save-btn');
+if (saveBtn) {
+    saveBtn.onclick = (e) => {
+        e.stopPropagation(); // 防止点击穿透
+        // 检查全局变量是否存在（由 fetchAndPlayVoice 产生）
+        if (window.lastVoiceBlob && window.lastVoiceFP) {
+            saveToIndexedDB(window.lastVoiceFP, window.lastVoiceBlob);
+            saveBtn.style.background = "#34c759"; // 变成成功绿
+            saveBtn.innerHTML = "✅";
+            setTimeout(() => {
+                saveBtn.style.background = "rgba(255,255,255,0.15)";
+                saveBtn.innerHTML = "💾";
+            }, 2000);
+        } else {
+            alert("语音还在加载中，请稍后再试哦~");
         }
+    };
+}
+
+// 2. 再处理【挂断按钮】逻辑
+const closeBtn = document.getElementById('soul-close-btn');
+if (closeBtn) {
+    // 图标初始化
+    closeBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="30" height="30" style="transform: rotate(135deg);">
+            <path fill="white" d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+        </svg>`;
+    
+    closeBtn.onclick = () => { 
+        // 播放挂断音效
+        const endSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"); 
+        endSound.volume = 0.5;
+        endSound.play().catch(()=>{});
+
+        // 清理计时器和声音
+        clearInterval(tInt); 
+        document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
+        
+        // 移除整个通话界面
+        setTimeout(() => { overlay.remove(); }, 150);
+    };
+}
     };
 
 // --- 红包交互系统 ---
