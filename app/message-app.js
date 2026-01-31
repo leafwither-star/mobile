@@ -6755,10 +6755,10 @@ const GLOBAL_GROUP_ID = "2014232095953523532";
 /**
  * 强化版 TTS：支持本地持久化存档 (IndexedDB)
  */
-window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
-    if (!rawLine) return;
+window.fetchAndPlayVoice = function(rawLine, forceRefresh = false) {
+    if (!rawLine) return Promise.resolve();
 
-    // --- 1. 角色与文本解析 ---
+    // 1. 角色与文本解析 (保持不变)
     let speakerName = "陈一众"; 
     let cleanText = "";
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
@@ -6775,52 +6775,53 @@ window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
     const normalizedText = cleanText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); 
-    const textLen = normalizedText.length;
-    // 生成唯一指纹
-    const voiceFingerprint = `v_cache_${localSpeaker}_len${textLen}_${btoa(unescape(encodeURIComponent(normalizedText)))}`;
+    const voiceFingerprint = `v_cache_${localSpeaker}_len${normalizedText.length}_${btoa(unescape(encodeURIComponent(normalizedText)))}`;
 
-    const serverUrl = `http://43.133.165.233:8001`; 
-
-    try {
-        // 停止之前的播放
-        document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-        
-        const audio = new Audio();
-        audio.className = "soul-current-audio";
-        audio.crossOrigin = "anonymous";
-
-        // --- 策略 1：检索云端“藏经阁” ---
-        console.log(`[TTS] 检索云端: ${voiceFingerprint}`);
-        const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`);
-        
-        if (serverCheck.ok) {
-            console.log("🏰 命中服务器永久存储！");
-            const blob = await serverCheck.blob();
-            audio.src = URL.createObjectURL(blob);
-        } else {
-            // --- 策略 2：请求 API 生成 ---
-            console.log("[TTS] 云端无存档，请求本地 TTS API...");
-            const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
-            const response = await fetch(apiUrl);
-            const blob = await response.blob();
+    // --- 核心优化点：异步加载声音，不阻塞文字 ---
+    const loadAudio = async () => {
+        try {
+            const serverUrl = `http://43.133.165.233:8001`;
+            document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
             
-            // 暂存供保存按钮使用
-            window.lastVoiceBlob = blob;
-            window.lastVoiceFP = voiceFingerprint;
-            audio.src = URL.createObjectURL(blob);
-        }
+            const audio = new Audio();
+            audio.className = "soul-current-audio";
+            audio.crossOrigin = "anonymous";
 
-        return new Promise(res => {
-            audio.onended = () => { audio.remove(); res(); };
-            audio.play().catch(err => { 
-                console.warn("播放受阻，可能是浏览器权限问题:", err); 
-                res(); 
-            });
-        });
-    } catch (e) {
-        console.error("语音链条错误:", e);
-    }
-}; // 这里才是函数结束的正确位置
+            // 这里的 fetch 增加 3 秒超时限制，防止卡死
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000);
+
+            const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`, { signal: controller.signal });
+            clearTimeout(id);
+
+            if (serverCheck.ok) {
+                console.log("🏰 命中云端存储");
+                const blob = await serverCheck.blob();
+                audio.src = URL.createObjectURL(blob);
+                audio.play().catch(e => console.warn("手机端通常需要点击屏幕后才能自动播放声音"));
+            } else {
+                // 如果是电脑端，才尝试连本地 API 生成
+                if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                    console.log("[TTS] 尝试本地 API 生成...");
+                    const response = await fetch(`http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`);
+                    const blob = await response.blob();
+                    window.lastVoiceBlob = blob;
+                    window.lastVoiceFP = voiceFingerprint;
+                    audio.src = URL.createObjectURL(blob);
+                    audio.play();
+                }
+            }
+        } catch (e) {
+            console.log("声音加载被跳过（服务器可能离线）");
+        }
+    };
+
+    // 立即启动声音加载轨道
+    loadAudio();
+
+    // 立即返回，让文字弹窗弹出来！
+    return Promise.resolve();
+};
 
   
 // --- 下面接 launchCallUI 和 launchPerfectPacket，内部直接调用 fetchAndPlayVoice 即可 ---
