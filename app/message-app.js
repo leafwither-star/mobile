@@ -6755,10 +6755,10 @@ const GLOBAL_GROUP_ID = "2014232095953523532";
 /**
  * 终极 TTS 引擎：支持云端检索 + 本地生成 + 顺序阻塞
  */
-window.fetchAndPlayVoice = async function(rawLine) {
+window.fetchAndPlayVoice = function(rawLine) {
     if (!rawLine) return Promise.resolve();
 
-    // 1. 角色与文本解析
+    // 1. 角色与解析 (保持一致)
     let speakerName = "陈一众"; 
     let cleanText = "";
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
@@ -6774,57 +6774,65 @@ window.fetchAndPlayVoice = async function(rawLine) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-    const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,10))))}`;
+    // 修正指纹生成，确保双端一致
+    const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,15))))}`;
     const serverUrl = `http://43.133.165.233:8001`;
 
-    // 停止当前所有声音
-    document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-
-    return new Promise(async (res) => {
-        const audio = new Audio();
-        audio.className = "soul-current-audio";
-        audio.crossOrigin = "anonymous";
-
-        // 播放结束或出错都要放行，进入下一句
-        const finish = () => { audio.remove(); res(); };
-        audio.onended = finish;
-        audio.onerror = finish;
-
-        try {
-            // 策略 1：先查云端
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒连不上就放弃云端
-            
-            const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`, { signal: controller.signal })
-                                     .catch(() => ({ ok: false }));
-            clearTimeout(timeoutId);
-
-            if (serverCheck.ok) {
-                console.log("🏰 命中云端存储");
-                const blob = await serverCheck.blob();
-                audio.src = URL.createObjectURL(blob);
-            } else {
-                // 策略 2：云端没有，请求本地 API (仅限电脑端能通)
-                console.log("[TTS] 云端无存档，请求本地 API...");
-                const apiUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
+    // --- 核心改动：立即返回 Promise 释放 UI，让文字先弹出来 ---
+    return new Promise((res) => {
+        console.log("[TTS] 释放文字轨道");
+        
+        // 异步执行声音逻辑，不阻塞 res()
+        (async () => {
+            try {
+                // 清理旧声音
+                document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
                 
-                // 暂存供保存按钮使用
-                const response = await fetch(apiUrl);
-                const blob = await response.blob();
-                window.lastVoiceBlob = blob;
-                window.lastVoiceFP = voiceFingerprint;
-                audio.src = URL.createObjectURL(blob);
+                const audio = new Audio();
+                audio.className = "soul-current-audio";
+                audio.crossOrigin = "anonymous";
+
+                // 优先尝试云端
+                console.log(`[TTS] 尝试调取云端: ${voiceFingerprint}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5秒超时
+
+                const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`, { 
+                    signal: controller.signal,
+                    cache: 'no-cache' 
+                }).catch(() => ({ ok: false }));
+                clearTimeout(timeoutId);
+
+                if (serverCheck.ok) {
+                    console.log("🏰 成功获取云端存档");
+                    const blob = await serverCheck.blob();
+                    audio.src = URL.createObjectURL(blob);
+                } else {
+                    // 云端没有，且是本地环境时才生成
+                    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                        console.log("[TTS] 云端无数据，触发本地实时生成");
+                        const response = await fetch(`http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`);
+                        const blob = await response.blob();
+                        window.lastVoiceBlob = blob;
+                        window.lastVoiceFP = voiceFingerprint;
+                        audio.src = URL.createObjectURL(blob);
+                    } else {
+                        console.warn("⚠️ 手机端且云端无存档，无法播放");
+                    }
+                }
+
+                if (audio.src) {
+                    audio.play().catch(() => console.log("等待用户点击播放"));
+                }
+            } catch (e) {
+                console.error("声音异步链错误:", e);
             }
+        })();
 
-            audio.play().catch(err => {
-                console.warn("播放受阻（需点击屏幕）:", err);
-                res(); // 播不动也要放行文字
-            });
-
-        } catch (e) {
-            console.error("语音链跳过:", e);
-            res(); 
-        }
+        // 重点：这里不需要等待声音播完，直接给文字放行
+        // 如果你希望文字依然“读完一句出一句”，请把 res() 移动到 audio.onended 里
+        // 但为了手机端不卡死，目前建议立即放行
+        res(); 
     });
 };
   
