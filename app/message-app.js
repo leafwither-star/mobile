@@ -6774,7 +6774,9 @@ window.fetchAndPlayVoice = async function(rawLine, forceRefresh = false) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-    
+
+  // 1. 定义归一化文本（去掉标点空格）
+    const normalizedText = cleanText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
     // 【强力去噪版指纹】：忽略所有空格、特殊符号和换行，只针对核心文字和音色生成指纹
 const textLen = normalizedText.length;
 const voiceFingerprint = `v_cache_${localSpeaker}_len${textLen}_${btoa(unescape(encodeURIComponent(normalizedText)))}`;
