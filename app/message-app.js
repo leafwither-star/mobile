@@ -7979,7 +7979,7 @@ window.soulImageEngine = async function(divId, sender, text) {
         // 增加随机延迟，防止多个气泡同时请求导致 NAI 报 429 错误
         await new Promise(r => setTimeout(r, Math.random() * 2000));
 
-        const response = await fetch(`http://http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
+        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
         if (!response.ok) throw new Error('网络响应不正常');
 
