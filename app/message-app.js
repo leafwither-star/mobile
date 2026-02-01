@@ -7900,66 +7900,42 @@ const updateLoop = () => {
         }
     });
 
-    // --- B路：处理 AI 图片容器 (防撞车独立 ID 版) ---
-    const imageMsgs = document.querySelectorAll('.image-message-content');
-    imageMsgs.forEach((msg, index) => { // 【改动 1】引入 index
-        if (msg.getAttribute('data-rendered') === 'true') return;
+    // --- B路：处理 AI 图片容器 (强制同步指纹版) ---
+const imageMsgs = document.querySelectorAll('.image-message-content');
+imageMsgs.forEach((msg, index) => {
+    // 强制获取实时内容
+    const promptText = msg.innerText.trim();
+    if (!promptText || promptText.length < 5) return; 
 
-        const promptText = msg.innerText.trim();
-        if (!promptText) return;
+    // 生成当前内容对应的唯一 ID
+    const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
+    const msgId = `nai_id_${safeId}`;
 
-        // 【改动 2】指纹升级：文字 + 顺序索引。这样“旋转门”和“会议室”就算同时出现，ID 也绝对不同
-        const safeId = btoa(encodeURIComponent(promptText + index)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-        const msgId = `nai_locked_${safeId}`;
+    // 如果这个 DOM 已经渲染了“错误”的图（ID 不对），强行解锁重画
+    const currentBoundId = msg.getAttribute('data-bound-id');
+    if (currentBoundId && currentBoundId !== msgId) {
+        console.log("🔄 检测到内容变更，正在更新图片容器...");
+        msg.removeAttribute('data-rendered');
+    }
 
-        // 如果内存命中
-        if (window.imageBufferCache && window.imageBufferCache[msgId]) {
-            msg.setAttribute('data-rendered', 'true');
-            const bubble = msg.closest('.message-content') || msg.parentElement;
-            if (bubble) bubble.classList.add('service-card-bubble');
-            msg.classList.add('service-card-text');
-            
-            msg.innerHTML = `
-            <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important;">
-                <div id="${msgId}" style="flex:1; background:#f5f5f7;">
-                    <img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                </div>
-                <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
-                    <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
-                </div>
-            </div>`;
-            return; 
-        }
+    if (msg.getAttribute('data-rendered') === 'true') return;
 
-        // --- 正常渲染逻辑 ---
-        const sender = "AI角色"; 
-        console.log(`🎨 [新任务] 正在为第 ${index} 条消息生成 ID: ${msgId}`);
-
-        const bubble = msg.closest('.message-content') || msg.parentElement;
-        if (bubble) bubble.classList.add('service-card-bubble');
-        msg.classList.add('service-card-text');
-
-        msg.innerHTML = `
-        <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-                <div style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
-                <span style="font-size:10px; color:#999; margin-top:8px;">AI 画布绘制中...</span>
-            </div>
-            <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
-                <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
-            </div>
-        </div>
-        <style> @keyframes nai-loop { to { transform:rotate(360deg); } } </style>`;
-
+    // 绑定当前 ID
+    msg.setAttribute('data-bound-id', msgId);
+    
+    // 剩下的逻辑：检查缓存 -> 渲染卡片 -> 调用引擎
+    if (window.imageBufferCache && window.imageBufferCache[msgId]) {
+        renderStaticImage(msg, msgId, promptText); // 使用之前定义的渲染函数
+    } else {
+        // ... 这里跑你之前的 msg.innerHTML 注入卡片逻辑 ...
+        // 记得注入完后执行：
         msg.setAttribute('data-rendered', 'true');
-
         setTimeout(() => {
-            if (window.soulImageEngine) {
-                window.soulImageEngine(msgId, sender, promptText);
-            }
-        }, 400);
-    });
-
+            if (window.soulImageEngine) window.soulImageEngine(msgId, "AI角色", promptText);
+        }, 500);
+    }
+});
+  
     // 3. 维持原本的提速频率逻辑
     fastCycles++;
     let nextTick = fastCycles < 50 ? 200 : 1000; 
