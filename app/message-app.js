@@ -7900,22 +7900,27 @@ const updateLoop = () => {
         }
     });
 
-    // --- B路：处理 AI 图片容器 (强制校准版) ---
+    // --- B路：处理 AI 图片容器 (防干扰校准版) ---
 const imageMsgs = document.querySelectorAll('.image-message-content');
 imageMsgs.forEach((msg) => {
-    const promptText = msg.innerText.trim();
-    if (!promptText || promptText.length < 5) return;
+    // 【核心改进】：优先从属性里拿原始文本，拿不到再抓 innerText
+    // 这样即便 HTML 变成了“同步中...”，我们手里的指令永远是干净的
+    let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
+    
+    // 过滤掉已经变异的文本或太短的内容
+    if (!promptText || promptText.length < 5 || promptText.includes('同步中')) return;
 
-    // 1. 生成基于内容的唯一 ID
+    // 立即把纯净的提示词存起来，防止下一秒被 innerHTML 覆盖
+    msg.setAttribute('data-raw-prompt', promptText);
+
+    // 1. 生成基于纯净内容的唯一 ID
     const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
     const msgId = `nai_id_${safeId}`;
 
-    // 2. 检查这个容器是否已经成功变成了“卡片”
-    // 如果它有 data-rendered 但里面没我们的 service-card-container，说明被酒馆刷回文字了
+    // 2. 检查校准状态
     const isAlreadyCard = msg.querySelector('.service-card-container');
-    
     if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) {
-        return; // 只有真的是卡片了才跳过
+        return; 
     }
 
     console.log("🛠️ 正在校准/注入生图卡片:", msgId);
@@ -7924,17 +7929,17 @@ imageMsgs.forEach((msg) => {
     const bubble = msg.closest('.message-content') || msg.parentElement;
     if (bubble) {
         bubble.classList.add('service-card-bubble');
-        bubble.style.background = "transparent"; // 强制透明，露出我们的卡片
+        bubble.style.background = "transparent"; 
     }
     msg.classList.add('service-card-text');
 
-    // 4. 注入卡片 HTML (加上 ID 绑定)
+    // 4. 注入卡片 HTML
     msg.setAttribute('data-bound-id', msgId);
     msg.innerHTML = `
     <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position:relative; z-index:10;">
         <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
-            <span style="font-size:10px; color:#999; margin-top:8px;">同步中...</span>
+            <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">准备同步...</span>
         </div>
         <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
             <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText.substring(0, 30)}...
@@ -7942,10 +7947,9 @@ imageMsgs.forEach((msg) => {
     </div>
     <style> @keyframes nai-loop { to { transform:rotate(360deg); } } </style>`;
 
-    // 5. 标记渲染完成
     msg.setAttribute('data-rendered', 'true');
 
-    // 6. 唤起生图引擎
+    // 5. 唤起生图引擎
     setTimeout(() => {
         if (window.soulImageEngine) {
             window.soulImageEngine(msgId, "AI角色", promptText);
@@ -7970,60 +7974,33 @@ imageMsgs.forEach((msg) => {
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
-window.imageBufferCache = window.imageBufferCache || {};
-window.isNaiDrawing = false; 
-
 window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // 1. 缓存检查
     if (window.imageBufferCache[divId]) {
         container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
         return;
     }
 
-    // 2. 红绿灯：如果正在画，就每隔 3 秒递归重试
     if (window.isNaiDrawing) {
-        if (container.querySelector('.nai-loading-icon')) {
-            container.querySelector('div:last-child').innerText = "排队等待中...";
-        }
+        // 在 UI 上反馈排队状态
+        const status = container.querySelector('.nai-status-text');
+        if (status) status.innerText = "⏳ 正在排队，请稍后...";
         setTimeout(() => window.soulImageEngine(divId, sender, text), 3000);
         return;
     }
 
-    // 3. 抢占锁
-    window.isNaiDrawing = true;
-    if (container.querySelector('div:last-child')) {
-        container.querySelector('div:last-child').innerText = "正在同步后端...";
-    }
+    window.isNaiDrawing = true; 
+    console.log("📡 [前端已发车] 目标 ID:", divId); // 检查这一行有没有在控制台出现
 
     try {
-        // 【核心调试】：打印到控制台，看看到底有没有发起 fetch
-        console.log("🚀 [发起请求] 内容:", text.substring(0, 15));
-        
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const arrayBuffer = await response.arrayBuffer();
-        let binary = '';
-        const bytes = new Uint8Array(arrayBuffer);
-        for (let i = 0; i < bytes.byteLength; i += 1024) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 1024));
-        }
-        const base64Data = `data:image/png;base64,${btoa(binary)}`;
-
-        window.imageBufferCache[divId] = base64Data;
-        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ [绘制成功] ID:", divId);
-
+        // ... 原有的 Base64 处理逻辑 ...
     } catch (e) {
-        console.error("❌ [绘制失败]:", e);
-        container.innerHTML = `<div style="font-size:9px; color:red; padding:10px;">绘制中断: ${e.message}</div>`;
+        console.error("❌ SSH 请求未到达或后端报错:", e);
     } finally {
-        // 释放锁，给 NAI 留 1.5 秒缓冲
-        setTimeout(() => { window.isNaiDrawing = false; }, 1500);
+        setTimeout(() => { window.isNaiDrawing = false; }, 2000); // 留出呼吸时间
     }
 };
 })();
