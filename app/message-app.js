@@ -7975,36 +7975,35 @@ window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
+    // 先展示一个“正在加载”的状态，避免空着
+    container.innerHTML = `<span style="color:#007AFF; font-size:10px;">🎨 正在生成图片...</span>`;
+
     try {
-        await new Promise(r => setTimeout(r, Math.random() * 2000));
+        await new Promise(r => setTimeout(r, Math.random() * 1000));
 
-        // 注意：去掉之前多写的 http://，保持单一 http://
-        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`, {
-            mode: 'cors', // 明确要求跨域模式
-            cache: 'no-cache'
-        });
+        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
-        if (!response.ok) throw new Error('网络响应不正常');
+        if (!response.ok) throw new Error('后端返回错误');
 
-        const blob = await response.blob();
-        
-        // 【关键修复点】：检查 blob 的类型，如果后端没给类型，我们手动强制指定
-        const imageBlob = blob.type === "image/png" ? blob : new Blob([blob], { type: 'image/png' });
-        const imgUrl = URL.createObjectURL(imageBlob);
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength < 1000) throw new Error('图片数据损坏');
 
-        // 成功拿到图片后，彻底替换内容
-        container.innerHTML = `
-            <img src="${imgUrl}" 
-                 style="width:100%; height:100%; object-fit:cover; border-radius:8px; cursor:pointer;" 
-                 onclick="window.open('${imgUrl}')"
-                 onload="console.log('图片渲染成功！')"
-                 onerror="this.src=''; this.parentElement.innerHTML='<span style=color:orange;font-size:10px;>渲染解码失败</span>'">`;
-        
-        console.log(`✅ 图片已尝试渲染: ${imgUrl}`);
+        const blob = new Blob([arrayBuffer], { type: 'image/png' });
+        const imgUrl = URL.createObjectURL(blob);
+
+        // 直接整体替换，不给它触发二次报错的机会
+        const img = new Image();
+        img.src = imgUrl;
+        img.style = "width:100%; height:100%; object-fit:cover; border-radius:8px;";
+        img.onload = () => {
+            container.innerHTML = '';
+            container.appendChild(img);
+            console.log("✅ 图片渲染成功");
+        };
         
     } catch (e) {
-        console.error("❌ 前端渲染失败:", e);
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">加载失败: ${e.message}</span>`;
+        console.error("❌ 渲染失败:", e);
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">读取失败，请稍后重试</span>`;
     }
 };
 })();
