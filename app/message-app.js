@@ -7756,11 +7756,19 @@ if (!window.voiceEventBound) {
                     
                     // 1. 提取纯台词 (精准排除云朵、勾选等图标)
 const cleanContent = currentText
-    .replace(/[☁️✅⏳]/g, '') // 核心修复：直接删掉这几个图标字符
+    .replace(/[☁️✅⏳]/g, '') // 删掉图标
     .replace(/^\d+:\d+\s*/, '')
     .replace(/\[.*?\]/g, '')
     .replace(/[▶\d:：语音\s]+/g, '')
     .trim();
+
+// --- 【核心新增：防空保护】 ---
+// 如果折叠了，cleanContent 会非常短或为空。
+// 我们设定：如果有效字符少于 2 个，直接拦截，不许播放，也不许匹配指纹。
+if (!cleanContent || cleanContent.length < 2) {
+    console.log("🛑 检测到文本折叠或无效内容，已拦截语音触发");
+    return; 
+}
 
 if (typeof window.fetchAndPlayVoice === 'function') {
     const nameMatch = currentText.match(/\|([^|]+)\|/);
