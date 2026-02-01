@@ -7900,40 +7900,57 @@ const updateLoop = () => {
         }
     });
 
-    // --- B路：处理 AI 图片容器 (强制同步指纹版) ---
+    // --- B路：处理 AI 图片容器 (强制校准版) ---
 const imageMsgs = document.querySelectorAll('.image-message-content');
-imageMsgs.forEach((msg, index) => {
-    // 强制获取实时内容
+imageMsgs.forEach((msg) => {
     const promptText = msg.innerText.trim();
-    if (!promptText || promptText.length < 5) return; 
+    if (!promptText || promptText.length < 5) return;
 
-    // 生成当前内容对应的唯一 ID
+    // 1. 生成基于内容的唯一 ID
     const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
     const msgId = `nai_id_${safeId}`;
 
-    // 如果这个 DOM 已经渲染了“错误”的图（ID 不对），强行解锁重画
-    const currentBoundId = msg.getAttribute('data-bound-id');
-    if (currentBoundId && currentBoundId !== msgId) {
-        console.log("🔄 检测到内容变更，正在更新图片容器...");
-        msg.removeAttribute('data-rendered');
-    }
-
-    if (msg.getAttribute('data-rendered') === 'true') return;
-
-    // 绑定当前 ID
-    msg.setAttribute('data-bound-id', msgId);
+    // 2. 检查这个容器是否已经成功变成了“卡片”
+    // 如果它有 data-rendered 但里面没我们的 service-card-container，说明被酒馆刷回文字了
+    const isAlreadyCard = msg.querySelector('.service-card-container');
     
-    // 剩下的逻辑：检查缓存 -> 渲染卡片 -> 调用引擎
-    if (window.imageBufferCache && window.imageBufferCache[msgId]) {
-        renderStaticImage(msg, msgId, promptText); // 使用之前定义的渲染函数
-    } else {
-        // ... 这里跑你之前的 msg.innerHTML 注入卡片逻辑 ...
-        // 记得注入完后执行：
-        msg.setAttribute('data-rendered', 'true');
-        setTimeout(() => {
-            if (window.soulImageEngine) window.soulImageEngine(msgId, "AI角色", promptText);
-        }, 500);
+    if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) {
+        return; // 只有真的是卡片了才跳过
     }
+
+    console.log("🛠️ 正在校准/注入生图卡片:", msgId);
+
+    // 3. 样式镇压
+    const bubble = msg.closest('.message-content') || msg.parentElement;
+    if (bubble) {
+        bubble.classList.add('service-card-bubble');
+        bubble.style.background = "transparent"; // 强制透明，露出我们的卡片
+    }
+    msg.classList.add('service-card-text');
+
+    // 4. 注入卡片 HTML (加上 ID 绑定)
+    msg.setAttribute('data-bound-id', msgId);
+    msg.innerHTML = `
+    <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position:relative; z-index:10;">
+        <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
+            <span style="font-size:10px; color:#999; margin-top:8px;">同步中...</span>
+        </div>
+        <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
+            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText.substring(0, 30)}...
+        </div>
+    </div>
+    <style> @keyframes nai-loop { to { transform:rotate(360deg); } } </style>`;
+
+    // 5. 标记渲染完成
+    msg.setAttribute('data-rendered', 'true');
+
+    // 6. 唤起生图引擎
+    setTimeout(() => {
+        if (window.soulImageEngine) {
+            window.soulImageEngine(msgId, "AI角色", promptText);
+        }
+    }, 400);
 });
   
     // 3. 维持原本的提速频率逻辑
