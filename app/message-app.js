@@ -7623,44 +7623,30 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (防闪烁+内存秒开版) ---
+  // --- [分支 11]：AI 生图系统 (指纹防撞版) ---
 else if (raw.includes('|图片|')) {
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
         const sender = p[1];
         const promptText = (p[3] || "正在传达视觉信号...").trim();
-        // 生成指纹 ID
+        
+        // 【关键改动】：只根据文字内容生成 ID，不要加随机数，也不要加 index
+        // 因为在此处 index 是不稳定的，我们靠文字内容的唯一性来区分
         const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-        const msgId = `nai_img_${safeId}`;
+        const msgId = `nai_id_${safeId}`;
 
-        // 【核心改动 1】：如果已经渲染过，且内存里有图，直接显示图片，不要再显示“绘制中”
-        if (window.imageBufferCache && window.imageBufferCache[msgId]) {
-            msg.setAttribute('data-rendered', 'true');
-            if (bubble) bubble.classList.add('service-card-bubble');
-            msg.classList.add('service-card-text');
-            msg.innerHTML = `
-            <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
-                <div style="flex: 1; background: #dbdbdb;">
-                    <img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[msgId]}')">
-                </div>
-                <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
-                    <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
-                </div>
-            </div>`;
-            return; // 搞定，直接退出
-        }
-
-        // 【核心改动 2】：如果没有缓存，才显示“绘制中”动画
         if (msg.getAttribute('data-rendered') === 'true') return;
 
+        // 样式镇压
         if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
+        // 注入容器
         msg.innerHTML = `
         <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
             <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
-                <div style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
-                <div style="font-size: 10px; color: #888; margin-top: 10px;">绘制中...</div>
+                <div class="nai-loading-icon" style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
+                <div style="font-size: 10px; color: #888; margin-top: 10px;">准备绘制...</div>
             </div>
             <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
                 <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
@@ -7670,11 +7656,12 @@ else if (raw.includes('|图片|')) {
 
         msg.setAttribute('data-rendered', 'true');
 
+        // 立即唤起引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
                 window.soulImageEngine(msgId, sender, promptText);
             }
-        }, 500);
+        }, 300);
     }
 }
 }); // 正确闭合 forEach
@@ -7991,52 +7978,42 @@ const updateLoop = () => {
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
 window.imageBufferCache = window.imageBufferCache || {};
-// 【新增】全局并发锁：确保同一时间只有一个请求发往后端
 window.isNaiDrawing = false; 
 
 window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // 1. 检查缓存 (如果命中了，不需要排队，直接出图)
+    // 1. 缓存检查
     if (window.imageBufferCache[divId]) {
-        console.log("♻️ 命中永久缓存，秒开图片");
-        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
+        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
         return;
     }
 
-    // 2. 【核心改动】红绿灯逻辑
+    // 2. 红绿灯：如果正在画，就每隔 3 秒递归重试
     if (window.isNaiDrawing) {
-        console.log("🚦 [排队] 前方有任务正在绘制，5秒后重试...");
-        container.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <div style="width:12px; height:12px; border:2px solid #ff9500; border-top-color:transparent; border-radius:50%; animation: nai-loop 1.5s linear infinite;"></div>
-                <span style="color:#ff9500; font-size:9px; margin-top:4px;">排队等待中...</span>
-            </div>`;
-        
-        // 5秒后再次尝试执行本函数
-        setTimeout(() => window.soulImageEngine(divId, sender, text), 5000);
+        if (container.querySelector('.nai-loading-icon')) {
+            container.querySelector('div:last-child').innerText = "排队等待中...";
+        }
+        setTimeout(() => window.soulImageEngine(divId, sender, text), 3000);
         return;
     }
 
-    // 3. 拿到通行权，立刻上锁
+    // 3. 抢占锁
     window.isNaiDrawing = true;
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在绘制(独占通道)...</span>`;
+    if (container.querySelector('div:last-child')) {
+        container.querySelector('div:last-child').innerText = "正在同步后端...";
+    }
 
     try {
+        // 【核心调试】：打印到控制台，看看到底有没有发起 fetch
+        console.log("🚀 [发起请求] 内容:", text.substring(0, 15));
+        
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
-        if (response.status === 429) {
-            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 额度受限，稍后自动重试</span>`;
-            // 遇到429也要释放锁，并给排队的任务留点缓冲时间
-            throw new Error('429');
-        }
-        
-        if (!response.ok) throw new Error('后端响应异常');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const arrayBuffer = await response.arrayBuffer();
-        
-        // Base64 转换逻辑保持不变
         let binary = '';
         const bytes = new Uint8Array(arrayBuffer);
         for (let i = 0; i < bytes.byteLength; i += 1024) {
@@ -8045,19 +8022,15 @@ window.soulImageEngine = async function(divId, sender, text) {
         const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
         window.imageBufferCache[divId] = base64Data;
-        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ 图像已绘制并释放锁");
-        
+        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
+        console.log("✅ [绘制成功] ID:", divId);
+
     } catch (e) {
-        console.error("❌ 渲染进程中断:", e);
-        // 如果是429，我们不清除 data-rendered，让它由循环再次触发
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制中断: ${e.message}</span>`;
+        console.error("❌ [绘制失败]:", e);
+        container.innerHTML = `<div style="font-size:9px; color:red; padding:10px;">绘制中断: ${e.message}</div>`;
     } finally {
-        // 4. 【关键】无论成功还是失败，最后必须释放锁
-        // 增加 1 秒的人为延迟，防止 NAI 还没喘过气来
-        setTimeout(() => {
-            window.isNaiDrawing = false;
-        }, 1000);
+        // 释放锁，给 NAI 留 1.5 秒缓冲
+        setTimeout(() => { window.isNaiDrawing = false; }, 1500);
     }
 };
 })();
