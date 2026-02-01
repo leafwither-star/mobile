@@ -6758,7 +6758,7 @@ const GLOBAL_GROUP_ID = "2014232095953523532";
 window.fetchAndPlayVoice = async function(rawLine) {
     if (!rawLine) return Promise.resolve();
 
-    // 1. 解析文本 (保持一致)
+    // 1. 解析文本
     let speakerName = "陈一众"; 
     let cleanText = "";
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
@@ -6773,13 +6773,13 @@ window.fetchAndPlayVoice = async function(rawLine) {
         cleanText = rawLine.trim();
     }
 
-    const localSpeaker = speakerName.includes("李至中") ? "李至中备选6" : "陈一众备选1";
+    const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
+    // 指纹保持一致
     const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,10))))}`;
-    
-    // --- 定义我们要访问的云端“藏经阁”地址 ---
     const cloudServerUrl = `http://43.133.165.233:8001`;
 
     return new Promise(async (res) => {
+        // 清理旧声音
         document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
         const audio = new Audio();
         audio.className = "soul-current-audio";
@@ -6791,9 +6791,16 @@ window.fetchAndPlayVoice = async function(rawLine) {
         audio.onerror = safeRes;
 
         try {
-            // 第一步：先看云端有没有
-            console.log("[TTS] 检索云端藏经阁...");
-            const serverCheck = await fetch(`${cloudServerUrl}/get-voice/${voiceFingerprint}`).catch(() => ({ ok: false }));
+            // --- 策略 A：首选检索云端藏经阁 ---
+            console.log("[TTS] 尝试从云端调取...");
+            const cloudCtrl = new AbortController();
+            const cloudTimer = setTimeout(() => cloudCtrl.abort(), 1500);
+            
+            const serverCheck = await fetch(`${cloudServerUrl}/get-voice/${voiceFingerprint}`, { 
+                signal: cloudCtrl.signal,
+                cache: 'no-cache'
+            }).catch(() => ({ ok: false }));
+            clearTimeout(cloudTimer);
 
             if (serverCheck.ok) {
                 console.log("🏰 命中云端存档！");
@@ -6802,27 +6809,29 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 audio.play().catch(safeRes);
             } 
             else {
-                // 第二步：云端没有，判定当前是电脑还是手机
-                // 如果是电脑端访问 (通过 localhost 或 127.0.0.1 访问的酒馆)
-                const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+                // --- 策略 B：云端没有，尝试本地 Cosyvoice ---
+                console.log("💻 云端无档，尝试调取本地模型 (127.0.0.1)...");
+                const localUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
                 
-                if (isLocal) {
-                    console.log("💻 电脑端：触发本地 TTS 生成...");
-                    const response = await fetch(`http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`);
+                const localCtrl = new AbortController();
+                const localTimer = setTimeout(() => localCtrl.abort(), 5000); // 5秒还没生成就放弃
+
+                const response = await fetch(localUrl, { signal: localCtrl.signal });
+                if (response.ok) {
                     const blob = await response.blob();
                     window.lastVoiceBlob = blob;
                     window.lastVoiceFP = voiceFingerprint;
                     audio.src = URL.createObjectURL(blob);
                     audio.play().catch(safeRes);
                 } else {
-                    // 如果是手机访问 (通过 43.133 访问且云端没档)
-                    console.warn("📱 手机端：云端无档且无法连本地模型，跳过声音");
-                    safeRes(); 
+                    throw new Error("Local TTS Failed");
                 }
+                clearTimeout(localTimer);
             }
         } catch (e) {
-            console.error("逻辑中断");
-            safeRes();
+            // 这里就是手机端的终点：连不上 127.0.0.1 会直接跑到这里
+            console.warn("⚠️ 语音获取失败（云端无存档且本地API不可用）");
+            safeRes(); // 释放文字轨道
         }
     });
 };
