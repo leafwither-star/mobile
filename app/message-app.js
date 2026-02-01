@@ -7623,9 +7623,13 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (极致镇压版) ---
+  // --- [分支 11]：AI 生图系统 (强制触发版) ---
 else if (raw.includes('|图片|')) {
-    if (msg.getAttribute('data-rendered') === 'true') return;
+    // 强制打印，让我们知道脚本确实跑到了这一行
+    console.log("📍 [Debug] 捕获到图片指令，开始尝试渲染...");
+
+    // 暂时注释掉 data-rendered 检查，确保强制执行
+    // if (msg.getAttribute('data-rendered') === 'true') return;
 
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
@@ -7633,52 +7637,42 @@ else if (raw.includes('|图片|')) {
         const promptText = p[3] || "正在传达视觉信号...";
         const msgId = `nai_img_${Math.random().toString(36).substr(2, 9)}`;
 
-        // 1. 使用你提供的“极致镇压”类名强行覆盖原作者样式
+        console.log(`📍 [Debug] 匹配成功：发送者=${sender}, 内容=${promptText}`);
+
+        // 使用你的“极致镇压”方案
         if (bubble) {
-            bubble.classList.add('service-card-bubble'); // 引用你在 CSS 里写的规则
+            bubble.classList.add('service-card-bubble');
+            console.log("📍 [Debug] 已为 bubble 挂载镇压类名");
         }
         msg.classList.add('service-card-text');
 
-        // 2. 构建图片卡片 HTML
-        html = `
-        <div class="service-card-container" style="
-            margin-left: 0px !important; 
-            margin-top: 4px; 
-            position: relative; 
-            z-index: 999; 
-            width: 180px; 
-            min-height: 240px; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            background: #e5e5ea; 
-            cursor: pointer; 
-            display: flex; 
-            flex-direction: column; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            border: 1px solid #eeeeee;">
-            
-            <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: #dbdbdb;">
-                <div class="nai-spin" style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
+        // 直接注入 HTML
+        msg.innerHTML = `
+        <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
+            <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
+                <div style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
                 <div style="font-size: 10px; color: #888; margin-top: 10px;">绘制中...</div>
             </div>
-            
-            <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333; line-height: 1.4; border-top: 1px solid #f0f0f0;">
+            <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
                 <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
             </div>
-            <style>
-                @keyframes nai-loop { to { transform: rotate(360deg); } }
-            </style>
+            <style> @keyframes nai-loop { to { transform: rotate(360deg); } } </style>
         </div>`;
 
-        msg.innerHTML = html;
         msg.setAttribute('data-rendered', 'true');
+        console.log("📍 [Debug] HTML 注入完成，准备启动生图引擎...");
 
-        // 3. 异步调用生图引擎
+        // 启动引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
+                console.log("📍 [Debug] 正在调用后端 8001 进行翻译生图...");
                 window.soulImageEngine(msgId, sender, promptText);
+            } else {
+                console.error("📍 [Debug] ❌ 错误：找不到 soulImageEngine 函数！");
             }
-        }, 300);
+        }, 500);
+    } else {
+        console.error("📍 [Debug] ❌ 错误：正则匹配失败！");
     }
 }
 }); // 正确闭合 forEach
