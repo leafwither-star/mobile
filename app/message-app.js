@@ -6928,16 +6928,21 @@ if (saveBtn) {
         // 检查全局变量是否存在
         if (window.lastVoiceBlob && window.lastVoiceFP) {
             try {
-                // --- 核心改动：推送到你的云端服务器 ---
-                const response = await fetch(`http://43.133.165.233:8001/save-voice/${window.lastVoiceFP}`, {
+                // --- 核心改动：封装成后端 Multer 识别的 FormData ---
+                const formData = new FormData();
+                // 必须通过 append('file', ...) 发送，且文件名带上 .wav
+                formData.append('file', window.lastVoiceBlob, `${window.lastVoiceFP}.wav`);
+
+                // 修改点 1: 统一使用 upload-voice 接口
+                // 修改点 2: 去掉 headers 里的 Content-Type（让浏览器自动设置 boundary）
+                const response = await fetch(`http://43.133.165.233:8001/upload-voice`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'audio/wav' },
-                    body: window.lastVoiceBlob
+                    body: formData
                 });
 
                 if (response.ok) {
                     saveBtn.style.background = "#34c759"; // 变成成功绿
-                    saveBtn.innerHTML = "☁️"; // 变成云朵图标，表示已存入云端
+                    saveBtn.innerHTML = "✅"; // 变成勾选图标
                     console.log("☁️ 语音已成功存入云端文件系统");
                     
                     // 2秒后恢复原样
@@ -6950,10 +6955,11 @@ if (saveBtn) {
                 }
             } catch (err) {
                 console.error("云端保存失败:", err);
-                alert("云端保存失败，请检查 8001 端口是否开启");
+                saveBtn.innerHTML = "❌";
+                setTimeout(() => { saveBtn.innerHTML = "💾"; }, 2000);
             }
         } else {
-            alert("语音还在加载中，请稍后再试哦~");
+            alert("语音还在加载中，请播放后再试哦~");
         }
     };
 }
