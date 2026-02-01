@@ -6755,10 +6755,10 @@ const GLOBAL_GROUP_ID = "2014232095953523532";
 /**
  * 终极 TTS 引擎：支持云端检索 + 本地生成 + 顺序阻塞
  */
-window.fetchAndPlayVoice = function(rawLine) {
+window.fetchAndPlayVoice = async function(rawLine) {
     if (!rawLine) return Promise.resolve();
 
-    // 1. 角色与解析 (保持一致)
+    // 1. 解析逻辑
     let speakerName = "陈一众"; 
     let cleanText = "";
     if (rawLine.includes("对方消息|") || rawLine.includes("消息|")) {
@@ -6774,65 +6774,60 @@ window.fetchAndPlayVoice = function(rawLine) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-    // 修正指纹生成，确保双端一致
-    const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,15))))}`;
+    // --- 统一指纹算法 (固定截取前10位，确保兼容旧存档) ---
+    const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,10))))}`;
     const serverUrl = `http://43.133.165.233:8001`;
 
-    // --- 核心改动：立即返回 Promise 释放 UI，让文字先弹出来 ---
-    return new Promise((res) => {
-        console.log("[TTS] 释放文字轨道");
+    return new Promise(async (res) => {
+        // 停止上一个声音
+        document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
         
-        // 异步执行声音逻辑，不阻塞 res()
-        (async () => {
-            try {
-                // 清理旧声音
-                document.querySelectorAll('.soul-current-audio').forEach(a => { a.pause(); a.remove(); });
-                
-                const audio = new Audio();
-                audio.className = "soul-current-audio";
-                audio.crossOrigin = "anonymous";
+        const audio = new Audio();
+        audio.className = "soul-current-audio";
+        audio.crossOrigin = "anonymous";
 
-                // 优先尝试云端
-                console.log(`[TTS] 尝试调取云端: ${voiceFingerprint}`);
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5秒超时
+        // 定义结束动作：无论是播完、报错还是超时，都必须 res() 释放文字
+        let resolved = false;
+        const safeRes = () => { if(!resolved){ resolved=true; res(); } };
+        audio.onended = safeRes;
+        audio.onerror = safeRes;
+        setTimeout(safeRes, 8000); // 8秒保底强制下一句
 
-                const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`, { 
-                    signal: controller.signal,
-                    cache: 'no-cache' 
-                }).catch(() => ({ ok: false }));
-                clearTimeout(timeoutId);
+        try {
+            // 策略 1：检索云端
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 1200); // 云端检索超时
 
-                if (serverCheck.ok) {
-                    console.log("🏰 成功获取云端存档");
-                    const blob = await serverCheck.blob();
+            const serverCheck = await fetch(`${serverUrl}/get-voice/${voiceFingerprint}`, { 
+                signal: controller.signal,
+                cache: 'no-cache'
+            }).catch(() => ({ ok: false }));
+            clearTimeout(id);
+
+            if (serverCheck.ok) {
+                console.log("🏰 命中云端:", voiceFingerprint);
+                const blob = await serverCheck.blob();
+                audio.src = URL.createObjectURL(blob);
+                audio.play().catch(safeRes);
+            } else {
+                // 策略 2：云端没有，且是本地环境，发起生成
+                if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                    console.log("[TTS] 云端无存档，本地生成中...");
+                    const response = await fetch(`http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`);
+                    const blob = await response.blob();
+                    window.lastVoiceBlob = blob;
+                    window.lastVoiceFP = voiceFingerprint;
                     audio.src = URL.createObjectURL(blob);
+                    audio.play().catch(safeRes);
                 } else {
-                    // 云端没有，且是本地环境时才生成
-                    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-                        console.log("[TTS] 云端无数据，触发本地实时生成");
-                        const response = await fetch(`http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`);
-                        const blob = await response.blob();
-                        window.lastVoiceBlob = blob;
-                        window.lastVoiceFP = voiceFingerprint;
-                        audio.src = URL.createObjectURL(blob);
-                    } else {
-                        console.warn("⚠️ 手机端且云端无存档，无法播放");
-                    }
+                    console.warn("⚠️ 手机端云端无存档");
+                    safeRes(); // 手机端没档就直接出文字
                 }
-
-                if (audio.src) {
-                    audio.play().catch(() => console.log("等待用户点击播放"));
-                }
-            } catch (e) {
-                console.error("声音异步链错误:", e);
             }
-        })();
-
-        // 重点：这里不需要等待声音播完，直接给文字放行
-        // 如果你希望文字依然“读完一句出一句”，请把 res() 移动到 audio.onended 里
-        // 但为了手机端不卡死，目前建议立即放行
-        res(); 
+        } catch (e) {
+            console.error("链条中断");
+            safeRes();
+        }
     });
 };
   
