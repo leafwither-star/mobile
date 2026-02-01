@@ -7625,34 +7625,35 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
 }
   // --- [分支 11]：AI 生图系统 (强制触发版) ---
 else if (raw.includes('|图片|')) {
-    // 强制打印，让我们知道脚本确实跑到了这一行
-    console.log("📍 [Debug] 捕获到图片指令，开始尝试渲染...");
-
-    // 暂时注释掉 data-rendered 检查，确保强制执行
-    // if (msg.getAttribute('data-rendered') === 'true') return;
+    // 1. 【防重刷第一道锁】：如果这个元素已经打过“渲染完成”的标签，直接跳过，不许再跑下面的逻辑
+    if (msg.getAttribute('data-nai-locked') === 'true') {
+        console.log("📍 [Debug] 检测到节点已锁定，跳过逻辑防止重复生图");
+        return;
+    }
 
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
         const sender = p[1];
-        const promptText = p[3] || "正在传达视觉信号...";
-        const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-    const msgId = `nai_img_${safeId}`;
+        // 关键：去掉所有可能导致 ID 变动的杂质
+        const promptText = (p[3] || "").trim().replace(/[\r\n]/g, "");
+        
+        // 2. 【固定 ID】：基于 sender 和 prompt 前 15 位生成唯一标识
+        const seed = (sender + promptText).substring(0, 15);
+        const safeId = btoa(encodeURIComponent(seed)).replace(/[^a-zA-Z]/g, "").substr(0, 10);
+        const msgId = `fixed_nai_${safeId}`;
 
-        console.log(`📍 [Debug] 匹配成功：发送者=${sender}, 内容=${promptText}`);
+        // 3. 【打上锁定标签】：一旦开始处理，立刻封死这块区域
+        msg.setAttribute('data-nai-locked', 'true');
 
-        // 使用你的“极致镇压”方案
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
-            console.log("📍 [Debug] 已为 bubble 挂载镇压类名");
-        }
+        if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 直接注入 HTML
+        // 注入 HTML
         msg.innerHTML = `
         <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
             <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
                 <div style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
-                <div style="font-size: 10px; color: #888; margin-top: 10px;">绘制中...</div>
+                <div style="font-size: 10px; color: #888; margin-top: 10px;">读取记忆中...</div>
             </div>
             <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
                 <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
@@ -7660,20 +7661,12 @@ else if (raw.includes('|图片|')) {
             <style> @keyframes nai-loop { to { transform: rotate(360deg); } } </style>
         </div>`;
 
-        msg.setAttribute('data-rendered', 'true');
-        console.log("📍 [Debug] HTML 注入完成，准备启动生图引擎...");
-
-        // 启动引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
-                console.log("📍 [Debug] 正在调用后端 8001 进行翻译生图...");
+                // 此时 window.soulImageEngine 内部已经有了缓存逻辑
                 window.soulImageEngine(msgId, sender, promptText);
-            } else {
-                console.error("📍 [Debug] ❌ 错误：找不到 soulImageEngine 函数！");
             }
-        }, 500);
-    } else {
-        console.error("📍 [Debug] ❌ 错误：正则匹配失败！");
+        }, 300);
     }
 }
 }); // 正确闭合 forEach
