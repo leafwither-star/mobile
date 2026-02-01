@@ -7881,90 +7881,33 @@ if (typeof window.voiceEventBound === 'undefined') {
         }, 2000);
     };
 
-  // --- 智能提速逻辑 (温和隔离版) ---
+  // --- 智能提速逻辑 (图片精准补偿版) ---
 let fastCycles = 0;
 const updateLoop = () => {
-    // --- 样式注入：仅针对生图和红包进行“空间补差” ---
-    if (!document.getElementById('nai-isolation-style')) {
+    // 1. 注入动画基础样式，不碰全局布局
+    if (!document.getElementById('nai-core-anim')) {
         const style = document.createElement('style');
-        style.id = 'nai-isolation-style';
+        style.id = 'nai-core-anim';
         style.innerHTML = `
-            /* 1. 专门为红包/生图建立的透明类，不碰全局 service-card-bubble */
-            .nai-transparent-fix {
-                background: transparent !important;
-                border: none !important;
-                box-shadow: none !important;
-                padding: 0 !important;
-                overflow: visible !important;
-            }
-            .nai-transparent-fix::before, .nai-transparent-fix::after {
-                display: none !important;
-            }
-
-            /* 2. 空间隔离器：通过 58px 的 margin-top 抵消全局 CSS 里的 -54px */
-            .nai-special-container {
-                margin-top: 58px !important; 
-                margin-bottom: 12px !important;
-                margin-left: 0px !important;
-                display: block !important;
+            @keyframes nai-loop { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            .nai-loading-icon { animation: nai-loop 1s linear infinite; }
+            /* 仅针对图片容器：通过 54px 抵消全局 CSS 的拉力，解决重叠 */
+            .nai-image-offset { 
+                margin-top: 54px !important; 
+                margin-bottom: 10px !important;
                 position: relative !important;
-                z-index: 1 !important; /* 强制降低层级，解决穿越输入框问题 */
-                clear: both !important;
-            }
-
-            /* 3. 内部文字容器锁定 */
-            .nai-text-fix {
-                background: transparent !important;
-                padding: 0 !important;
-                display: block !important;
+                z-index: 1 !important; /* 解决穿越输入框的关键：设为 1 */
             }
         `;
         document.head.appendChild(style);
     }
 
-    // 1. 基础逻辑维持
+    // 2. 维持原有脚本的其他分支运行
     if (typeof setupCoreLogic === 'function') setupCoreLogic(); 
     if (typeof runUIUpdate === 'function') runUIUpdate();
 
-    // --- A路：处理普通文本 (红包逻辑整合) ---
-    const allMessages = document.querySelectorAll('.message-text');
-    allMessages.forEach(msg => {
-        const raw = msg.innerText;
-        if (msg.getAttribute('data-rendered') === 'true') return;
-        
-        // 识别红包特征
-        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
-            const bubble = msg.closest('.message-content') || msg.parentElement;
-            
-            // 使用隔离类名，不影响其他分支
-            if (bubble) bubble.classList.add('nai-transparent-fix');
-            msg.classList.add('nai-text-fix');
-
-            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
-            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
-
-            const card = document.createElement('div');
-            card.className = 'nai-special-container beautiful-packet';
-            card.innerHTML = `
-                <div style="font-weight:600;">🧧 ${wish}</div>
-                <div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">
-                    微信红包 (￥${amt})
-                </div>
-            `;
-
-            card.onclick = (e) => { 
-                e.stopPropagation(); 
-                const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
-                if (typeof launch === 'function') launch(wish, amt);
-            };
-
-            msg.innerHTML = ''; 
-            msg.appendChild(card);
-            msg.setAttribute('data-rendered', 'true');
-        }
-    });
-
-    // --- B路：处理 AI 图片容器 (隔离版) ---
+    // --- B路：仅处理 AI 图片容器 ---
+    // 注意：红包请保留你原本的分支 9，不要在这里重复写 A路
     const imageMsgs = document.querySelectorAll('.image-message-content');
     imageMsgs.forEach((msg, index) => { 
         let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
@@ -7973,21 +7916,23 @@ const updateLoop = () => {
         const textKey = promptText.substring(0, 6).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
         const msgId = `nai_v4_${textKey}_${index}`;
 
-        const isAlreadyCard = msg.querySelector('.nai-special-container');
-        if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) return;
+        // 状态检查
+        if (msg.getAttribute('data-rendered') === 'true') return;
 
-        const bubble = msg.closest('.message-content') || msg.parentElement;
-        if (bubble) bubble.classList.add('nai-transparent-fix');
-        msg.classList.add('nai-text-fix');
+        // 获取并处理气泡
+        const bubble = msg.closest('.message-content');
+        if (bubble) {
+            // 复用你老脚本中最稳的样式逻辑
+            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; display:block !important; min-height:0 !important;";
+        }
+        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
 
-        msg.setAttribute('data-raw-prompt', promptText);
-        msg.setAttribute('data-bound-id', msgId);
-        
+        // 渲染 HTML：加入 nai-image-offset 类名来抵消 -54px
         msg.innerHTML = `
-        <div class="nai-special-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <div class="nai-image-offset" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
             <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-                <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
-                <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">正在同步...</span>
+                <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+                <span style="font-size:10px; color:#999; margin-top:8px;">正在生成...</span>
             </div>
             <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
@@ -7995,12 +7940,14 @@ const updateLoop = () => {
         </div>`;
 
         msg.setAttribute('data-rendered', 'true');
+        msg.setAttribute('data-bound-id', msgId);
+        
         setTimeout(() => {
             if (window.soulImageEngine) window.soulImageEngine(msgId, "AI角色", promptText);
         }, 500);
     });
   
-    // 3. 维持频率逻辑
+    // 3. 维持提速频率
     fastCycles++;
     let nextTick = fastCycles < 50 ? 200 : 1000; 
     setTimeout(updateLoop, nextTick);
