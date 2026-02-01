@@ -7976,23 +7976,35 @@ window.soulImageEngine = async function(divId, sender, text) {
     if (!container) return;
 
     try {
-        // 增加随机延迟，防止多个气泡同时请求导致 NAI 报 429 错误
         await new Promise(r => setTimeout(r, Math.random() * 2000));
 
-        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
+        // 注意：去掉之前多写的 http://，保持单一 http://
+        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`, {
+            mode: 'cors', // 明确要求跨域模式
+            cache: 'no-cache'
+        });
         
         if (!response.ok) throw new Error('网络响应不正常');
 
         const blob = await response.blob();
-        const imgUrl = URL.createObjectURL(blob);
+        
+        // 【关键修复点】：检查 blob 的类型，如果后端没给类型，我们手动强制指定
+        const imageBlob = blob.type === "image/png" ? blob : new Blob([blob], { type: 'image/png' });
+        const imgUrl = URL.createObjectURL(imageBlob);
 
-        // 成功拿到图片后，彻底替换掉转圈圈或“传输失败”的文字
-        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
-        console.log(`✅ 图片已渲染到容器: ${divId}`);
+        // 成功拿到图片后，彻底替换内容
+        container.innerHTML = `
+            <img src="${imgUrl}" 
+                 style="width:100%; height:100%; object-fit:cover; border-radius:8px; cursor:pointer;" 
+                 onclick="window.open('${imgUrl}')"
+                 onload="console.log('图片渲染成功！')"
+                 onerror="this.src=''; this.parentElement.innerHTML='<span style=color:orange;font-size:10px;>渲染解码失败</span>'">`;
+        
+        console.log(`✅ 图片已尝试渲染: ${imgUrl}`);
         
     } catch (e) {
         console.error("❌ 前端渲染失败:", e);
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">图片加载失败，请点击编辑重试</span>`;
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">加载失败: ${e.message}</span>`;
     }
 };
 })();
