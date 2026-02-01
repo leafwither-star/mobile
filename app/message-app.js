@@ -7971,23 +7971,28 @@ const updateLoop = () => {
   // ==========================================
 // 🎨 Soul Image Engine (百度翻译签名修正版)
 // ==========================================
-window.soulImageEngine = async function(divId, sender, chineseDesc) {
+window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
+    if (!container) return;
+
     try {
-        // 请求你的服务器 8001 端口，不需要 Key，因为 Key 都在后端藏着
-        const url = `http://43.133.165.233:8001/draw?text=${encodeURIComponent(chineseDesc)}&sender=${encodeURIComponent(sender)}`;
+        // 增加随机延迟，防止多个气泡同时请求导致 NAI 报 429 错误
+        await new Promise(r => setTimeout(r, Math.random() * 2000));
+
+        const response = await fetch(`http://http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
-        // 预加载图片
-        const img = new Image();
-        img.src = url;
-        img.onload = () => {
-            container.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:4px;" onclick="window.open('${url}')">`;
-        };
-        img.onerror = () => {
-            container.innerHTML = `<div style="font-size:10px; color:#ff3b30;">图片传输失败</div>`;
-        };
+        if (!response.ok) throw new Error('网络响应不正常');
+
+        const blob = await response.blob();
+        const imgUrl = URL.createObjectURL(blob);
+
+        // 成功拿到图片后，彻底替换掉转圈圈或“传输失败”的文字
+        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
+        console.log(`✅ 图片已渲染到容器: ${divId}`);
+        
     } catch (e) {
-        console.error("绘图请求异常:", e);
+        console.error("❌ 前端渲染失败:", e);
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">图片加载失败，请点击编辑重试</span>`;
     }
 };
 })();
