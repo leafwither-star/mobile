@@ -6791,10 +6791,10 @@ window.fetchAndPlayVoice = async function(rawLine) {
         audio.onerror = safeRes;
 
         try {
-            // --- 策略 A：首选检索云端藏经阁 ---
-            console.log("[TTS] 尝试从云端调取...");
+            // --- 策略 A：云端检索 (保持快速，手机端才爽) ---
+            console.log("[TTS] 检索云端...");
             const cloudCtrl = new AbortController();
-            const cloudTimer = setTimeout(() => cloudCtrl.abort(), 1500);
+            const cloudTimer = setTimeout(() => cloudCtrl.abort(), 1500); 
             
             const serverCheck = await fetch(`${cloudServerUrl}/get-voice/${voiceFingerprint}`, { 
                 signal: cloudCtrl.signal,
@@ -6809,29 +6809,31 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 audio.play().catch(safeRes);
             } 
             else {
-                // --- 策略 B：云端没有，尝试本地 Cosyvoice ---
-                console.log("💻 云端无档，尝试调取本地模型 (127.0.0.1)...");
+                // --- 策略 B：本地生成 (这里是重点！) ---
+                console.log("💻 云端无档，本地模型开始工作，请稍候...");
                 const localUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
                 
                 const localCtrl = new AbortController();
-                const localTimer = setTimeout(() => localCtrl.abort(), 5000); // 5秒还没生成就放弃
+                // ⭐ 修改点：将超时时间延长到 25 秒，确保你的模型能跑完
+                const localTimer = setTimeout(() => localCtrl.abort(), 25000); 
 
                 const response = await fetch(localUrl, { signal: localCtrl.signal });
+                clearTimeout(localTimer); // 只要连上了就清除定时器
+
                 if (response.ok) {
                     const blob = await response.blob();
+                    console.log("✅ 本地生成完毕，开始播放并准备缓存");
                     window.lastVoiceBlob = blob;
                     window.lastVoiceFP = voiceFingerprint;
                     audio.src = URL.createObjectURL(blob);
                     audio.play().catch(safeRes);
                 } else {
-                    throw new Error("Local TTS Failed");
+                    safeRes();
                 }
-                clearTimeout(localTimer);
             }
         } catch (e) {
-            // 这里就是手机端的终点：连不上 127.0.0.1 会直接跑到这里
-            console.warn("⚠️ 语音获取失败（云端无存档且本地API不可用）");
-            safeRes(); // 释放文字轨道
+            console.warn("⚠️ 任务结束 (云端无档或模型响应超时)");
+            safeRes();
         }
     });
 };
