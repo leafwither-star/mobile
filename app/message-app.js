@@ -6774,8 +6774,8 @@ window.fetchAndPlayVoice = async function(rawLine) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选4" : "陈一众备选1";
-    // 指纹保持一致
-    const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText.substring(0,10))))}`;
+    // 建议改为全量加密，确保指纹唯一性
+const voiceFingerprint = `v_cache_${localSpeaker}_len${cleanText.length}_${btoa(unescape(encodeURIComponent(cleanText))).slice(-20)}`;
     const cloudServerUrl = `http://43.133.165.233:8001`;
 
     return new Promise(async (res) => {
@@ -7753,19 +7753,22 @@ if (!window.voiceEventBound) {
                 if (stableCount >= 3) {
                     clearInterval(waiter);
                     
-                    // 提取纯台词
-                    const cleanContent = currentText.replace(/^\d+:\d+\s*/, '')
-                                                   .replace(/\[.*?\]/g, '')
-                                                   .replace(/[▶\d:：语音\s]+/g, '')
-                                                   .trim();
+                    // 1. 提取纯台词 (精准排除云朵、勾选等图标)
+const cleanContent = currentText
+    .replace(/[☁️✅⏳]/g, '') // 核心修复：直接删掉这几个图标字符
+    .replace(/^\d+:\d+\s*/, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/[▶\d:：语音\s]+/g, '')
+    .trim();
 
-                    if (typeof window.fetchAndPlayVoice === 'function') {
-                        const nameMatch = currentText.match(/\|([^|]+)\|/);
-                        const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
-                        
-                        console.log(`✅ 同步播报启动: ${speaker}`);
-                        // 调用我们昨天修好的 fetchAndPlayVoice，它会自动处理云端检索/本地生成
-                        await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
+if (typeof window.fetchAndPlayVoice === 'function') {
+    const nameMatch = currentText.match(/\|([^|]+)\|/);
+    const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
+    
+    console.log(`✅ 同步播报启动: ${speaker}`);
+    
+    // 2. 这里的参数非常关键，确保传给 fetchAndPlayVoice 的是干净的台词
+    await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
 
                         // --- 核心新增：注入保存按钮 ---
                         // 如果气泡里还没保存按钮，就塞一个进去
