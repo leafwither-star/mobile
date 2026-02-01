@@ -7900,56 +7900,64 @@ const updateLoop = () => {
         }
     });
 
-    // --- B路：处理 AI 图片容器 (防干扰校准版) ---
+    // --- B路：处理 AI 图片容器 (防干扰+绝对唯一ID版) ---
 const imageMsgs = document.querySelectorAll('.image-message-content');
-imageMsgs.forEach((msg) => {
-    // 【核心改进】：优先从属性里拿原始文本，拿不到再抓 innerText
-    // 这样即便 HTML 变成了“同步中...”，我们手里的指令永远是干净的
+imageMsgs.forEach((msg, index) => { // 【补齐 1】：引入 index 确保同内容消息 ID 也不同
+    
+    // 【核心防御】：锁定原始提示词，不受 HTML 状态词干扰
     let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
     
-    // 过滤掉已经变异的文本或太短的内容
-    if (!promptText || promptText.length < 5 || promptText.includes('同步中')) return;
+    // 如果 innerText 已经被污染成“同步中”，则尝试从备份或底部容器恢复
+    if (promptText.includes('同步中') || promptText.includes('等待')) {
+        const backup = msg.querySelector('.nai-prompt-text');
+        if (backup) {
+            promptText = backup.innerText.replace('IMAGE', '').trim();
+        } else {
+            return; // 彻底被污染且无备份，跳过本轮
+        }
+    }
 
-    // 立即把纯净的提示词存起来，防止下一秒被 innerHTML 覆盖
+    if (!promptText || promptText.length < 5) return;
+
+    // 立即锁定原始指令
     msg.setAttribute('data-raw-prompt', promptText);
 
-    // 1. 生成基于纯净内容的唯一 ID
-    const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-    const msgId = `nai_id_${safeId}`;
+    // 【补齐 2】：生成 32 位长指纹，并加入 index，彻底解决“旋转门撞会议室”
+    const safeId = btoa(encodeURIComponent(promptText + index)).replace(/[^a-zA-Z]/g, "").substr(0, 32);
+    const msgId = `nai_v2_${safeId}`;
 
-    // 2. 检查校准状态
+    // 检查校准状态：只有真的是卡片了才跳过
     const isAlreadyCard = msg.querySelector('.service-card-container');
     if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) {
         return; 
     }
 
-    console.log("🛠️ 正在校准/注入生图卡片:", msgId);
+    console.log(`🎨 [准备绘制] 索引:${index} ID:${msgId.substr(0,10)}...`);
 
-    // 3. 样式镇压
+    // 样式镇压与卡片注入
     const bubble = msg.closest('.message-content') || msg.parentElement;
     if (bubble) {
         bubble.classList.add('service-card-bubble');
         bubble.style.background = "transparent"; 
     }
     msg.classList.add('service-card-text');
-
-    // 4. 注入卡片 HTML
     msg.setAttribute('data-bound-id', msgId);
+
     msg.innerHTML = `
     <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position:relative; z-index:10;">
         <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
-            <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">准备同步...</span>
+            <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">等待队列...</span>
         </div>
-        <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
-            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText.substring(0, 30)}...
+        <div class="nai-prompt-text" style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
+            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
         </div>
     </div>
     <style> @keyframes nai-loop { to { transform:rotate(360deg); } } </style>`;
 
     msg.setAttribute('data-rendered', 'true');
 
-    // 5. 唤起生图引擎
+    // 唤起生图引擎
     setTimeout(() => {
         if (window.soulImageEngine) {
             window.soulImageEngine(msgId, "AI角色", promptText);
