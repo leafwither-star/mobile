@@ -7978,20 +7978,21 @@ window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // 1. 检查缓存：如果这个 divId (消息ID) 已经有图了，直接显示
+    // --- 核心逻辑：如果这张图以前生过，直接从内存里拿 ---
     if (window.imageBufferCache[divId]) {
-        console.log("♻️ 从缓存读取图片，跳过请求");
-        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
+        console.log("♻️ 命中缓存，直接显示旧图，不骚扰后端");
+        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
         return;
     }
 
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px;">🎨 正在绘制图像...</span>`;
+    // 如果没生过，显示 loading
+    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在绘制新图像...</span>`;
 
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
         if (response.status === 429) {
-            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 忙碌中 (429)，请稍后再试</span>`;
+            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 忙碌中，请稍后再试</span>`;
             return;
         }
         if (!response.ok) throw new Error('后端响应异常');
@@ -8000,11 +8001,11 @@ window.soulImageEngine = async function(divId, sender, text) {
         const blob = new Blob([arrayBuffer], { type: 'image/png' });
         const imgUrl = URL.createObjectURL(blob);
 
-        // 2. 存入缓存：下次渲染同一条消息时直接用
+        // --- 核心逻辑：把生成的图片 URL 存入缓存 ---
         window.imageBufferCache[divId] = imgUrl;
 
-        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
-        console.log("✅ 图像绘制并缓存成功");
+        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
+        console.log("✅ 图像已绘制并存入本地缓存");
         
     } catch (e) {
         console.error("❌ 渲染失败:", e);
