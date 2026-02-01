@@ -7881,39 +7881,42 @@ if (typeof window.voiceEventBound === 'undefined') {
         }, 2000);
     };
 
-  // --- 智能提速逻辑 (红包 + 图片双接管版) ---
+  // --- 智能提速逻辑 (温和隔离版) ---
 let fastCycles = 0;
 const updateLoop = () => {
-    // --- 样式镇压：消除气泡边框 + 修正红包层级 ---
-    if (!document.getElementById('nai-core-style')) {
+    // --- 样式注入：仅针对生图和红包进行“空间补差” ---
+    if (!document.getElementById('nai-isolation-style')) {
         const style = document.createElement('style');
-        style.id = 'nai-core-style';
+        style.id = 'nai-isolation-style';
         style.innerHTML = `
-            /* 1. 彻底隐藏图片和红包消息的原始气泡框 */
-            .service-card-bubble {
+            /* 1. 专门为红包/生图建立的透明类，不碰全局 service-card-bubble */
+            .nai-transparent-fix {
                 background: transparent !important;
                 border: none !important;
                 box-shadow: none !important;
                 padding: 0 !important;
-                margin-left: 0 !important;
-                max-width: 100% !important;
+                overflow: visible !important;
             }
-            .service-card-bubble::before, .service-card-bubble::after {
+            .nai-transparent-fix::before, .nai-transparent-fix::after {
                 display: none !important;
             }
 
-            /* 2. 修正层级，防止红包/卡片遮挡输入框 */
-            .service-card-text {
-                background: transparent !important;
-                padding: 0 !important;
-                z-index: 1;
+            /* 2. 空间隔离器：通过 58px 的 margin-top 抵消全局 CSS 里的 -54px */
+            .nai-special-container {
+                margin-top: 58px !important; 
+                margin-bottom: 12px !important;
+                margin-left: 0px !important;
+                display: block !important;
+                position: relative !important;
+                z-index: 1 !important; /* 强制降低层级，解决穿越输入框问题 */
+                clear: both !important;
             }
 
-            /* 3. 强制卡片左对齐 */
-            .service-card-container {
-                margin-left: 0px !important;
-                margin-bottom: 10px !important;
-                position: relative;
+            /* 3. 内部文字容器锁定 */
+            .nai-text-fix {
+                background: transparent !important;
+                padding: 0 !important;
+                display: block !important;
             }
         `;
         document.head.appendChild(style);
@@ -7923,22 +7926,45 @@ const updateLoop = () => {
     if (typeof setupCoreLogic === 'function') setupCoreLogic(); 
     if (typeof runUIUpdate === 'function') runUIUpdate();
 
-    // --- A路：处理普通文本 (红包逻辑) ---
+    // --- A路：处理普通文本 (红包逻辑整合) ---
     const allMessages = document.querySelectorAll('.message-text');
     allMessages.forEach(msg => {
         const raw = msg.innerText;
         if (msg.getAttribute('data-rendered') === 'true') return;
         
-        // ---【补齐 A路样式类】---
-        if (raw.includes('|红包|')) {
+        // 识别红包特征
+        if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/)) && !raw.includes('UI_')) {
             const bubble = msg.closest('.message-content') || msg.parentElement;
-            if (bubble) bubble.classList.add('service-card-bubble'); // 必须加这个类名样式才会生效
-            msg.classList.add('service-card-text');
-            // ... 你原本的渲染 HTML 的逻辑 ...
+            
+            // 使用隔离类名，不影响其他分支
+            if (bubble) bubble.classList.add('nai-transparent-fix');
+            msg.classList.add('nai-text-fix');
+
+            const amt = (raw.match(/\d+(\.\d+)?/) || ["8.88"])[0];
+            const wish = raw.split('|')[1]?.replace(']', '').trim() || "恭喜发财";
+
+            const card = document.createElement('div');
+            card.className = 'nai-special-container beautiful-packet';
+            card.innerHTML = `
+                <div style="font-weight:600;">🧧 ${wish}</div>
+                <div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">
+                    微信红包 (￥${amt})
+                </div>
+            `;
+
+            card.onclick = (e) => { 
+                e.stopPropagation(); 
+                const launch = window.launchPerfectPacket || (parent && parent.window && parent.window.launchPerfectPacket);
+                if (typeof launch === 'function') launch(wish, amt);
+            };
+
+            msg.innerHTML = ''; 
+            msg.appendChild(card);
+            msg.setAttribute('data-rendered', 'true');
         }
     });
 
-    // --- B路：处理 AI 图片容器 ---
+    // --- B路：处理 AI 图片容器 (隔离版) ---
     const imageMsgs = document.querySelectorAll('.image-message-content');
     imageMsgs.forEach((msg, index) => { 
         let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
@@ -7947,24 +7973,23 @@ const updateLoop = () => {
         const textKey = promptText.substring(0, 6).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
         const msgId = `nai_v4_${textKey}_${index}`;
 
-        // ---【补齐 B路样式类】---
-        const isAlreadyCard = msg.querySelector('.service-card-container');
+        const isAlreadyCard = msg.querySelector('.nai-special-container');
         if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) return;
 
         const bubble = msg.closest('.message-content') || msg.parentElement;
-        if (bubble) bubble.classList.add('service-card-bubble'); // 必须加这个，消掉图片白边
-        msg.classList.add('service-card-text');
+        if (bubble) bubble.classList.add('nai-transparent-fix');
+        msg.classList.add('nai-text-fix');
 
         msg.setAttribute('data-raw-prompt', promptText);
         msg.setAttribute('data-bound-id', msgId);
         
         msg.innerHTML = `
-        <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <div class="nai-special-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
             <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
                 <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
-                <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">排队同步中...</span>
+                <span class="nai-status-text" style="font-size:10px; color:#999; margin-top:8px;">正在同步...</span>
             </div>
-            <div class="nai-prompt-text" style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
+            <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
             </div>
         </div>`;
