@@ -7974,31 +7974,25 @@ const updateLoop = () => {
 window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px;">🎨 正在解码图像...</span>`;
+
+    container.innerHTML = `<span style="color:#007AFF; font-size:10px;">🎨 正在渲染图像...</span>`;
 
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         if (!response.ok) throw new Error('后端响应异常');
 
+        // 后端现在发的是解压后的纯图片，我们直接转成 Blob 即可
         const arrayBuffer = await response.arrayBuffer();
-        
-        // --- 高效 Base64 转换逻辑 ---
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i += 1024) {
-            // 分块处理，防止大图片导致内存溢出
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 1024));
-        }
-        const base64String = btoa(binary);
-        const dataUrl = `data:image/png;base64,${base64String}`;
+        const blob = new Blob([arrayBuffer], { type: 'image/png' });
+        const imgUrl = URL.createObjectURL(blob);
 
-        // 渲染到容器
-        container.innerHTML = `<img src="${dataUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; cursor:pointer;" onclick="window.open('${dataUrl}')">`;
-        console.log("✅ 图像已通过 Base64 成功穿透拦截");
+        // 直接插入图片
+        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
+        console.log("✅ 图像渲染成功");
         
     } catch (e) {
         console.error("❌ 渲染失败:", e);
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">渲染受阻: ${e.message}</span>`;
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">读取失败: ${e.message}</span>`;
     }
 };
 })();
