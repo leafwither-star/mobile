@@ -7991,32 +7991,52 @@ const updateLoop = () => {
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
 window.imageBufferCache = window.imageBufferCache || {};
+// 【新增】全局并发锁：确保同一时间只有一个请求发往后端
+window.isNaiDrawing = false; 
 
 window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // 1. 检查缓存 (这次检查的是 Base64 数据，永不失效)
+    // 1. 检查缓存 (如果命中了，不需要排队，直接出图)
     if (window.imageBufferCache[divId]) {
         console.log("♻️ 命中永久缓存，秒开图片");
         container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
         return;
     }
 
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在从后端同步图像...</span>`;
+    // 2. 【核心改动】红绿灯逻辑
+    if (window.isNaiDrawing) {
+        console.log("🚦 [排队] 前方有任务正在绘制，5秒后重试...");
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <div style="width:12px; height:12px; border:2px solid #ff9500; border-top-color:transparent; border-radius:50%; animation: nai-loop 1.5s linear infinite;"></div>
+                <span style="color:#ff9500; font-size:9px; margin-top:4px;">排队等待中...</span>
+            </div>`;
+        
+        // 5秒后再次尝试执行本函数
+        setTimeout(() => window.soulImageEngine(divId, sender, text), 5000);
+        return;
+    }
+
+    // 3. 拿到通行权，立刻上锁
+    window.isNaiDrawing = true;
+    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在绘制(独占通道)...</span>`;
 
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
         if (response.status === 429) {
-            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 额度受限(429)，请稍后</span>`;
-            return;
+            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 额度受限，稍后自动重试</span>`;
+            // 遇到429也要释放锁，并给排队的任务留点缓冲时间
+            throw new Error('429');
         }
+        
         if (!response.ok) throw new Error('后端响应异常');
 
         const arrayBuffer = await response.arrayBuffer();
         
-        // --- 核心优化：将二进制转为 Base64 永久存储 ---
+        // Base64 转换逻辑保持不变
         let binary = '';
         const bytes = new Uint8Array(arrayBuffer);
         for (let i = 0; i < bytes.byteLength; i += 1024) {
@@ -8024,15 +8044,20 @@ window.soulImageEngine = async function(divId, sender, text) {
         }
         const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
-        // 2. 存入全局变量 (只要浏览器不刷新，这张图永远不需要生第二次)
         window.imageBufferCache[divId] = base64Data;
-
         container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ 图像已绘制并锁定在本地内存中");
+        console.log("✅ 图像已绘制并释放锁");
         
     } catch (e) {
-        console.error("❌ 渲染失败:", e);
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制失败: ${e.message}</span>`;
+        console.error("❌ 渲染进程中断:", e);
+        // 如果是429，我们不清除 data-rendered，让它由循环再次触发
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制中断: ${e.message}</span>`;
+    } finally {
+        // 4. 【关键】无论成功还是失败，最后必须释放锁
+        // 增加 1 秒的人为延迟，防止 NAI 还没喘过气来
+        setTimeout(() => {
+            window.isNaiDrawing = false;
+        }, 1000);
     }
 };
 })();
