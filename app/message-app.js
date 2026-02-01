@@ -7635,7 +7635,8 @@ else if (raw.includes('|图片|')) {
     if (p) {
         const sender = p[1];
         const promptText = p[3] || "正在传达视觉信号...";
-        const msgId = `nai_img_${Math.random().toString(36).substr(2, 9)}`;
+        const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
+    const msgId = `nai_img_${safeId}`;
 
         console.log(`📍 [Debug] 匹配成功：发送者=${sender}, 内容=${promptText}`);
 
