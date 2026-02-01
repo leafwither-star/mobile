@@ -7623,57 +7623,46 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (强制触发版) ---
+  // --- [分支 11]：AI 生图系统 (封条锁定版) ---
 else if (raw.includes('|图片|')) {
-    // 强制打印，让我们知道脚本确实跑到了这一行
-    console.log("📍 [Debug] 捕获到图片指令，开始尝试渲染...");
-
-    // 暂时注释掉 data-rendered 检查，确保强制执行
-    // if (msg.getAttribute('data-rendered') === 'true') return;
+    // 【第一道锁】：如果该 DOM 节点已经处理过，直接退出
+    if (msg.getAttribute('data-nai-status') === 'done') {
+        return; 
+    }
 
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
         const sender = p[1];
-        const promptText = p[3] || "正在传达视觉信号...";
-        const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-    const msgId = `nai_img_${safeId}`;
+        const promptText = (p[3] || "").trim().replace(/[\r\n]/g, "");
+        
+        // 【第二道锁】：生成固定 ID。只要文字不变，ID 就不变
+        const seed = (sender + promptText).substring(0, 20);
+        const safeId = btoa(encodeURIComponent(seed)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
+        const msgId = `fixed_nai_${safeId}`;
 
-        console.log(`📍 [Debug] 匹配成功：发送者=${sender}, 内容=${promptText}`);
+        // 标记该消息已处理，从此这个 div 在当前会话中就是“静态”的了
+        msg.setAttribute('data-nai-status', 'done');
 
-        // 使用你的“极致镇压”方案
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
-            console.log("📍 [Debug] 已为 bubble 挂载镇压类名");
-        }
+        if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 直接注入 HTML
         msg.innerHTML = `
         <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
             <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
-                <div style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
-                <div style="font-size: 10px; color: #888; margin-top: 10px;">绘制中...</div>
+                <div style="font-size: 10px; color: #888;">🎨 正在排队生图...</div>
             </div>
             <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
                 <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
             </div>
-            <style> @keyframes nai-loop { to { transform: rotate(360deg); } } </style>
         </div>`;
 
-        msg.setAttribute('data-rendered', 'true');
-        console.log("📍 [Debug] HTML 注入完成，准备启动生图引擎...");
-
-        // 启动引擎
+        // 延迟执行，给 DOM 渲染留一点时间
         setTimeout(() => {
             if (window.soulImageEngine) {
-                console.log("📍 [Debug] 正在调用后端 8001 进行翻译生图...");
+                // 此时调用的引擎内部必须带有 window.imageBufferCache 检查
                 window.soulImageEngine(msgId, sender, promptText);
-            } else {
-                console.error("📍 [Debug] ❌ 错误：找不到 soulImageEngine 函数！");
             }
         }, 500);
-    } else {
-        console.error("📍 [Debug] ❌ 错误：正则匹配失败！");
     }
 }
 }); // 正确闭合 forEach
@@ -7982,27 +7971,20 @@ window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // 1. 检查缓存 (这次检查的是 Base64 数据，永不失效)
+    // 如果内存里已经有这张图的数据了，直接显示，不走网络请求
     if (window.imageBufferCache[divId]) {
-        console.log("♻️ 命中永久缓存，秒开图片");
-        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
+        console.log("♻️ 内存命中，秒开图片:", divId);
+        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
         return;
     }
 
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在从后端同步图像...</span>`;
-
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
-        
-        if (response.status === 429) {
-            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 额度受限(429)，请稍后</span>`;
-            return;
-        }
-        if (!response.ok) throw new Error('后端响应异常');
+        if (!response.ok) throw new Error('Network fail');
 
         const arrayBuffer = await response.arrayBuffer();
         
-        // --- 核心优化：将二进制转为 Base64 永久存储 ---
+        // 转为 Base64 永久存储
         let binary = '';
         const bytes = new Uint8Array(arrayBuffer);
         for (let i = 0; i < bytes.byteLength; i += 1024) {
@@ -8010,15 +7992,11 @@ window.soulImageEngine = async function(divId, sender, text) {
         }
         const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
-        // 2. 存入全局变量 (只要浏览器不刷新，这张图永远不需要生第二次)
         window.imageBufferCache[divId] = base64Data;
-
-        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ 图像已绘制并锁定在本地内存中");
-        
+        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+        console.log("✅ 图像已锁定在内存:", divId);
     } catch (e) {
-        console.error("❌ 渲染失败:", e);
-        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制失败: ${e.message}</span>`;
+        container.innerHTML = `<div style="font-size:10px; color:red;">加载失败</div>`;
     }
 };
 })();
