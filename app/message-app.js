@@ -7720,102 +7720,93 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         console.warn("未读外跳分组修正失败:", err);
     }
       
-     // --- 微信语音联动：具备“云存档”功能的增强版 ---
-if (!window.voiceEventBound) {
+     // --- 微信语音联动：V13.1 终极缝合版 ---
+if (typeof window.voiceEventBound === 'undefined') {
+    let isProcessing = false; // 【防抖锁】解决你说的 SSH 触发两次的问题
+
     document.addEventListener('click', async (e) => {
-        // 1. 识别点击目标 (▶ 按钮或语音条)
-        const isVoice = e.target.innerText?.includes('▶') || 
-                        e.target.closest('[class*="voice"]') || 
-                        e.target.closest('[class*="play"]');
-        if (!isVoice) return;
+        const target = e.target;
+        const isVoiceTrigger = target.innerText?.includes('▶') || 
+                              target.closest('[class*="voice"]') || 
+                              target.closest('[class*="play"]');
+        
+        // 如果不是点语音，或者正在处理中，就直接跳过
+        if (!isVoiceTrigger || isProcessing) return;
 
-        // 2. 寻找气泡容器
-        const bubble = e.target.closest('.message-text') || 
-                       e.target.closest('.message-content') || 
-                       e.target.parentElement;
+        // 【关键拦截】阻止事件冒泡和重复触发，解决重音
+        e.stopImmediatePropagation();
+        
+        const bubble = target.closest('.message-text') || target.closest('.message-content') || target.parentElement;
+        if (!bubble) return;
 
-        if (bubble) {
-            console.log("⏳ 捕获语音点击...");
-            let lastText = "";
-            let stableCount = 0;
-            
-            const waiter = setInterval(async () => {
-                const currentText = bubble.innerText;
+        isProcessing = true; // 上锁
+        setTimeout(() => { isProcessing = false; }, 800); // 0.8秒后自动解锁
+
+        console.log("⏳ 捕获语音点击...");
+        let lastText = "";
+        let stableCount = 0;
+        
+        const waiter = setInterval(async () => {
+            const currentText = bubble.innerText || "";
+            if (currentText === lastText && currentText.length > 2) stableCount++;
+            else stableCount = 0;
+            lastText = currentText;
+
+            if (stableCount >= 3) {
+                clearInterval(waiter);
                 
-                // 判定文字是否停止变动
-                if (currentText === lastText && currentText.length > 2) {
-                    stableCount++;
-                } else {
-                    stableCount = 0;
+                // --- 【折叠拦截逻辑在此】 ---
+                const cleanContent = currentText
+                    .replace(/[☁️✅⏳]/g, '') 
+                    .replace(/^\d+:\d+\s*/, '') 
+                    .replace(/\[.*?\]/g, '') 
+                    .replace(/[▶\d:：语音\s]+/g, '') 
+                    .trim();
+
+                // 如果文字被清洗后太短（说明是折叠状态），就拦截
+                if (!cleanContent || cleanContent.length < 2) {
+                    console.log("🛑 检测到文本折叠，已拦截语音触发");
+                    return; 
                 }
-                lastText = currentText;
 
-                if (stableCount >= 3) {
-                    clearInterval(waiter);
+                if (typeof window.fetchAndPlayVoice === 'function') {
+                    const nameMatch = currentText.match(/\|([^|]+)\|/);
+                    const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
                     
-                    // 1. 提取纯台词 (精准排除云朵、勾选等图标)
-const cleanContent = currentText
-    .replace(/[☁️✅⏳]/g, '') // 核心修复：直接删掉这几个图标字符
-    .replace(/^\d+:\d+\s*/, '')
-    .replace(/\[.*?\]/g, '')
-    .replace(/[▶\d:：语音\s]+/g, '')
-    .trim();
+                    console.log(`✅ 校验通过，准备播报: ${speaker}`);
+                    await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
 
-     // 我们设定：如果有效字符少于 2 个，直接拦截，不许播放，也不许匹配指纹。
-if (!cleanContent || cleanContent.length < 2) {
-    console.log("🛑 检测到文本折叠或无效内容，已拦截语音触发");
-    return; 
-}
-                  
-if (typeof window.fetchAndPlayVoice === 'function') {
-    const nameMatch = currentText.match(/\|([^|]+)\|/);
-    const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
-    
-    console.log(`✅ 同步播报启动: ${speaker}`);
-    
-    // 2. 这里的参数非常关键，确保传给 fetchAndPlayVoice 的是干净的台词
-    await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
-
-                        // --- 核心新增：注入保存按钮 ---
-                        // 如果气泡里还没保存按钮，就塞一个进去
-                        if (!bubble.querySelector('.cloud-save-mini')) {
-                            const saveBtn = document.createElement('span');
-                            saveBtn.className = 'cloud-save-mini';
-                            saveBtn.innerHTML = ' ☁️'; // 使用云朵图标，更有存档感
-                            saveBtn.style.cssText = `cursor:pointer; font-size:14px; margin-left:8px; filter:grayscale(1); transition:0.3s;`;
-                            saveBtn.title = "保存此条语音到云端";
-                            
-                            saveBtn.onclick = async (event) => {
-                                event.stopPropagation(); // 防止再次触发播放
-                                if (window.lastVoiceBlob && window.lastVoiceFP) {
-                                    saveBtn.innerText = ' ⏳';
-                                    const formData = new FormData();
-                                    formData.append('file', window.lastVoiceBlob, `${window.lastVoiceFP}.wav`);
-                                    
-                                    try {
-                                        const res = await fetch(`http://43.133.165.233:8001/upload-voice`, {
-                                            method: 'POST',
-                                            body: formData
-                                        });
-                                        if (res.ok) {
-                                            saveBtn.innerHTML = ' ✅';
-                                            saveBtn.style.filter = 'none';
-                                            console.log("🚀 语音已成功存入藏经阁");
-                                        }
-                                    } catch (err) {
-                                        saveBtn.innerHTML = ' ❌';
+                    // --- 注入云端保存按钮 ---
+                    if (!bubble.querySelector('.cloud-save-mini')) {
+                        const saveBtn = document.createElement('span');
+                        saveBtn.className = 'cloud-save-mini';
+                        saveBtn.innerHTML = ' ☁️';
+                        saveBtn.style.cssText = `cursor:pointer; font-size:14px; margin-left:8px; filter:grayscale(1); transition:0.3s;`;
+                        
+                        saveBtn.onclick = async (event) => {
+                            event.stopPropagation(); 
+                            if (window.lastVoiceBlob && window.lastVoiceFP) {
+                                saveBtn.innerText = ' ⏳';
+                                const formData = new FormData();
+                                formData.append('file', window.lastVoiceBlob, `${window.lastVoiceFP}.wav`);
+                                try {
+                                    const res = await fetch(`http://43.133.165.233:8001/upload-voice`, {
+                                        method: 'POST', body: formData
+                                    });
+                                    if (res.ok) {
+                                        saveBtn.innerHTML = ' ✅';
+                                        saveBtn.style.filter = 'none';
+                                        console.log("🚀 存档成功");
                                     }
-                                } else {
-                                    alert("请先完整播放一遍语音再点击保存");
-                                }
-                            };
-                            bubble.appendChild(saveBtn);
-                        }
+                                } catch (err) { saveBtn.innerHTML = ' ❌'; }
+                            } else { alert("请等播报开始后再存"); }
+                        };
+                        bubble.appendChild(saveBtn);
                     }
                 }
-            }, 400);
-        }
-    }, true); 
+            }
+        }, 400);
+    }, true);
     window.voiceEventBound = true;
 }
 };
