@@ -7623,7 +7623,7 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (实时渲染版) ---
+  // --- [分支 11]：AI 生图系统 (极致镇压版) ---
 else if (raw.includes('|图片|')) {
     if (msg.getAttribute('data-rendered') === 'true') return;
 
@@ -7633,33 +7633,44 @@ else if (raw.includes('|图片|')) {
         const promptText = p[3] || "正在传达视觉信号...";
         const msgId = `nai_img_${Math.random().toString(36).substr(2, 9)}`;
 
-        // 1. 彻底抹除旧气泡样式 (参考红包逻辑)
+        // 1. 使用你提供的“极致镇压”类名强行覆盖原作者样式
         if (bubble) {
-            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
+            bubble.classList.add('service-card-bubble'); // 引用你在 CSS 里写的规则
         }
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
+        msg.classList.add('service-card-text');
 
-        // 2. 构建图片卡片容器
-        const card = document.createElement('div');
-        card.className = 'nai-image-container';
-        card.style.cssText = "margin-left: 0px !important; margin-top: 4px; position: relative; z-index: 999; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; cursor: pointer; display: flex; flex-direction: column;";
-
-        card.innerHTML = `
+        // 2. 构建图片卡片 HTML
+        html = `
+        <div class="service-card-container" style="
+            margin-left: 0px !important; 
+            margin-top: 4px; 
+            position: relative; 
+            z-index: 999; 
+            width: 180px; 
+            min-height: 240px; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            background: #e5e5ea; 
+            cursor: pointer; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #eeeeee;">
+            
             <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: #dbdbdb;">
                 <div class="nai-spin" style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
                 <div style="font-size: 10px; color: #888; margin-top: 10px;">绘制中...</div>
             </div>
+            
             <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333; line-height: 1.4; border-top: 1px solid #f0f0f0;">
                 <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
             </div>
             <style>
                 @keyframes nai-loop { to { transform: rotate(360deg); } }
-                .nai-image-container img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s; }
             </style>
-        `;
+        </div>`;
 
-        msg.innerHTML = '';
-        msg.appendChild(card);
+        msg.innerHTML = html;
         msg.setAttribute('data-rendered', 'true');
 
         // 3. 异步调用生图引擎
