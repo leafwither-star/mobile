@@ -7973,40 +7973,48 @@ const updateLoop = () => {
 // 🎨 Soul Image Engine (百度翻译签名修正版)
 // ==========================================
 // 创建一个全局缓存对象，存放在内存里
+// ==========================================
+// 🎨 Soul Image Engine (内存永久驻留版)
+// ==========================================
 window.imageBufferCache = window.imageBufferCache || {};
 
 window.soulImageEngine = async function(divId, sender, text) {
     const container = document.getElementById(divId);
     if (!container) return;
 
-    // --- 核心逻辑：如果这张图以前生过，直接从内存里拿 ---
+    // 1. 检查缓存 (这次检查的是 Base64 数据，永不失效)
     if (window.imageBufferCache[divId]) {
-        console.log("♻️ 命中缓存，直接显示旧图，不骚扰后端");
+        console.log("♻️ 命中永久缓存，秒开图片");
         container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[divId]}')">`;
         return;
     }
 
-    // 如果没生过，显示 loading
-    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在绘制新图像...</span>`;
+    container.innerHTML = `<span style="color:#007AFF; font-size:10px; font-weight:bold;">🎨 正在从后端同步图像...</span>`;
 
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
         
         if (response.status === 429) {
-            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 忙碌中，请稍后再试</span>`;
+            container.innerHTML = `<span style="color:#ff9500; font-size:10px;">⚠️ NAI 额度受限(429)，请稍后</span>`;
             return;
         }
         if (!response.ok) throw new Error('后端响应异常');
 
         const arrayBuffer = await response.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: 'image/png' });
-        const imgUrl = URL.createObjectURL(blob);
+        
+        // --- 核心优化：将二进制转为 Base64 永久存储 ---
+        let binary = '';
+        const bytes = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < bytes.byteLength; i += 1024) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 1024));
+        }
+        const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
-        // --- 核心逻辑：把生成的图片 URL 存入缓存 ---
-        window.imageBufferCache[divId] = imgUrl;
+        // 2. 存入全局变量 (只要浏览器不刷新，这张图永远不需要生第二次)
+        window.imageBufferCache[divId] = base64Data;
 
-        container.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${imgUrl}')">`;
-        console.log("✅ 图像已绘制并存入本地缓存");
+        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
+        console.log("✅ 图像已绘制并锁定在本地内存中");
         
     } catch (e) {
         console.error("❌ 渲染失败:", e);
