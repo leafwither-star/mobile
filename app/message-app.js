@@ -6861,17 +6861,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 <div style="margin-top: 5px; font-size: 13px; opacity: 0.5;">通话中 <span id="soul-timer-v16">00:00</span></div>
                 <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
             </div>
-            <div id="soul-msg-cont" style="width: 90%; 
-    height: 180px; 
-    display: flex; 
-    flex-direction: column-reverse; 
-    align-items: center; 
-    justify-content: flex-start;
-    gap: 12px; 
-    margin: 0 auto;
-    padding-bottom: 10px; 
-    overflow: visible; 
-    pointer-events: none; /* 确保不挡住下方的按钮点击 */"></div>
+            <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
             <div style="margin-bottom: 50px;"><div id="soul-save-btn" style="width: 55px; height: 55px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; color: white; margin-bottom: 20px; transition: 0.3s;" title="锁定这段语音">💾</div><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
         `;
         container.appendChild(overlay);
@@ -7730,62 +7720,95 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
         console.warn("未读外跳分组修正失败:", err);
     }
       
-     // --- 微信语音联动：稳健轮询集成版 ---
-        if (!window.voiceEventBound) {
-            document.addEventListener('click', (e) => {
-                // 1. 识别点击目标
-                const isVoice = e.target.innerText?.includes('▶') || 
-                                e.target.closest('[class*="voice"]') || 
-                                e.target.closest('[class*="play"]');
-                if (!isVoice) return;
+     // --- 微信语音联动：具备“云存档”功能的增强版 ---
+if (!window.voiceEventBound) {
+    document.addEventListener('click', async (e) => {
+        // 1. 识别点击目标 (▶ 按钮或语音条)
+        const isVoice = e.target.innerText?.includes('▶') || 
+                        e.target.closest('[class*="voice"]') || 
+                        e.target.closest('[class*="play"]');
+        if (!isVoice) return;
 
-                // 2. 寻找气泡
-                const bubble = e.target.closest('.message-text') || 
-                               e.target.closest('.message-content') || 
-                               e.target.parentElement;
+        // 2. 寻找气泡容器
+        const bubble = e.target.closest('.message-text') || 
+                       e.target.closest('.message-content') || 
+                       e.target.parentElement;
 
-                if (bubble) {
-                    console.log("⏳ 捕获语音点击，等待文字同步...");
-                    let lastText = "";
-                    let stableCount = 0;
-                    
-                    const waiter = setInterval(() => {
-                        const currentText = bubble.innerText;
-                        
-                        // 判定文字是否停止变动（且长度合理）
-                        if (currentText === lastText && currentText.length > 5) {
-                            stableCount++;
-                        } else {
-                            stableCount = 0;
-                        }
-                        lastText = currentText;
-
-                        // 连续 3 次检查不变则抓取
-                        if (stableCount >= 3) {
-                            clearInterval(waiter);
-                            
-                            // 提取纯台词：剔除时间前缀和杂质
-                            const cleanContent = currentText.replace(/^\d+:\d+\s*/, '')
-                                                           .replace(/\[.*?\]/g, '')
-                                                           .trim();
-
-                            if (typeof window.fetchAndPlayVoice === 'function') {
-                                // 自动判定角色（优先从文本抓，抓不到点默认）
-                                const nameMatch = currentText.match(/\|([^|]+)\|/);
-                                const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
-                                
-                                console.log(`✅ 同步播报启动: ${speaker}`);
-                                window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
-                            }
-                        }
-                    }, 400);
+        if (bubble) {
+            console.log("⏳ 捕获语音点击...");
+            let lastText = "";
+            let stableCount = 0;
+            
+            const waiter = setInterval(async () => {
+                const currentText = bubble.innerText;
+                
+                // 判定文字是否停止变动
+                if (currentText === lastText && currentText.length > 2) {
+                    stableCount++;
+                } else {
+                    stableCount = 0;
                 }
-            }, true); 
-            window.voiceEventBound = true;
-            console.log("🚀 语音同步模块已随界面逻辑启动");
-        }
-    };
+                lastText = currentText;
 
+                if (stableCount >= 3) {
+                    clearInterval(waiter);
+                    
+                    // 提取纯台词
+                    const cleanContent = currentText.replace(/^\d+:\d+\s*/, '')
+                                                   .replace(/\[.*?\]/g, '')
+                                                   .replace(/[▶\d:：语音\s]+/g, '')
+                                                   .trim();
+
+                    if (typeof window.fetchAndPlayVoice === 'function') {
+                        const nameMatch = currentText.match(/\|([^|]+)\|/);
+                        const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
+                        
+                        console.log(`✅ 同步播报启动: ${speaker}`);
+                        // 调用我们昨天修好的 fetchAndPlayVoice，它会自动处理云端检索/本地生成
+                        await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
+
+                        // --- 核心新增：注入保存按钮 ---
+                        // 如果气泡里还没保存按钮，就塞一个进去
+                        if (!bubble.querySelector('.cloud-save-mini')) {
+                            const saveBtn = document.createElement('span');
+                            saveBtn.className = 'cloud-save-mini';
+                            saveBtn.innerHTML = ' ☁️'; // 使用云朵图标，更有存档感
+                            saveBtn.style.cssText = `cursor:pointer; font-size:14px; margin-left:8px; filter:grayscale(1); transition:0.3s;`;
+                            saveBtn.title = "保存此条语音到云端";
+                            
+                            saveBtn.onclick = async (event) => {
+                                event.stopPropagation(); // 防止再次触发播放
+                                if (window.lastVoiceBlob && window.lastVoiceFP) {
+                                    saveBtn.innerText = ' ⏳';
+                                    const formData = new FormData();
+                                    formData.append('file', window.lastVoiceBlob, `${window.lastVoiceFP}.wav`);
+                                    
+                                    try {
+                                        const res = await fetch(`http://43.133.165.233:8001/upload-voice`, {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+                                        if (res.ok) {
+                                            saveBtn.innerHTML = ' ✅';
+                                            saveBtn.style.filter = 'none';
+                                            console.log("🚀 语音已成功存入藏经阁");
+                                        }
+                                    } catch (err) {
+                                        saveBtn.innerHTML = ' ❌';
+                                    }
+                                } else {
+                                    alert("请先完整播放一遍语音再点击保存");
+                                }
+                            };
+                            bubble.appendChild(saveBtn);
+                        }
+                    }
+                }
+            }, 400);
+        }
+    }, true); 
+    window.voiceEventBound = true;
+}
     /**
      * 【第六部分：iOS 横幅通知 (补回此功能)】
      */
