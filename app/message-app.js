@@ -6839,6 +6839,12 @@ window.fetchAndPlayVoice = async function(rawLine) {
 
                 const source = audioCtx.createMediaElementSource(audio);
 
+                // 1. 低通滤波器 (制造闷闷的、电话感)
+                const biquadFilter = audioCtx.createBiquadFilter();
+                biquadFilter.type = "lowpass";
+                // 频率 1200Hz 左右会明显变闷，你可以根据听感调整这个数值 (1000-3000)
+                biquadFilter.frequency.setValueAtTime(3000, audioCtx.currentTime); 
+
                 // 2. 增益节点 (控制音量)
                 const gainNode = audioCtx.createGain();
                 // 设置音量为原来的 90%
