@@ -7908,66 +7908,22 @@ if (typeof window.voiceEventBound === 'undefined') {
 // 🎨 Soul Image Engine (百度翻译签名修正版)
 // ==========================================
 window.soulImageEngine = async function(divId, sender, chineseDesc) {
-    const NAI_KEY = "pst-4lZK9Z8Pwr0RcCo0HhxmubHklrN5zWzyj2R8xrCHPCyUInCzpyDly4I1AowWx8Gb";
-    const BAIDU_APPID = "20260201002551036"; 
-    const BAIDU_KEY = "xJHZ_cgCTviC9IgNyBoc"; 
-
-    // --- 标准 MD5 函数 (百度签名必备) ---
-    function bMD5(string) {
-        function md5_Cycle(x, k) {
-            var a = x[0], b = x[1], c = x[2], d = x[3];
-            a = ff(a, b, c, d, k[0], 7, -680876936); d = ff(d, a, b, c, k[1], 12, -389564586);
-            c = ff(c, d, a, b, k[2], 17, 606105819); b = ff(b, c, d, a, k[3], 22, -1044525330);
-            a = ff(a, b, c, d, k[4], 7, -176418897); d = ff(d, a, b, c, k[5], 12, 1200080426);
-            c = ff(c, d, a, b, k[6], 17, -1473231341); b = ff(b, c, d, a, k[7], 22, -45705983);
-            a = ff(a, b, c, d, k[8], 7, 1770035416); d = ff(d, a, b, c, k[9], 12, -1958414417);
-            c = ff(c, d, a, b, k[10], 17, -42063); b = ff(b, c, d, a, k[11], 22, -1990404162);
-            a = ff(a, b, c, d, k[12], 7, 1804603682); d = ff(d, a, b, c, k[13], 12, -40341101);
-            c = ff(c, d, a, b, k[14], 17, -1502002290); b = ff(b, c, d, a, k[15], 22, 1236535329);
-            // ... (此处省略中间算法，为了代码整洁建议使用简易版或后端转发)
-        }
-        // 由于百度签名较严格，如果前端算力不足，我们优先建议【方案C：直接通过 8001 转发】
-        return "GENERATED_SIGN"; 
-    }
-
-    // ✨ 核心变动：为了避开繁琐的 MD5 签名和浏览器跨域限制 ✨
-    // 我建议你先测试这个“纯净版”，如果百度报错，我们下一步直接改用你的 8001 后端！
-    
-    let englishTags = chineseDesc;
-    const salt = Date.now();
-    // 这里使用 CryptoJS 或者通过后端转发最稳妥
-    // 先尝试请求，若报错则进入后端转发模式
-    console.log(`[生图] 正在为 ${sender} 构图: ${chineseDesc}`);
-
-    // --- NovelAI 默认提示词 ---
-    let characterPreset = "masterpiece, best quality, aesthetic, 1boy, male focus, ";
-    if (sender.includes("陈一众")) {
-        characterPreset += "short black hair, business suit, sharp look, ";
-    } else if (sender.includes("李至中")) {
-        characterPreset += "brown hair, glasses, gentle smile, casual clothes, ";
-    }
-
+    const container = document.getElementById(divId);
     try {
-        const response = await fetch("https://api.novelai.net/ai/generate-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${NAI_KEY}` },
-            body: JSON.stringify({
-                "input": `${characterPreset}, ${chineseDesc}`, // 暂时先传中文，NAI有时能读懂简单的词
-                "model": "nai-diffusion-3",
-                "action": "generate",
-                "parameters": {
-                    "width": 832, "height": 1216, "scale": 6, "sampler": "k_euler_ancestral", "steps": 28
-                }
-            })
-        });
-
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            document.getElementById(divId).innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
-        }
+        // 请求你的服务器 8001 端口，不需要 Key，因为 Key 都在后端藏着
+        const url = `http://43.133.165.233:8001/draw?text=${encodeURIComponent(chineseDesc)}&sender=${encodeURIComponent(sender)}`;
+        
+        // 预加载图片
+        const img = new Image();
+        img.src = url;
+        img.onload = () => {
+            container.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:4px;" onclick="window.open('${url}')">`;
+        };
+        img.onerror = () => {
+            container.innerHTML = `<div style="font-size:10px; color:#ff3b30;">图片传输失败</div>`;
+        };
     } catch (e) {
-        console.error("生图引擎异常", e);
+        console.error("绘图请求异常:", e);
     }
 };
 })();
