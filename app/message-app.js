@@ -7881,9 +7881,44 @@ if (typeof window.voiceEventBound === 'undefined') {
         }, 2000);
     };
 
-   // --- 智能提速逻辑 (红包 + 图片双接管版) ---
+  // --- 智能提速逻辑 (红包 + 图片双接管版) ---
 let fastCycles = 0;
 const updateLoop = () => {
+    // --- 样式镇压：消除气泡边框 + 修正红包层级 ---
+    if (!document.getElementById('nai-core-style')) {
+        const style = document.createElement('style');
+        style.id = 'nai-core-style';
+        style.innerHTML = `
+            /* 1. 彻底隐藏图片和红包消息的原始气泡框 */
+            .service-card-bubble {
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin-left: 0 !important;
+                max-width: 100% !important;
+            }
+            .service-card-bubble::before, .service-card-bubble::after {
+                display: none !important;
+            }
+
+            /* 2. 修正层级，防止红包/卡片遮挡输入框 */
+            .service-card-text {
+                background: transparent !important;
+                padding: 0 !important;
+                z-index: 1;
+            }
+
+            /* 3. 强制卡片左对齐 */
+            .service-card-container {
+                margin-left: 0px !important;
+                margin-bottom: 10px !important;
+                position: relative;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // 1. 基础逻辑维持
     if (typeof setupCoreLogic === 'function') setupCoreLogic(); 
     if (typeof runUIUpdate === 'function') runUIUpdate();
@@ -7894,34 +7929,35 @@ const updateLoop = () => {
         const raw = msg.innerText;
         if (msg.getAttribute('data-rendered') === 'true') return;
         
-        // 这里是你原本的红包判断逻辑 (101_R 等)，保持不动即可
+        // ---【补齐 A路样式类】---
         if (raw.includes('|红包|')) {
-            // ... 原有红包逻辑 ...
+            const bubble = msg.closest('.message-content') || msg.parentElement;
+            if (bubble) bubble.classList.add('service-card-bubble'); // 必须加这个类名样式才会生效
+            msg.classList.add('service-card-text');
+            // ... 你原本的渲染 HTML 的逻辑 ...
         }
     });
 
-    // --- B路：处理 AI 图片容器 (文字内容 ID 版) ---
+    // --- B路：处理 AI 图片容器 ---
     const imageMsgs = document.querySelectorAll('.image-message-content');
     imageMsgs.forEach((msg, index) => { 
-        // 1. 获取纯净提示词
         let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
         if (!promptText || promptText.length < 5 || promptText.includes('同步中')) return;
 
-        // 2. 【核心改动】直接用文字的“缩影”做 ID
-        // 这样“旋转门”和“会议室”的 ID 就会直接变成：nai_id_旋转门_0 和 nai_id_会议室_1
         const textKey = promptText.substring(0, 6).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
         const msgId = `nai_v4_${textKey}_${index}`;
 
-        msg.setAttribute('data-raw-prompt', promptText);
-
-        // 3. 校准检查
+        // ---【补齐 B路样式类】---
         const isAlreadyCard = msg.querySelector('.service-card-container');
         if (msg.getAttribute('data-rendered') === 'true' && isAlreadyCard) return;
 
-        console.log(`📡 [文字识别发车] ID: ${msgId} | 内容: ${promptText.substring(0,10)}...`);
+        const bubble = msg.closest('.message-content') || msg.parentElement;
+        if (bubble) bubble.classList.add('service-card-bubble'); // 必须加这个，消掉图片白边
+        msg.classList.add('service-card-text');
 
-        // 4. 注入卡片
+        msg.setAttribute('data-raw-prompt', promptText);
         msg.setAttribute('data-bound-id', msgId);
+        
         msg.innerHTML = `
         <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
             <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
@@ -7939,12 +7975,11 @@ const updateLoop = () => {
         }, 500);
     });
   
-    // 3. 维持原本的提速频率逻辑
+    // 3. 维持频率逻辑
     fastCycles++;
     let nextTick = fastCycles < 50 ? 200 : 1000; 
     setTimeout(updateLoop, nextTick);
 };
-
     // 立即执行第一次
     updateLoop();
     initNotifications();
