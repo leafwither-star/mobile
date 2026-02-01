@@ -7913,20 +7913,19 @@ const updateLoop = () => {
         }
     });
 
-    // --- B路：处理 AI 图片容器 (解决重绘死循环) ---
+    // --- B路：处理 AI 图片容器 (防撞车独立 ID 版) ---
     const imageMsgs = document.querySelectorAll('.image-message-content');
-    imageMsgs.forEach(msg => {
-        // 第一道锁：节点标记锁
+    imageMsgs.forEach((msg, index) => { // 【改动 1】引入 index
         if (msg.getAttribute('data-rendered') === 'true') return;
 
         const promptText = msg.innerText.trim();
         if (!promptText) return;
 
-        // 第二道锁：内容指纹锁 (取代 Math.random)
-        const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
+        // 【改动 2】指纹升级：文字 + 顺序索引。这样“旋转门”和“会议室”就算同时出现，ID 也绝对不同
+        const safeId = btoa(encodeURIComponent(promptText + index)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
         const msgId = `nai_locked_${safeId}`;
 
-        // 如果内存里已经有这张图了，直接显示并锁定，不再 fetch
+        // 如果内存命中
         if (window.imageBufferCache && window.imageBufferCache[msgId]) {
             msg.setAttribute('data-rendered', 'true');
             const bubble = msg.closest('.message-content') || msg.parentElement;
@@ -7945,9 +7944,9 @@ const updateLoop = () => {
             return; 
         }
 
-        // --- 正常渲染逻辑 (仅在没有缓存时执行) ---
+        // --- 正常渲染逻辑 ---
         const sender = "AI角色"; 
-        console.log("🎨 [新任务] 发现图片请求，正在生成 ID:", msgId);
+        console.log(`🎨 [新任务] 正在为第 ${index} 条消息生成 ID: ${msgId}`);
 
         const bubble = msg.closest('.message-content') || msg.parentElement;
         if (bubble) bubble.classList.add('service-card-bubble');
