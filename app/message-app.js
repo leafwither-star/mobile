@@ -7893,7 +7893,7 @@ const updateLoop = () => {
             .nai-loading-icon { animation: nai-loop 1s linear infinite; }
             /* 仅针对图片容器：通过 54px 抵消全局 CSS 的拉力，解决重叠 */
             .nai-image-offset { 
-                margin-top: 30px !important; 
+                margin-top: 0px !important; 
                 margin-bottom: 10px !important;
                 position: relative !important;
                 z-index: 1 !important; /* 解决穿越输入框的关键：设为 1 */
