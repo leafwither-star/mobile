@@ -7974,33 +7974,63 @@ imageMsgs.forEach((msg) => {
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
+// 1. 确保全局变量在最外层就初始化
+window.imageBufferCache = window.imageBufferCache || {};
+window.isNaiDrawing = window.isNaiDrawing || false;
+
 window.soulImageEngine = async function(divId, sender, text) {
+    // 【新增核心保护】：防止 undefined 导致的报错
+    if (!window.imageBufferCache) window.imageBufferCache = {};
+    
     const container = document.getElementById(divId);
     if (!container) return;
 
-    if (window.imageBufferCache[divId]) {
-        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+    // 检查缓存逻辑增加判空保护
+    if (window.imageBufferCache && window.imageBufferCache[divId]) {
+        console.log("♻️ 命中永久缓存:", divId);
+        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">`;
         return;
     }
 
+    // 排队锁逻辑
     if (window.isNaiDrawing) {
-        // 在 UI 上反馈排队状态
-        const status = container.querySelector('.nai-status-text');
-        if (status) status.innerText = "⏳ 正在排队，请稍后...";
+        console.log("🚦 NAI 忙碌，排队中:", divId);
+        const statusText = container.querySelector('.nai-status-text');
+        if (statusText) statusText.innerText = "⏳ 正在排队等待...";
         setTimeout(() => window.soulImageEngine(divId, sender, text), 3000);
         return;
     }
 
-    window.isNaiDrawing = true; 
-    console.log("📡 [前端已发车] 目标 ID:", divId); // 检查这一行有没有在控制台出现
+    // 正式上锁并发起请求
+    window.isNaiDrawing = true;
+    console.log("🚀 [前端发车] 发往 SSH 后台:", text.substring(0, 15));
 
     try {
         const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
-        // ... 原有的 Base64 处理逻辑 ...
+        
+        if (!response.ok) throw new Error(`后端响应错误: ${response.status}`);
+
+        const arrayBuffer = await response.arrayBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < bytes.byteLength; i += 1024) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 1024));
+        }
+        const base64Data = `data:image/png;base64,${btoa(binary)}`;
+
+        // 存入缓存并渲染
+        window.imageBufferCache[divId] = base64Data;
+        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
+        console.log("✅ 绘制完成:", divId);
+
     } catch (e) {
-        console.error("❌ SSH 请求未到达或后端报错:", e);
+        console.error("❌ 引擎请求失败:", e);
+        container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制失败，稍后重试</span>`;
     } finally {
-        setTimeout(() => { window.isNaiDrawing = false; }, 2000); // 留出呼吸时间
+        // 强制解锁，让队列继续
+        setTimeout(() => {
+            window.isNaiDrawing = false;
+        }, 1500);
     }
 };
 })();
