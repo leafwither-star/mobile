@@ -6861,7 +6861,17 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 <div style="margin-top: 5px; font-size: 13px; opacity: 0.5;">通话中 <span id="soul-timer-v16">00:00</span></div>
                 <canvas id="multi-wave-cvs" width="300" height="60" style="margin-top: 25px; width: 85%;"></canvas>
             </div>
-            <div id="soul-msg-cont" style="width: 100%; height: 260px; display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding-bottom: 20px; overflow:hidden;"></div>
+            <div id="soul-msg-cont" style="width: 90%; 
+    height: 180px; 
+    display: flex; 
+    flex-direction: column-reverse; 
+    align-items: center; 
+    justify-content: flex-start;
+    gap: 12px; 
+    margin: 0 auto;
+    padding-bottom: 10px; 
+    overflow: visible; 
+    pointer-events: none; /* 确保不挡住下方的按钮点击 */"></div>
             <div style="margin-bottom: 50px;"><div id="soul-save-btn" style="width: 55px; height: 55px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; color: white; margin-bottom: 20px; transition: 0.3s;" title="锁定这段语音">💾</div><div id="soul-close-btn" style="width: 65px; height: 65px; background: #ff3b30; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 30px; transform: rotate(135deg); color: white;">📞</div>
         `;
         container.appendChild(overlay);
