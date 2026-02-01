@@ -7623,31 +7623,39 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (强制触发版) ---
+  // --- [分支 11]：AI 生图系统 (防闪烁+内存秒开版) ---
 else if (raw.includes('|图片|')) {
-    // 强制打印，让我们知道脚本确实跑到了这一行
-    console.log("📍 [Debug] 捕获到图片指令，开始尝试渲染...");
-
-    // 暂时注释掉 data-rendered 检查，确保强制执行
-    // if (msg.getAttribute('data-rendered') === 'true') return;
-
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
         const sender = p[1];
-        const promptText = p[3] || "正在传达视觉信号...";
+        const promptText = (p[3] || "正在传达视觉信号...").trim();
+        // 生成指纹 ID
         const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
-    const msgId = `nai_img_${safeId}`;
+        const msgId = `nai_img_${safeId}`;
 
-        console.log(`📍 [Debug] 匹配成功：发送者=${sender}, 内容=${promptText}`);
-
-        // 使用你的“极致镇压”方案
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
-            console.log("📍 [Debug] 已为 bubble 挂载镇压类名");
+        // 【核心改动 1】：如果已经渲染过，且内存里有图，直接显示图片，不要再显示“绘制中”
+        if (window.imageBufferCache && window.imageBufferCache[msgId]) {
+            msg.setAttribute('data-rendered', 'true');
+            if (bubble) bubble.classList.add('service-card-bubble');
+            msg.classList.add('service-card-text');
+            msg.innerHTML = `
+            <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
+                <div style="flex: 1; background: #dbdbdb;">
+                    <img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer;" onclick="window.open('${window.imageBufferCache[msgId]}')">
+                </div>
+                <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
+                    <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
+                </div>
+            </div>`;
+            return; // 搞定，直接退出
         }
+
+        // 【核心改动 2】：如果没有缓存，才显示“绘制中”动画
+        if (msg.getAttribute('data-rendered') === 'true') return;
+
+        if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 直接注入 HTML
         msg.innerHTML = `
         <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
             <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
@@ -7661,19 +7669,12 @@ else if (raw.includes('|图片|')) {
         </div>`;
 
         msg.setAttribute('data-rendered', 'true');
-        console.log("📍 [Debug] HTML 注入完成，准备启动生图引擎...");
 
-        // 启动引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
-                console.log("📍 [Debug] 正在调用后端 8001 进行翻译生图...");
                 window.soulImageEngine(msgId, sender, promptText);
-            } else {
-                console.error("📍 [Debug] ❌ 错误：找不到 soulImageEngine 函数！");
             }
         }, 500);
-    } else {
-        console.error("📍 [Debug] ❌ 错误：正则匹配失败！");
     }
 }
 }); // 正确闭合 forEach
@@ -7893,53 +7894,69 @@ if (typeof window.voiceEventBound === 'undefined') {
         }, 2000);
     };
 
-    // --- 智能提速逻辑 (红包 + 图片双接管版) ---
+   // --- 智能提速逻辑 (红包 + 图片双接管版) ---
 let fastCycles = 0;
 const updateLoop = () => {
-    // 1. 运行原本的列表排序、红点置顶逻辑
-    setupCoreLogic(); 
-    runUIUpdate();
+    // 1. 基础逻辑维持
+    if (typeof setupCoreLogic === 'function') setupCoreLogic(); 
+    if (typeof runUIUpdate === 'function') runUIUpdate();
 
-    // 2. 【双路扫描系统】
-    // A路：扫描普通消息 (处理红包)
+    // --- A路：处理普通文本 (红包逻辑) ---
     const allMessages = document.querySelectorAll('.message-text');
     allMessages.forEach(msg => {
         const raw = msg.innerText;
         if (msg.getAttribute('data-rendered') === 'true') return;
-
-        // 保留你原本的红包判断逻辑
+        
+        // 这里是你原本的红包判断逻辑 (101_R 等)，保持不动即可
         if (raw.includes('|红包|')) {
-            // 这里不需要改动，会自动跑你之前的红包渲染逻辑
+            // ... 原有红包逻辑 ...
         }
     });
 
-    // B路：扫描原作者的图片容器 (处理 AI 生图)
+    // --- B路：处理 AI 图片容器 (解决重绘死循环) ---
     const imageMsgs = document.querySelectorAll('.image-message-content');
     imageMsgs.forEach(msg => {
-        // 如果已经处理过，或者已经被标记，则跳过
+        // 第一道锁：节点标记锁
         if (msg.getAttribute('data-rendered') === 'true') return;
 
         const promptText = msg.innerText.trim();
         if (!promptText) return;
 
-        // 这里的 sender 逻辑：尝试向上找作者名，找不到就默认
-        const sender = "AI角色"; 
-        const msgId = `img_${Math.random().toString(36).substr(2, 5)}`;
+        // 第二道锁：内容指纹锁 (取代 Math.random)
+        const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
+        const msgId = `nai_locked_${safeId}`;
 
-        console.log("🎨 发现图片容器，正在覆盖渲染:", promptText);
-
-        // 极致镇压 CSS：强行让原作者的气泡透明，换上我们的卡片
-        const bubble = msg.closest('.message-content') || msg.parentElement;
-        if (bubble) {
-            bubble.classList.add('service-card-bubble');
+        // 如果内存里已经有这张图了，直接显示并锁定，不再 fetch
+        if (window.imageBufferCache && window.imageBufferCache[msgId]) {
+            msg.setAttribute('data-rendered', 'true');
+            const bubble = msg.closest('.message-content') || msg.parentElement;
+            if (bubble) bubble.classList.add('service-card-bubble');
+            msg.classList.add('service-card-text');
+            
+            msg.innerHTML = `
+            <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important;">
+                <div id="${msgId}" style="flex:1; background:#f5f5f7;">
+                    <img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                </div>
+                <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
+                    <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
+                </div>
+            </div>`;
+            return; 
         }
+
+        // --- 正常渲染逻辑 (仅在没有缓存时执行) ---
+        const sender = "AI角色"; 
+        console.log("🎨 [新任务] 发现图片请求，正在生成 ID:", msgId);
+
+        const bubble = msg.closest('.message-content') || msg.parentElement;
+        if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 注入生图卡片 HTML
         msg.innerHTML = `
         <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column; position:relative;">
-                <div class="nai-spin" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
+            <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                <div style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
                 <span style="font-size:10px; color:#999; margin-top:8px;">AI 画布绘制中...</span>
             </div>
             <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
@@ -7948,10 +7965,8 @@ const updateLoop = () => {
         </div>
         <style> @keyframes nai-loop { to { transform:rotate(360deg); } } </style>`;
 
-        // 标记已处理
         msg.setAttribute('data-rendered', 'true');
 
-        // 调用后端引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
                 window.soulImageEngine(msgId, sender, promptText);
