@@ -7892,18 +7892,61 @@ if (typeof window.voiceEventBound === 'undefined') {
         }, 2000);
     };
 
-    // --- 智能提速逻辑 ---
-    let fastCycles = 0;
-    const updateLoop = () => {
-        setupCoreLogic();
-        runUIUpdate();
+    // --- 智能提速逻辑（缝合生图功能版） ---
+let fastCycles = 0;
+const updateLoop = () => {
+    // 1. 运行你原本的列表排序和红点逻辑
+    setupCoreLogic();
+    runUIUpdate();
+
+    // 2. 【核心新增】：扫描当前的聊天气泡，寻找图片指令
+    const allMessages = document.querySelectorAll('.message-text');
+    allMessages.forEach(msg => {
+        const raw = msg.innerText;
         
-        // 前 10 秒采用高频扫描（200ms一次），确保秒变红包
-        // 10 秒后恢复正常频率（1s一次），节省性能
-        fastCycles++;
-        let nextTick = fastCycles < 50 ? 200 : 1000; 
-        setTimeout(updateLoop, nextTick);
-    };
+        // 判定条件：包含“|图片|”且还没被渲染过
+        if (raw.includes('|图片|') && !msg.getAttribute('data-rendered')) {
+            const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
+            if (p) {
+                const sender = p[1];
+                const promptText = p[3];
+                const msgId = `img_${Math.random().toString(36).substr(2, 5)}`;
+                
+                // 极致镇压：抹除原作者气泡背景
+                const bubble = msg.closest('.message-content') || msg.parentElement;
+                if (bubble) bubble.classList.add('service-card-bubble');
+                msg.classList.add('service-card-text');
+
+                // 注入图片卡片 HTML
+                msg.innerHTML = `
+                <div class="service-card-container" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; margin-left:0px !important; box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+                    <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column; position:relative;">
+                        <div class="nai-spin" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
+                        <span style="font-size:10px; color:#999; margin-top:8px;">AI 正在生成图片...</span>
+                    </div>
+                    <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
+                        <b style="color:#007AFF; font-size:9px; margin-right:4px;">IMAGE</b> ${promptText}
+                    </div>
+                </div>
+                <style>@keyframes nai-loop { to { transform:rotate(360deg); } }</style>`;
+
+                msg.setAttribute('data-rendered', 'true');
+
+                // 调用生图引擎
+                setTimeout(() => {
+                    if (window.soulImageEngine) {
+                        window.soulImageEngine(msgId, sender, promptText);
+                    }
+                }, 400);
+            }
+        }
+    });
+
+    // 3. 维持原本的提速逻辑
+    fastCycles++;
+    let nextTick = fastCycles < 50 ? 200 : 1000; 
+    setTimeout(updateLoop, nextTick);
+};
 
     // 立即执行第一次
     updateLoop();
