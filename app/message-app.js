@@ -6774,7 +6774,8 @@ window.fetchAndPlayVoice = async function(rawLine) {
     }
 
     const localSpeaker = speakerName.includes("李至中") ? "李至中备选7" : "陈一众备选1";
-    const voiceFingerprint = `v_cache_${localSpeaker}_${btoa(unescape(encodeURIComponent(cleanText))).replace(/[/+=]/g, "").slice(-30)}`;
+    // 建议改为全量加密，确保指纹唯一性
+const voiceFingerprint = `v_cache_${localSpeaker}_${btoa(unescape(encodeURIComponent(cleanText))).replace(/[/+=]/g, "").slice(-30)}`;
     const cloudServerUrl = `http://43.133.165.233:8001`;
 
     return new Promise(async (res) => {
@@ -6790,7 +6791,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
         audio.onerror = safeRes;
 
         try {
-            // --- 策略 A：云端检索 ---
+            // --- 策略 A：云端检索 (保持快速，手机端才爽) ---
             console.log("[TTS] 检索云端...");
             const cloudCtrl = new AbortController();
             const cloudTimer = setTimeout(() => cloudCtrl.abort(), 1500); 
@@ -6805,64 +6806,33 @@ window.fetchAndPlayVoice = async function(rawLine) {
                 console.log("🏰 命中云端存档！");
                 const blob = await serverCheck.blob();
                 audio.src = URL.createObjectURL(blob);
+                audio.play().catch(safeRes);
             } 
             else {
-                // --- 策略 B：本地生成 ---
-                console.log("💻 云端无档，本地模型开始工作...");
+                // --- 策略 B：本地生成 (这里是重点！) ---
+                console.log("💻 云端无档，本地模型开始工作，请稍候...");
                 const localUrl = `http://127.0.0.1:9880/?text=${encodeURIComponent(cleanText)}&speaker=${encodeURIComponent(localSpeaker)}`;
+                
                 const localCtrl = new AbortController();
+                // ⭐ 修改点：将超时时间延长到 25 秒，确保你的模型能跑完
                 const localTimer = setTimeout(() => localCtrl.abort(), 25000); 
 
                 const response = await fetch(localUrl, { signal: localCtrl.signal });
-                clearTimeout(localTimer);
+                clearTimeout(localTimer); // 只要连上了就清除定时器
 
                 if (response.ok) {
                     const blob = await response.blob();
+                    console.log("✅ 本地生成完毕，开始播放并准备缓存");
                     window.lastVoiceBlob = blob;
                     window.lastVoiceFP = voiceFingerprint;
                     audio.src = URL.createObjectURL(blob);
+                    audio.play().catch(safeRes);
                 } else {
-                    return safeRes();
+                    safeRes();
                 }
             }
-
-            // ==========================================
-            // ⭐ 核心新增：实时调音台逻辑 (加在这里)
-            // ==========================================
-            if (speakerName.includes("李至中")) {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // 必须在 AudioContext 挂载到 source 前确保其是运行状态
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
-                }
-
-                const source = audioCtx.createMediaElementSource(audio);
-
-                // 1. 低通滤波器 (制造闷闷的、电话感)
-                const biquadFilter = audioCtx.createBiquadFilter();
-                biquadFilter.type = "lowpass";
-                // 频率 1200Hz 左右会明显变闷，你可以根据听感调整这个数值 (1000-3000)
-                biquadFilter.frequency.setValueAtTime(3000, audioCtx.currentTime); 
-
-                // 2. 增益节点 (控制音量)
-                const gainNode = audioCtx.createGain();
-                // 设置音量为原来的 90%
-                gainNode.gain.setValueAtTime(0.95, audioCtx.currentTime); 
-
-                // 3. 串联插件：源 -> 滤波器 -> 音量控制 -> 扬声器
-                source.connect(biquadFilter);
-                biquadFilter.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                
-                console.log("🎧 已为李至中开启实时滤镜：变闷 + 降低音量");
-            }
-
-            // 播放
-            audio.play().catch(safeRes);
-
         } catch (e) {
-            console.warn("⚠️ 任务结束 (报错或超时)");
+            console.warn("⚠️ 任务结束 (云端无档或模型响应超时)");
             safeRes();
         }
     });
