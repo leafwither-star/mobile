@@ -7754,48 +7754,46 @@ if (!window.voiceEventBound) {
                 if (stableCount >= 3) {
                     clearInterval(waiter);
                     
-                    // 1. 提取纯台词 (精准排除云朵、勾选等图标)
-const cleanContent = currentText
-    .replace(/[☁️✅⏳]/g, '') // 删掉图标
-    .replace(/^\d+:\d+\s*/, '')
-    .replace(/\[.*?\]/g, '')
-    .replace(/[▶\d:：语音\s]+/g, '')
-    .trim();
+                    // 1. 提取纯台词 (精准排除图标)
+                    const cleanContent = currentText
+                        .replace(/[☁️✅⏳]/g, '')
+                        .replace(/^\d+:\d+\s*/, '')
+                        .replace(/\[.*?\]/g, '')
+                        .replace(/[▶\d:：语音\s]+/g, '')
+                        .trim();
 
-// --- 【核心新增：防空保护】 ---
-// 如果折叠了，cleanContent 会非常短或为空。
-// 我们设定：如果有效字符少于 2 个，直接拦截，不许播放，也不许匹配指纹。
-if (!cleanContent || cleanContent.length < 2) {
-    console.log("🛑 检测到文本折叠或无效内容，已拦截语音触发");
-    return; 
-}
+                    // --- 【核心防空保护】 ---
+                    if (!cleanContent || cleanContent.length < 2) {
+                        console.log("🛑 检测到文本折叠或无效内容，已拦截语音触发");
+                        return; 
+                    }
 
-if (typeof window.fetchAndPlayVoice === 'function') {
-    const nameMatch = currentText.match(/\|([^|]+)\|/);
-    const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
-    
-    console.log(`✅ 同步播报启动: ${speaker}`);
-    
-    // 2. 这里的参数非常关键，确保传给 fetchAndPlayVoice 的是干净的台词
-    await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
+                    if (typeof window.fetchAndPlayVoice === 'function') {
+                        const nameMatch = currentText.match(/\|([^|]+)\|/);
+                        const speaker = nameMatch ? nameMatch[1] : (currentText.includes('李至中') ? '李至中' : '陈一众');
+                        
+                        console.log(`✅ 同步播报启动: ${speaker}`);
+                        
+                        // 2. 调用播放与缓存逻辑
+                        await window.fetchAndPlayVoice(`${speaker}：${cleanContent}`);
 
-                        // --- 核心新增：注入保存按钮 ---
-                        // 如果气泡里还没保存按钮，就塞一个进去
+                        // --- 3. 注入保存按钮 ---
                         if (!bubble.querySelector('.cloud-save-mini')) {
                             const saveBtn = document.createElement('span');
                             saveBtn.className = 'cloud-save-mini';
-                            saveBtn.innerHTML = ' ☁️'; // 使用云朵图标，更有存档感
+                            saveBtn.innerHTML = ' ☁️';
                             saveBtn.style.cssText = `cursor:pointer; font-size:14px; margin-left:8px; filter:grayscale(1); transition:0.3s;`;
                             saveBtn.title = "保存此条语音到云端";
                             
                             saveBtn.onclick = async (event) => {
-                                event.stopPropagation(); // 防止再次触发播放
+                                event.stopPropagation(); 
                                 if (window.lastVoiceBlob && window.lastVoiceFP) {
                                     saveBtn.innerText = ' ⏳';
                                     const formData = new FormData();
                                     formData.append('file', window.lastVoiceBlob, `${window.lastVoiceFP}.wav`);
                                     
                                     try {
+                                        // 这里统一使用 upload-voice 接口，后端 V11 已做全兼容
                                         const res = await fetch(`http://43.133.165.233:8001/upload-voice`, {
                                             method: 'POST',
                                             body: formData
@@ -7821,7 +7819,6 @@ if (typeof window.fetchAndPlayVoice === 'function') {
     }, true); 
     window.voiceEventBound = true;
 }
-};
     /**
      * 【第六部分：iOS 横幅通知 (补回此功能)】
      */
