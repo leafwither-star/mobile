@@ -14,8 +14,8 @@ class ForumManager {
     this.currentSettings = {
       enabled: true,
       selectedStyle: '贴吧老哥',
-      autoUpdate: true,
-      threshold: 10,
+      autoUpdate: false,  // 🟢 重点：改为 false，它就再也不会自动偷跑了
+      threshold: 999999, // 🟢 顺便把阈值拉满，双重保险
       apiConfig: {
         url: '',
         apiKey: '',
