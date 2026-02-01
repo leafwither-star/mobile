@@ -6773,7 +6773,7 @@ window.fetchAndPlayVoice = async function(rawLine) {
         cleanText = rawLine.trim();
     }
 
-    const localSpeaker = speakerName.includes("李至中") ? "李至中备选6" : "陈一众备选1";
+    const localSpeaker = speakerName.includes("李至中") ? "李至中备选7" : "陈一众备选1";
     // 建议改为全量加密，确保指纹唯一性
 const voiceFingerprint = `v_cache_${localSpeaker}_${btoa(unescape(encodeURIComponent(cleanText))).replace(/[/+=]/g, "").slice(-30)}`;
     const cloudServerUrl = `http://43.133.165.233:8001`;
