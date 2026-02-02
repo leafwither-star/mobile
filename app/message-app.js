@@ -8075,7 +8075,8 @@ window.reDraw = function(msgId, text, sender) {
     // 4. 调用引擎 (传入随机 Seed + 强制刷新 force)
     const newSeed = Math.floor(Math.random() * 4294967295);
     if (window.soulImageEngine) {
-        window.soulImageEngine(msgId, sender, finalPrompt, newSeed, true);
+        // 修改后：强制将 msgId 作为第二个参数传进去
+window.soulImageEngine(msgId, msgId, finalPrompt, newSeed, true);
     } else {
         console.error("❌ 引擎未就绪");
     }
