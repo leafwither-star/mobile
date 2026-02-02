@@ -7978,20 +7978,19 @@ imageMsgs.forEach((msg, index) => {
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
-// 1. 确保全局变量初始化
-window.imageBufferCache = window.imageBufferCache || {};
-window.isNaiDrawing = window.isNaiDrawing || false;
-
 window.soulImageEngine = async function(msgId, sender, text, seed = null, force = false) {
-    // 【纠错点】：统一使用 msgId，并判空
     if (!msgId) return;
     const container = document.getElementById(msgId);
     if (!container) return;
 
-    // 2. 缓存逻辑：只有在 force 为 false 时才走缓存
-    if (!force && window.imageBufferCache[msgId]) {
-        console.log("♻️ 命中前端缓存:", msgId);
-        container.innerHTML = `<img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">`;
+    // --- [核心修改点]：构造更强唯一的 CacheKey ---
+    // 结合 msgId 和 text 的前 10 个字，防止不同内容命中同一个 ID 缓存
+    const cacheKey = `${msgId}_${text.substring(0, 10)}`;
+
+    // 2. 缓存逻辑
+    if (!force && window.imageBufferCache[cacheKey]) {
+        console.log("♻️ 精准命中前端缓存:", cacheKey);
+        container.innerHTML = `<img src="${window.imageBufferCache[cacheKey]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">`;
         return;
     }
 
@@ -8023,8 +8022,15 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
         }
         const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
-        // 存入前端缓存
-        window.imageBufferCache[msgId] = base64Data;
+        // --- 修正后的存入与展示逻辑 ---
+        
+        // 1. 使用 base64Data 存入缓存，对应我们定义的 cacheKey
+        window.imageBufferCache[cacheKey] = base64Data;
+        
+        // 2. 渲染图片，注意这里也用 base64Data
+        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
+        
+        console.log("✅ 绘制完成并同步缓存:", cacheKey); // 建议这里也打印 cacheKey 方便调试
         
         // 渲染图片（支持点击放大预览）
         container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
