@@ -7906,46 +7906,65 @@ const updateLoop = () => {
     if (typeof setupCoreLogic === 'function') setupCoreLogic(); 
     if (typeof runUIUpdate === 'function') runUIUpdate();
 
-    // --- B路：仅处理 AI 图片容器 ---
-    // 注意：红包请保留你原本的分支 9，不要在这里重复写 A路
-    const imageMsgs = document.querySelectorAll('.image-message-content');
-    imageMsgs.forEach((msg, index) => { 
-        let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
-        if (!promptText || promptText.length < 5 || promptText.includes('同步中')) return;
+    // --- B路：处理 AI 图片容器 (交互进化最终版) ---
+const imageMsgs = document.querySelectorAll('.image-message-content');
+imageMsgs.forEach((msg, index) => { 
+    let promptText = msg.getAttribute('data-raw-prompt') || msg.innerText.trim();
+    if (!promptText || promptText.length < 5 || promptText.includes('同步中')) return;
 
-        const textKey = promptText.substring(0, 6).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-        const msgId = `nai_v4_${textKey}_${index}`;
+    // 1. 生成唯一 ID
+    const textKey = promptText.substring(0, 6).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+    const msgId = `nai_v4_${textKey}_${index}`;
 
-        // 状态检查
-        if (msg.getAttribute('data-rendered') === 'true') return;
+    // 2. 状态锁：如果已经渲染过我们的卡片结构，就不要动了
+    if (msg.querySelector('.nai-image-card')) return;
 
-        // 获取并处理气泡
-        const bubble = msg.closest('.message-content');
-        if (bubble) {
-            // 复用你老脚本中最稳的样式逻辑
-            bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; display:block !important; min-height:0 !important;";
-        }
-        msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
+    // 3. 气泡样式清理 (保持 0px 对齐)
+    const bubble = msg.closest('.message-content');
+    if (bubble) {
+        bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; display:block !important; min-height:0 !important;";
+    }
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
 
-        // 渲染 HTML：加入 nai-image-offset 类名来抵消 -54px
-        msg.innerHTML = `
-        <div class="nai-image-offset" style="width:185px; min-height:240px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
-            <div id="${msgId}" style="flex:1; background:#f5f5f7; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-                <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-                <span style="font-size:10px; color:#999; margin-top:8px;">正在生成...</span>
-            </div>
-            <div style="padding:10px; font-size:11px; color:#333; background:#fff; border-top:1px solid #f0f0f0;">
-                <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">IMAGE</span> ${promptText}
-            </div>
-        </div>`;
+    // 4. 识别发送者
+    const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-        msg.setAttribute('data-rendered', 'true');
-        msg.setAttribute('data-bound-id', msgId);
+    // 5. 注入带【重画/存档/微调】功能的 HTML
+    msg.innerHTML = `
+    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
+        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+            <span style="font-size:10px; color:#999; margin-left:8px;">准备中...</span>
+        </div>
         
-        setTimeout(() => {
-            if (window.soulImageEngine) window.soulImageEngine(msgId, "AI角色", promptText);
-        }, 500);
-    });
+        <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-bottom:1px solid #f0f0f0; background:#fff;">
+            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
+        </div>
+
+        <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-bottom:1px solid #f0f0f0;">
+            <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
+            <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+        </div>
+        
+        <div style="padding:8px; background:#fafafa;">
+            <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                   style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
+        </div>
+    </div>`;
+
+    msg.setAttribute('data-rendered', 'true');
+    msg.setAttribute('data-bound-id', msgId);
+
+    // 6. 智能启动：如果本地没缓存，才自动触发第一次生成
+    setTimeout(() => {
+        if (!localStorage.getItem(`cache_${msgId}`)) {
+            if (window.soulImageEngine) window.soulImageEngine(msgId, senderName, promptText);
+        } else {
+            // 如果有缓存，引擎内部会处理直接读取
+            window.soulImageEngine(msgId, senderName, promptText);
+        }
+    }, 500);
+});
   
     // 3. 维持提速频率
     fastCycles++;
@@ -7963,39 +7982,40 @@ const updateLoop = () => {
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
-// 1. 确保全局变量在最外层就初始化
+// 1. 确保全局变量初始化
 window.imageBufferCache = window.imageBufferCache || {};
 window.isNaiDrawing = window.isNaiDrawing || false;
 
-window.soulImageEngine = async function(divId, sender, text) {
-    // 【新增核心保护】：防止 undefined 导致的报错
-    if (!window.imageBufferCache) window.imageBufferCache = {};
-    
-    const container = document.getElementById(divId);
+window.soulImageEngine = async function(msgId, sender, text, seed = null, force = false) {
+    // 【纠错点】：统一使用 msgId，并判空
+    if (!msgId) return;
+    const container = document.getElementById(msgId);
     if (!container) return;
 
-    // 检查缓存逻辑增加判空保护
-    if (window.imageBufferCache && window.imageBufferCache[divId]) {
-        console.log("♻️ 命中永久缓存:", divId);
-        container.innerHTML = `<img src="${window.imageBufferCache[divId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">`;
+    // 2. 缓存逻辑：只有在 force 为 false 时才走缓存
+    if (!force && window.imageBufferCache[msgId]) {
+        console.log("♻️ 命中前端缓存:", msgId);
+        container.innerHTML = `<img src="${window.imageBufferCache[msgId]}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">`;
         return;
     }
 
-    // 排队锁逻辑
+    // 3. 排队锁逻辑
     if (window.isNaiDrawing) {
-        console.log("🚦 NAI 忙碌，排队中:", divId);
-        const statusText = container.querySelector('.nai-status-text');
-        if (statusText) statusText.innerText = "⏳ 正在排队等待...";
-        setTimeout(() => window.soulImageEngine(divId, sender, text), 3000);
+        console.log("🚦 NAI 忙碌，排队中:", msgId);
+        container.innerHTML = `<div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div><span style="font-size:10px; color:#999; margin-top:8px;">排队生成中...</span>`;
+        setTimeout(() => window.soulImageEngine(msgId, sender, text, seed, force), 3000);
         return;
     }
 
-    // 正式上锁并发起请求
     window.isNaiDrawing = true;
-    console.log("🚀 [前端发车] 发往 SSH 后台:", text.substring(0, 15));
+    console.log("🚀 [前端发车] 发往服务器:", text.substring(0, 15));
 
+    // 4. 【核心修正】：构造包含 seed 和 force 的新 URL
+    const url = `http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}&seed=${seed || ''}&force=${force}`;
+    
     try {
-        const response = await fetch(`http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}`);
+        // 【关键】：这里必须传入上面定义的 url 变量
+        const response = await fetch(url);
         
         if (!response.ok) throw new Error(`后端响应错误: ${response.status}`);
 
@@ -8007,19 +8027,19 @@ window.soulImageEngine = async function(divId, sender, text) {
         }
         const base64Data = `data:image/png;base64,${btoa(binary)}`;
 
-        // 存入缓存并渲染
-        window.imageBufferCache[divId] = base64Data;
+        // 存入前端缓存
+        window.imageBufferCache[msgId] = base64Data;
+        
+        // 渲染图片（支持点击放大预览）
         container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ 绘制完成:", divId);
+        console.log("✅ 绘制完成并同步存档:", msgId);
 
     } catch (e) {
         console.error("❌ 引擎请求失败:", e);
         container.innerHTML = `<span style="color:#ff4d4f; font-size:10px;">绘制失败，稍后重试</span>`;
     } finally {
-        // 强制解锁，让队列继续
-        setTimeout(() => {
-            window.isNaiDrawing = false;
-        }, 1500);
+        // 5. 强制解锁
+        setTimeout(() => { window.isNaiDrawing = false; }, 1000);
     }
 };
 })();
