@@ -8038,87 +8038,70 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
         setTimeout(() => { window.isNaiDrawing = false; }, 1000);
     }
 };
-  // --- [交互核心函数：紧跟在 soulImageEngine 之后] ---
+  // ==========================================
+// 🎮 交互核心函数 (重画 + 存档)
+// ==========================================
 
 window.reDraw = function(msgId, text, sender) {
-    console.log("🎲 触发重画逻辑:", msgId);
-    
-    // 1. 获取微调输入框的内容
+    // 1. 精准抓取输入框内容 (修复提示词不生效的关键)
     const input = document.getElementById(`refine-${msgId}`);
     const refineText = input ? input.value.trim() : "";
     
-    // 2. 构造最终提示词
+    console.log("🎲 触发重画逻辑，容器ID:", msgId);
+    console.log("✍️ 抓取到的中文微调:", refineText); 
+    
+    // 2. 构造带“要求：”的复合提示词，发给后端翻译
     const finalPrompt = refineText ? `${text}，要求：${refineText}` : text;
     
-    // 3. UI 反馈：容器变回加载动画
+    // 3. UI 状态切换
     const container = document.getElementById(msgId);
     if (container) {
         container.innerHTML = `
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-top:8px;">正在微调重绘...</span>
+            <span style="font-size:10px; color:#999; margin-top:8px;">正在同步微调重绘...</span>
         `;
     }
     
-    // 4. 生成随机 Seed (0 到 4294967295 之间的整数)
+    // 4. 调用引擎 (传入随机 Seed + 强制刷新 force)
     const newSeed = Math.floor(Math.random() * 4294967295);
-    
-    // 5. 调用引擎，设置 force 为 true 以穿透所有缓存
     if (window.soulImageEngine) {
         window.soulImageEngine(msgId, sender, finalPrompt, newSeed, true);
     } else {
-        console.error("❌ 找不到 soulImageEngine 引擎函数");
-    }
-};
-// --- [交互核心函数：紧跟在 soulImageEngine 之后] ---
-
-window.reDraw = function(msgId, text, sender) {
-    console.log("🎲 触发重画逻辑:", msgId);
-    
-    // 1. 获取微调输入框的内容
-    const input = document.getElementById(`refine-${msgId}`);
-    const refineText = input ? input.value.trim() : "";
-    
-    // 2. 构造最终提示词
-    const finalPrompt = refineText ? `${text}，要求：${refineText}` : text;
-    
-    // 3. UI 反馈：容器变回加载动画
-    const container = document.getElementById(msgId);
-    if (container) {
-        container.innerHTML = `
-            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-top:8px;">正在微调重绘...</span>
-        `;
-    }
-    
-    // 4. 生成随机 Seed (0 到 4294967295 之间的整数)
-    const newSeed = Math.floor(Math.random() * 4294967295);
-    
-    // 5. 调用引擎，设置 force 为 true 以穿透所有缓存
-    if (window.soulImageEngine) {
-        window.soulImageEngine(msgId, sender, finalPrompt, newSeed, true);
-    } else {
-        console.error("❌ 找不到 soulImageEngine 引擎函数");
+        console.error("❌ 引擎未就绪");
     }
 };
 
-window.saveImageToCloud = function(msgId) {
-    // 获取触发点击的按钮元素，做个酷炫的交互反馈
+window.saveImageToCloud = async function(msgId) {
     const btn = window.event ? window.event.target : null;
-    console.log("💾 存档指令已发送:", msgId);
-    
+    console.log("💾 正在请求物理存档:", msgId);
+
     if (btn) {
-        const oldText = btn.innerText;
-        btn.innerText = "✅ 已存档";
-        btn.style.background = "#28a745";
-        
-        // 实际上后端在生成时已经存入 /root/SillyTavern/image_storage 了
-        setTimeout(() => {
-            btn.innerText = oldText;
-            btn.style.background = "#34C759";
-        }, 2000);
+        btn.innerText = "⏳ 正在搬运...";
+        btn.style.background = "#666";
     }
-    
-    // 弹窗提醒，让你更有安全感
-    // alert("该图片的 Prompt 与种子已在云端持久化存储。");
+
+    try {
+        // 通知后端把这张图从临时文件夹复制到永久文件夹
+        const res = await fetch(`http://43.133.165.233:8001/save-confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ msgId: msgId })
+        });
+        
+        if (res.ok && btn) {
+            btn.innerText = "⭐ 已转入永久库";
+            btn.style.background = "#FF9500"; 
+            btn.disabled = true; 
+        } else {
+            throw new Error("存档失败");
+        }
+    } catch (e) {
+        console.error("存档出错:", e);
+        if (btn) {
+            btn.innerText = "❌ 存档失败";
+            btn.style.background = "#ff4d4f";
+            setTimeout(() => { btn.innerText = "💾 存档"; btn.style.background = "#34C759"; }, 2000);
+        }
+    }
 };
 })();
