@@ -7974,7 +7974,14 @@ imageMsgs.forEach((msg, index) => {
     // 立即执行第一次
     updateLoop();
     initNotifications();
-
+  
+// --- [必须添加的初始化部分] ---
+if (!window.imageBufferCache) {
+    window.imageBufferCache = {}; 
+}
+if (typeof window.isNaiDrawing === 'undefined') {
+    window.isNaiDrawing = false;
+}
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
@@ -8024,17 +8031,14 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
 
         // --- 修正后的存入与展示逻辑 ---
         
-        // 1. 使用 base64Data 存入缓存，对应我们定义的 cacheKey
+        // 存入前端缓存
         window.imageBufferCache[cacheKey] = base64Data;
-        
-        // 2. 渲染图片，注意这里也用 base64Data
-        container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        
-        console.log("✅ 绘制完成并同步缓存:", cacheKey); // 建议这里也打印 cacheKey 方便调试
         
         // 渲染图片（支持点击放大预览）
         container.innerHTML = `<img src="${base64Data}" style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; cursor:pointer;" onclick="window.open('${base64Data}')">`;
-        console.log("✅ 绘制完成并同步存档:", msgId);
+        
+        // 合并日志，方便观察
+        console.log("✅ 绘制完成 | 缓存Key:", cacheKey, "| 消息ID:", msgId);
 
     } catch (e) {
         console.error("❌ 引擎请求失败:", e);
