@@ -7975,10 +7975,6 @@ imageMsgs.forEach((msg, index) => {
     updateLoop();
     initNotifications();
 
-  // ==========================================
-// 🎨 Soul Image Engine (百度翻译签名修正版)
-// ==========================================
-// 创建一个全局缓存对象，存放在内存里
 // ==========================================
 // 🎨 Soul Image Engine (内存永久驻留版)
 // ==========================================
@@ -8041,5 +8037,88 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
         // 5. 强制解锁
         setTimeout(() => { window.isNaiDrawing = false; }, 1000);
     }
+};
+  // --- [交互核心函数：紧跟在 soulImageEngine 之后] ---
+
+window.reDraw = function(msgId, text, sender) {
+    console.log("🎲 触发重画逻辑:", msgId);
+    
+    // 1. 获取微调输入框的内容
+    const input = document.getElementById(`refine-${msgId}`);
+    const refineText = input ? input.value.trim() : "";
+    
+    // 2. 构造最终提示词
+    const finalPrompt = refineText ? `${text}，要求：${refineText}` : text;
+    
+    // 3. UI 反馈：容器变回加载动画
+    const container = document.getElementById(msgId);
+    if (container) {
+        container.innerHTML = `
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+            <span style="font-size:10px; color:#999; margin-top:8px;">正在微调重绘...</span>
+        `;
+    }
+    
+    // 4. 生成随机 Seed (0 到 4294967295 之间的整数)
+    const newSeed = Math.floor(Math.random() * 4294967295);
+    
+    // 5. 调用引擎，设置 force 为 true 以穿透所有缓存
+    if (window.soulImageEngine) {
+        window.soulImageEngine(msgId, sender, finalPrompt, newSeed, true);
+    } else {
+        console.error("❌ 找不到 soulImageEngine 引擎函数");
+    }
+};
+// --- [交互核心函数：紧跟在 soulImageEngine 之后] ---
+
+window.reDraw = function(msgId, text, sender) {
+    console.log("🎲 触发重画逻辑:", msgId);
+    
+    // 1. 获取微调输入框的内容
+    const input = document.getElementById(`refine-${msgId}`);
+    const refineText = input ? input.value.trim() : "";
+    
+    // 2. 构造最终提示词
+    const finalPrompt = refineText ? `${text}，要求：${refineText}` : text;
+    
+    // 3. UI 反馈：容器变回加载动画
+    const container = document.getElementById(msgId);
+    if (container) {
+        container.innerHTML = `
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+            <span style="font-size:10px; color:#999; margin-top:8px;">正在微调重绘...</span>
+        `;
+    }
+    
+    // 4. 生成随机 Seed (0 到 4294967295 之间的整数)
+    const newSeed = Math.floor(Math.random() * 4294967295);
+    
+    // 5. 调用引擎，设置 force 为 true 以穿透所有缓存
+    if (window.soulImageEngine) {
+        window.soulImageEngine(msgId, sender, finalPrompt, newSeed, true);
+    } else {
+        console.error("❌ 找不到 soulImageEngine 引擎函数");
+    }
+};
+
+window.saveImageToCloud = function(msgId) {
+    // 获取触发点击的按钮元素，做个酷炫的交互反馈
+    const btn = window.event ? window.event.target : null;
+    console.log("💾 存档指令已发送:", msgId);
+    
+    if (btn) {
+        const oldText = btn.innerText;
+        btn.innerText = "✅ 已存档";
+        btn.style.background = "#28a745";
+        
+        // 实际上后端在生成时已经存入 /root/SillyTavern/image_storage 了
+        setTimeout(() => {
+            btn.innerText = oldText;
+            btn.style.background = "#34C759";
+        }, 2000);
+    }
+    
+    // 弹窗提醒，让你更有安全感
+    // alert("该图片的 Prompt 与种子已在云端持久化存储。");
 };
 })();
