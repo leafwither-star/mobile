@@ -8005,7 +8005,7 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
     if (window.isNaiDrawing) {
         console.log("🚦 NAI 忙碌，排队中:", msgId);
         container.innerHTML = `<div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div><span style="font-size:10px; color:#999; margin-top:8px;">排队生成中...</span>`;
-        setTimeout(() => window.soulImageEngine(msgId, sender, text, seed, force), 3000);
+        setTimeout(() => window.soulImageEngine(msgId, msgId, text, seed, force), 3000);
         return;
     }
 
