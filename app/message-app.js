@@ -8081,37 +8081,30 @@ window.reDraw = function(msgId, text, sender) {
     }
 };
 
+// 修改前端脚本中的存档函数
 window.saveImageToCloud = async function(msgId) {
-    const btn = window.event ? window.event.target : null;
-    console.log("💾 正在请求物理存档:", msgId);
-
-    if (btn) {
-        btn.innerText = "⏳ 正在搬运...";
-        btn.style.background = "#666";
-    }
-
+    console.log("💾 准备请求物理存档:", msgId);
+    
+    // 【关键】：给后端 500 毫秒的时间完成磁盘写入
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     try {
-        // 通知后端把这张图从临时文件夹复制到永久文件夹
-        const res = await fetch(`http://43.133.165.233:8001/save-confirm`, {
+        const response = await fetch(`http://43.133.165.233:8001/save-confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ msgId: msgId })
         });
-        
-        if (res.ok && btn) {
-            btn.innerText = "⭐ 已转入永久库";
-            btn.style.background = "#FF9500"; 
-            btn.disabled = true; 
+
+        if (response.ok) {
+            console.log("✅ 存档成功！文件已进入 image_storage_saved");
+            // 这里可以加一个提示，比如按钮变绿
         } else {
+            const errText = await response.text();
+            console.error("❌ 存档失败，后端反馈:", errText);
             throw new Error("存档失败");
         }
     } catch (e) {
-        console.error("存档出错:", e);
-        if (btn) {
-            btn.innerText = "❌ 存档失败";
-            btn.style.background = "#ff4d4f";
-            setTimeout(() => { btn.innerText = "💾 存档"; btn.style.background = "#34C759"; }, 2000);
-        }
+        console.error("🚫 存档出错:", e);
     }
 };
 })();
