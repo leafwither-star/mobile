@@ -8106,25 +8106,28 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
-            // 1. 按钮视觉反馈
+            // 1. 按钮视觉反馈：变绿表示永久存盘成功
             btn.innerText = "✅ 存档成功";
             btn.style.background = "#34C759";
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
 
-            // 2. ⭐ 强制转换预览源：从 Base64 转为 物理 URL
+            // 2. ⭐ 物理路径强制转正
             const container = document.getElementById(msgId);
             if (container) {
                 const img = container.querySelector('img');
                 if (img) {
-                    // 核心修正：直接指向后端的 draw 接口，不再处理旧的 src
+                    // 核心逻辑：直接指向后端物理接口
                     const serverUrl = `http://43.133.165.233:8001/draw`;
                     
-                    // 重新构造 URL，带上身份标识和时间戳
-                    // 这样后端会根据我们改好的逻辑，去永久库读取刚存好的那张图
-                    img.src = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
+                    // 【修正点】：确保传给后端的 sender 是最干净的 msgId
+                    // 后端会自动处理前缀和时间戳，所以这里我们直接传原始字符串
+                    const cleanId = msgId.trim(); 
                     
-                    console.log("🔄 存档成功：预览图已从临时数据切换为后端物理文件");
+                    // 重新构建 src，强制浏览器抛弃 Base64 乱码数据，去请求后端的 PNG 文件
+                    img.src = `${serverUrl}?sender=${encodeURIComponent(cleanId)}&t=${Date.now()}`;
+                    
+                    console.log("🔄 存档成功：预览图已从临时 Base64 切换为后端物理地址，ID:", cleanId);
                 }
             }
         } else {
