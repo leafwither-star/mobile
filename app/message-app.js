@@ -8106,26 +8106,25 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
-            // 1. 按钮视觉反馈：变绿表示永久存盘成功
+            // 1. 按钮视觉反馈
             btn.innerText = "✅ 存档成功";
             btn.style.background = "#34C759";
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
 
-            // 2. ⭐ 强制刷新预览图
+            // 2. ⭐ 强制转换预览源：从 Base64 转为 物理 URL
             const container = document.getElementById(msgId);
             if (container) {
                 const img = container.querySelector('img');
                 if (img) {
-                    // 【关键修改】：使用 URL 对象处理参数，最稳妥地规避缓存
-                    const url = new URL(img.src);
-                    // 无论之前有没有 t=xx，统一更新为当前时间戳
-                    url.searchParams.set('t', Date.now()); 
+                    // 核心修正：直接指向后端的 draw 接口，不再处理旧的 src
+                    const serverUrl = `http://43.133.165.233:8001/draw`;
                     
-                    // 重新赋值 src，浏览器会发现参数变了从而重新向后端请求
-                    img.src = url.toString();
+                    // 重新构造 URL，带上身份标识和时间戳
+                    // 这样后端会根据我们改好的逻辑，去永久库读取刚存好的那张图
+                    img.src = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
                     
-                    console.log("🔄 存档完成，已强制刷新预览图（带时间戳请求）");
+                    console.log("🔄 存档成功：预览图已从临时数据切换为后端物理文件");
                 }
             }
         } else {
