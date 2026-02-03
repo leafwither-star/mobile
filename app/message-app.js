@@ -7929,7 +7929,6 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-    // 5. 注入沉浸式交互 HTML (点击图片切换控制面板)
     // 5. 注入大图沉浸交互 HTML (修复图片尺寸 + 彻底解决跳转)
     const serverUrl = `http://43.133.165.233:8001/draw`;
     const imageUrl = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
