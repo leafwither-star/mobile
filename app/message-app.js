@@ -8013,7 +8013,7 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
     console.log("🚀 [前端发车] 发往服务器:", text.substring(0, 15));
 
     // 4. 【核心修正】：构造包含 seed 和 force 的新 URL
-    const url = `http://43.133.165.233:8001/draw?sender=${encodeURIComponent(sender)}&text=${encodeURIComponent(text)}&seed=${seed || ''}&force=${force}`;
+    const url = `http://43.133.165.233:8001/draw?sender=${encodeURIComponent(msgId)}&text=${encodeURIComponent(text)}&seed=${seed || ''}&force=${force}`;
     
     try {
         // 【关键】：这里必须传入上面定义的 url 变量
