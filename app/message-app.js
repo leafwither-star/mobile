@@ -7930,49 +7930,49 @@ imageMsgs.forEach((msg, index) => {
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
     // 5. 注入沉浸式交互 HTML (点击图片切换控制面板)
+    // 5. 注入大图沉浸交互 HTML (修复图片尺寸 + 彻底解决跳转)
     const serverUrl = `http://43.133.165.233:8001/draw`;
     const imageUrl = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
 
     msg.innerHTML = `
-    <div class="nai-image-card" style="width: 260px; border-radius: 16px; overflow: hidden; background: #ffffff; border: 1px solid #eee; box-shadow: 0 10px 30px rgba(0,0,0,0.12); margin-left: 0px !important; font-family: -apple-system, system-ui, sans-serif; position: relative; z-index: 10;">
+    <div class="nai-image-card nai-image-offset" style="width: 260px; border-radius: 12px; overflow: hidden; background: #ffffff; border: 1px solid #eee; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-left: 0px !important; font-family: -apple-system, system-ui, sans-serif;">
         
         <div style="position: relative; cursor: pointer; line-height: 0; background: #f5f5f7;" 
              onclick="event.preventDefault(); event.stopPropagation(); const panel = document.getElementById('panel-${msgId}'); panel.style.display = panel.style.display === 'none' ? 'block' : 'none';">
             
-            <div id="${msgId}" style="min-height: 320px; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <div id="${msgId}" style="width: 100%; min-height: 340px; background: #f8f8fa; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                 <div class="nai-loading-icon" style="width: 24px; height: 24px; border: 3px solid #ccc; border-top-color: #007AFF; border-radius: 50%;"></div>
                 <span style="font-size: 11px; color: #999; margin-left: 10px;">Gemini 正在构思...</span>
             </div>
 
-            <div style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); pointer-events: none;">
-                <span style="font-size: 14px; font-weight: bold; color: #007AFF;">ⓘ</span>
+            <div style="position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); pointer-events: none;">
+                <span style="font-size: 14px; font-weight: bold; color: #fff;">ⓘ</span>
             </div>
         </div>
 
-        <div id="panel-${msgId}" style="display: none; padding: 15px; background: #ffffff; border-top: 1px solid #f2f2f7; animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
-            <div style="font-size: 12px; color: #444; line-height: 1.6; margin-bottom: 12px; padding: 10px; background: #f9f9fb; border-radius: 10px; border: 1px solid #f0f0f5;">
-                <b style="color: #007AFF; font-size: 10px; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">SYSTEM PROMPT</b> ${promptText}
+        <div id="panel-${msgId}" style="display: none; padding: 14px; background: #ffffff; border-top: 1px solid #f2f2f7; animation: slideIn 0.3s ease-out;">
+            <div style="font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 12px; padding: 10px; background: #f2f2f7; border-radius: 8px;">
+                <b style="color: #007AFF; font-size: 9px; letter-spacing: 0.5px;">PROMPT:</b> ${promptText}
             </div>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button onclick="event.stopPropagation(); window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}', '${senderName}')" 
-                        style="flex: 1; background: #007AFF; color: white; border: none; padding: 9px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">🎲 重画</button>
+                        style="flex: 1; background: #007AFF; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🎲 重画</button>
                 <button onclick="event.stopPropagation(); window.saveImageToCloud('${msgId}')" id="save-btn-${msgId}"
-                        style="flex: 1; background: #34C759; color: white; border: none; padding: 9px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">💾 存档</button>
+                        style="flex: 1; background: #34C759; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">💾 存档</button>
             </div>
 
-            <input type="text" id="refine-${msgId}" placeholder="添加细节(回车发送)..." 
+            <input type="text" id="refine-${msgId}" placeholder="添加细节..." 
                    onclick="event.stopPropagation()"
-                   style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #e5e5ea; border-radius: 10px; font-size: 12px; outline: none; transition: border-color 0.2s;"
-                   onfocus="this.style.borderColor='#007AFF'"
+                   style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #e5e5ea; border-radius: 8px; font-size: 11px; outline: none;"
                    onkeydown="if(event.key==='Enter') { event.stopPropagation(); window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}' + '，要求：' + this.value, '${senderName}'); }">
         </div>
     </div>
+    
     <style>
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-        /* 深度清理气泡余影 */
-        .message-content { background: transparent !important; box-shadow: none !important; border: none !important; }
-        .message-content::before, .message-content::after { display: none !important; }
+        /* ⭐ 强制内部生成的图片宽度撑满 */
+        #${msgId} img { width: 100% !important; height: auto !important; display: block !important; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
     `;
 
