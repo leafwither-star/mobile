@@ -8084,10 +8084,17 @@ window.soulImageEngine(msgId, msgId, finalPrompt, newSeed, true);
 
 // 修改前端脚本中的存档函数
 window.saveImageToCloud = async function(msgId) {
-    console.log("💾 准备请求物理存档:", msgId);
+    // 1. 获取按钮元素
+    const btn = event.currentTarget; 
+    const originalText = btn.innerText;
     
-    // 【关键】：给后端 500 毫秒的时间完成磁盘写入
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // 2. 立即反馈：进入处理状态
+    btn.innerText = "⏳ 正在同步...";
+    btn.style.opacity = "0.7";
+    btn.disabled = true;
+
+    console.log("💾 准备请求物理存档:", msgId);
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     try {
         const response = await fetch(`http://43.133.165.233:8001/save-confirm`, {
@@ -8097,14 +8104,26 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
+            // 3. 成功反馈：变为绿色并显示“存档成功”
+            btn.innerText = "✅ 存档成功";
+            btn.style.background = "#34C759"; // 苹果绿
+            btn.style.color = "#ffffff";
+            btn.style.opacity = "1";
             console.log("✅ 存档成功！文件已进入 image_storage_saved");
-            // 这里可以加一个提示，比如按钮变绿
         } else {
-            const errText = await response.text();
-            console.error("❌ 存档失败，后端反馈:", errText);
             throw new Error("存档失败");
         }
     } catch (e) {
+        // 4. 失败反馈：恢复按钮并提示报错
+        btn.innerText = "❌ 存档出错";
+        btn.style.background = "#FF3B30";
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.style.background = "";
+            btn.style.color = "";
+            btn.style.opacity = "1";
+            btn.disabled = false;
+        }, 2000);
         console.error("🚫 存档出错:", e);
     }
 };
