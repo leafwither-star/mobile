@@ -7659,7 +7659,7 @@ else if (raw.includes('|图片|')) {
         // 立即唤起引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
-                window.soulImageEngine(msgId, sender, promptText);
+                window.soulImageEngine(msgId, msgId, promptText);
             }
         }, 300);
     }
