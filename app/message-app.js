@@ -7929,51 +7929,28 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-    // 5. 注入大图沉浸交互 HTML (修复图片尺寸 + 彻底解决跳转)
-    const serverUrl = `http://43.133.165.233:8001/draw`;
-    const imageUrl = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
-
+    // 5. 注入带【重画/存档/微调】功能的 HTML
     msg.innerHTML = `
-    <div class="nai-image-card nai-image-offset" style="width: 260px; border-radius: 12px; overflow: hidden; background: #ffffff; border: 1px solid #eee; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-left: 0px !important; font-family: -apple-system, system-ui, sans-serif;">
+    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
+        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+            <span style="font-size:10px; color:#999; margin-left:8px;">准备中...</span>
+        </div>
         
-        <div style="position: relative; cursor: pointer; line-height: 0; background: #f5f5f7;" 
-             onclick="event.preventDefault(); event.stopPropagation(); const panel = document.getElementById('panel-${msgId}'); panel.style.display = panel.style.display === 'none' ? 'block' : 'none';">
-            
-            <div id="${msgId}" style="width: 100%; min-height: 340px; background: #f8f8fa; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                <div class="nai-loading-icon" style="width: 24px; height: 24px; border: 3px solid #ccc; border-top-color: #007AFF; border-radius: 50%;"></div>
-                <span style="font-size: 11px; color: #999; margin-left: 10px;">Gemini 正在构思...</span>
-            </div>
-
-            <div style="position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); pointer-events: none;">
-                <span style="font-size: 14px; font-weight: bold; color: #fff;">ⓘ</span>
-            </div>
+        <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-bottom:1px solid #f0f0f0; background:#fff;">
+            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
         </div>
 
-        <div id="panel-${msgId}" style="display: none; padding: 14px; background: #ffffff; border-top: 1px solid #f2f2f7; animation: slideIn 0.3s ease-out;">
-            <div style="font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 12px; padding: 10px; background: #f2f2f7; border-radius: 8px;">
-                <b style="color: #007AFF; font-size: 9px; letter-spacing: 0.5px;">PROMPT:</b> ${promptText}
-            </div>
-
-            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                <button onclick="event.stopPropagation(); window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}', '${senderName}')" 
-                        style="flex: 1; background: #007AFF; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🎲 重画</button>
-                <button onclick="event.stopPropagation(); window.saveImageToCloud('${msgId}')" id="save-btn-${msgId}"
-                        style="flex: 1; background: #34C759; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">💾 存档</button>
-            </div>
-
-            <input type="text" id="refine-${msgId}" placeholder="添加细节..." 
-                   onclick="event.stopPropagation()"
-                   style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #e5e5ea; border-radius: 8px; font-size: 11px; outline: none;"
-                   onkeydown="if(event.key==='Enter') { event.stopPropagation(); window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}' + '，要求：' + this.value, '${senderName}'); }">
+        <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-bottom:1px solid #f0f0f0;">
+            <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
+            <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
         </div>
-    </div>
-    
-    <style>
-        /* ⭐ 强制内部生成的图片宽度撑满 */
-        #${msgId} img { width: 100% !important; height: auto !important; display: block !important; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-    `;
+        
+        <div style="padding:8px; background:#fafafa;">
+            <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                   style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
+        </div>
+    </div>`;
 
     msg.setAttribute('data-rendered', 'true');
     msg.setAttribute('data-bound-id', msgId);
@@ -8129,28 +8106,25 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
-            // 1. 按钮视觉反馈：变绿表示永久存盘成功
+            // 1. 按钮视觉反馈
             btn.innerText = "✅ 存档成功";
             btn.style.background = "#34C759";
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
 
-            // 2. ⭐ 物理路径强制转正
+            // 2. ⭐ 强制转换预览源：从 Base64 转为 物理 URL
             const container = document.getElementById(msgId);
             if (container) {
                 const img = container.querySelector('img');
                 if (img) {
-                    // 核心逻辑：直接指向后端物理接口
+                    // 核心修正：直接指向后端的 draw 接口，不再处理旧的 src
                     const serverUrl = `http://43.133.165.233:8001/draw`;
                     
-                    // 【修正点】：确保传给后端的 sender 是最干净的 msgId
-                    // 后端会自动处理前缀和时间戳，所以这里我们直接传原始字符串
-                    const cleanId = msgId.trim(); 
+                    // 重新构造 URL，带上身份标识和时间戳
+                    // 这样后端会根据我们改好的逻辑，去永久库读取刚存好的那张图
+                    img.src = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
                     
-                    // 重新构建 src，强制浏览器抛弃 Base64 乱码数据，去请求后端的 PNG 文件
-                    img.src = `${serverUrl}?sender=${encodeURIComponent(cleanId)}&t=${Date.now()}`;
-                    
-                    console.log("🔄 存档成功：预览图已从临时 Base64 切换为后端物理地址，ID:", cleanId);
+                    console.log("🔄 存档成功：预览图已从临时数据切换为后端物理文件");
                 }
             }
         } else {
