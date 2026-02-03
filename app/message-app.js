@@ -8110,6 +8110,19 @@ window.saveImageToCloud = async function(msgId) {
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
             console.log("✅ 存档成功！文件已进入 image_storage_saved");
+
+            // ⭐ [核心新增]：强刷当前卡片中的图片显示
+            // 找到包含这张图片的容器
+            const container = document.getElementById(msgId);
+            if (container) {
+                const img = container.querySelector('img');
+                if (img) {
+                    // 在 URL 后面加上时间戳随机数，骗过浏览器缓存，强制它重新下载最新的定稿图
+                    const baseUrl = img.src.split('?')[0];
+                    img.src = `${baseUrl}?t=${Date.now()}`;
+                    console.log("🔄 已强制刷新前端预览图为最新存档版本");
+                }
+            }
         } else {
             throw new Error("存档失败");
         }
