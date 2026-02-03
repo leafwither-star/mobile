@@ -8049,53 +8049,47 @@ window.soulImageEngine = async function(msgId, sender, text, seed = null, force 
     }
 };
   // ==========================================
-// 🎮 交互核心函数 (重画 + 存档)
+// 🎮 交互核心函数 (重画 + 存档) - 终极合体版
 // ==========================================
 
 window.reDraw = function(msgId, text, sender) {
-    // 1. 精准抓取输入框内容 (修复提示词不生效的关键)
+    // 1. 精准抓取微调输入框内容
     const input = document.getElementById(`refine-${msgId}`);
     const refineText = input ? input.value.trim() : "";
     
-    console.log("🎲 触发重画逻辑，容器ID:", msgId);
-    console.log("✍️ 抓取到的中文微调:", refineText); 
+    console.log("🎲 触发微调重绘:", msgId);
     
-    // 2. 构造带“要求：”的复合提示词，发给后端翻译
+    // 2. 构造复合提示词
     const finalPrompt = refineText ? `${text}，要求：${refineText}` : text;
     
-    // 3. UI 状态切换
+    // 3. UI 切换为加载动画
     const container = document.getElementById(msgId);
     if (container) {
         container.innerHTML = `
-            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-top:8px;">正在同步微调重绘...</span>
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:200px;">
+                <div class="nai-loading-icon" style="width:24px; height:24px; border:3px solid #eee; border-top-color:#007AFF; border-radius:50%; animation: nai-loop 1s linear infinite;"></div>
+                <span style="font-size:11px; color:#999; margin-top:12px;">正在按要求重绘...</span>
+            </div>
         `;
     }
     
-    // 4. 调用引擎 (传入随机 Seed + 强制刷新 force)
+    // 4. 调用引擎 (强制 msgId 身份)
     const newSeed = Math.floor(Math.random() * 4294967295);
     if (window.soulImageEngine) {
-        // 修改后：强制将 msgId 作为第二个参数传进去
-window.soulImageEngine(msgId, msgId, finalPrompt, newSeed, true);
-    } else {
-        console.error("❌ 引擎未就绪");
+        // 这里的第二个参数必须是 msgId 才能对齐后端的“定稿名”
+        window.soulImageEngine(msgId, msgId, finalPrompt, newSeed, true);
     }
 };
 
-// 修改前端脚本中的存档函数
 window.saveImageToCloud = async function(msgId) {
-    // 1. 获取按钮元素
     const btn = event.currentTarget; 
     const originalText = btn.innerText;
     
-    // 2. 立即反馈：进入处理状态
+    // UI 反馈
     btn.innerText = "⏳ 正在同步...";
     btn.style.opacity = "0.7";
     btn.disabled = true;
 
-    console.log("💾 准备请求物理存档:", msgId);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
         const response = await fetch(`http://43.133.165.233:8001/save-confirm`, {
             method: 'POST',
@@ -8104,30 +8098,26 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
-            // 3. 成功反馈：变为绿色并显示“存档成功”
+            // 成功：变绿 + 提示
             btn.innerText = "✅ 存档成功";
-            btn.style.background = "#34C759"; // 苹果绿
+            btn.style.background = "#34C759";
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
-            console.log("✅ 存档成功！文件已进入 image_storage_saved");
 
-            // ⭐ [核心新增]：强刷当前卡片中的图片显示
-            // 找到包含这张图片的容器
+            // ⭐ 强刷图片预览，确保看到的是刚存下的那张
             const container = document.getElementById(msgId);
             if (container) {
                 const img = container.querySelector('img');
                 if (img) {
-                    // 在 URL 后面加上时间戳随机数，骗过浏览器缓存，强制它重新下载最新的定稿图
                     const baseUrl = img.src.split('?')[0];
                     img.src = `${baseUrl}?t=${Date.now()}`;
-                    console.log("🔄 已强制刷新前端预览图为最新存档版本");
                 }
             }
         } else {
             throw new Error("存档失败");
         }
     } catch (e) {
-        // 4. 失败反馈：恢复按钮并提示报错
+        // 失败：回退状态
         btn.innerText = "❌ 存档出错";
         btn.style.background = "#FF3B30";
         setTimeout(() => {
@@ -8137,7 +8127,6 @@ window.saveImageToCloud = async function(msgId) {
             btn.style.opacity = "1";
             btn.disabled = false;
         }, 2000);
-        console.error("🚫 存档出错:", e);
     }
 };
 })();
