@@ -7929,28 +7929,45 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-    // 5. 注入带【重画/存档/微调】功能的 HTML
+    // 5. 注入沉浸式交互 HTML (点击图片切换控制面板)
+    const serverUrl = `http://43.133.165.233:8001/draw`;
+    const imageUrl = `${serverUrl}?sender=${encodeURIComponent(msgId)}&t=${Date.now()}`;
+
     msg.innerHTML = `
-    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
-        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
-            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">准备中...</span>
-        </div>
+    <div class="nai-image-card" style="width: 220px; border-radius: 14px; overflow: hidden; background: #ffffff; border: 1px solid #eee; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-left: 0px !important; font-family: -apple-system, system-ui, sans-serif;">
         
-        <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-bottom:1px solid #f0f0f0; background:#fff;">
-            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
+        <div style="position: relative; cursor: pointer; line-height: 0; background: #f5f5f7;" 
+             onclick="const panel = document.getElementById('panel-${msgId}'); panel.style.display = panel.style.display === 'none' ? 'block' : 'none';">
+            
+            <div id="${msgId}" style="min-height: 150px; display: flex; align-items: center; justify-content: center;">
+                <div class="nai-loading-icon" style="width: 20px; height: 20px; border: 2px solid #ccc; border-top-color: #007AFF; border-radius: 50%;"></div>
+                <span style="font-size: 10px; color: #999; margin-left: 8px;">准备中...</span>
+            </div>
+
+            <div style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.7); backdrop-filter: blur(4px); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+                <span style="font-size: 12px; font-weight: bold; color: #007AFF;">ⓘ</span>
+            </div>
         </div>
 
-        <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-bottom:1px solid #f0f0f0;">
-            <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
-            <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+        <div id="panel-${msgId}" style="display: none; padding: 12px; background: #ffffff; border-top: 1px solid #f2f2f7; animation: fadeIn 0.3s ease;">
+            <div style="font-size: 11px; color: #666; line-height: 1.5; margin-bottom: 10px; padding: 8px; background: #f9f9fb; border-radius: 8px; border: 1px inset rgba(0,0,0,0.02);">
+                <b style="color: #007AFF; font-size: 9px; letter-spacing: 0.5px;">PROMPT:</b> ${promptText}
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button onclick="window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}', '${senderName}')" 
+                        style="flex: 1; background: #007AFF; color: white; border: none; padding: 7px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🎲 重画</button>
+                <button onclick="window.saveImageToCloud('${msgId}')" id="save-btn-${msgId}"
+                        style="flex: 1; background: #34C759; color: white; border: none; padding: 7px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;">💾 存档</button>
+            </div>
+
+            <input type="text" id="refine-${msgId}" placeholder="添加细节(回车生效)..." 
+                   style="width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid #e5e5ea; border-radius: 8px; font-size: 11px; outline: none;"
+                   onkeydown="if(event.key==='Enter') { window.reDraw('${msgId}', '${promptText.replace(/'/g, "\\'")}' + '，要求：' + this.value, '${senderName}'); }">
         </div>
-        
-        <div style="padding:8px; background:#fafafa;">
-            <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
-                   style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
-        </div>
-    </div>`;
+    </div>
+    <style>@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }</style>
+    `;
 
     msg.setAttribute('data-rendered', 'true');
     msg.setAttribute('data-bound-id', msgId);
