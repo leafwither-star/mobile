@@ -8079,6 +8079,14 @@ window.reDraw = function(msgId, text, sender) {
         // 这里的第二个参数必须是 msgId 才能对齐后端的“定稿名”
         window.soulImageEngine(msgId, msgId, finalPrompt, newSeed, true);
     }
+  const saveBtn = document.querySelector(`button[onclick*="saveImageToCloud('${msgId}')"]`);
+    if (saveBtn) {
+        saveBtn.innerText = "💾 永久存档";
+        saveBtn.style.background = ""; 
+        saveBtn.style.color = "";
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = "1";
+    }
 };
 
 window.saveImageToCloud = async function(msgId) {
@@ -8098,19 +8106,26 @@ window.saveImageToCloud = async function(msgId) {
         });
 
         if (response.ok) {
-            // 成功：变绿 + 提示
+            // 1. 按钮视觉反馈：变绿表示永久存盘成功
             btn.innerText = "✅ 存档成功";
             btn.style.background = "#34C759";
             btn.style.color = "#ffffff";
             btn.style.opacity = "1";
 
-            // ⭐ 强刷图片预览，确保看到的是刚存下的那张
+            // 2. ⭐ 强制刷新预览图
             const container = document.getElementById(msgId);
             if (container) {
                 const img = container.querySelector('img');
                 if (img) {
-                    const baseUrl = img.src.split('?')[0];
-                    img.src = `${baseUrl}?t=${Date.now()}`;
+                    // 【关键修改】：使用 URL 对象处理参数，最稳妥地规避缓存
+                    const url = new URL(img.src);
+                    // 无论之前有没有 t=xx，统一更新为当前时间戳
+                    url.searchParams.set('t', Date.now()); 
+                    
+                    // 重新赋值 src，浏览器会发现参数变了从而重新向后端请求
+                    img.src = url.toString();
+                    
+                    console.log("🔄 存档完成，已强制刷新预览图（带时间戳请求）");
                 }
             }
         } else {
