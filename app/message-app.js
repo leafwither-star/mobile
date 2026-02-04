@@ -7625,40 +7625,42 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (指纹防撞版) ---
+  // --- [分支 11]：AI 生图系统 (折叠增强微创版) ---
 else if (raw.includes('|图片|')) {
     const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
     if (p) {
         const sender = p[1];
         const promptText = (p[3] || "正在传达视觉信号...").trim();
-        
-        // 【关键改动】：只根据文字内容生成 ID，不要加随机数，也不要加 index
-        // 因为在此处 index 是不稳定的，我们靠文字内容的唯一性来区分
         const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
         const msgId = `nai_id_${safeId}`;
 
         if (msg.getAttribute('data-rendered') === 'true') return;
 
-        // 样式镇压
         if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 注入容器
+        // 注入容器（保持原有图片容器，下方追加折叠区）
         msg.innerHTML = `
-        <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; min-height: 240px; border-radius: 12px; overflow: hidden; background: #e5e5ea; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
-            <div id="${msgId}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
+        <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; border-radius: 12px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
+            <div id="${msgId}" style="width: 180px; height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
                 <div class="nai-loading-icon" style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
                 <div style="font-size: 10px; color: #888; margin-top: 10px;">准备绘制...</div>
             </div>
-            <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333;">
-                <span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> ${promptText}
+
+            <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333; border-top: 1px solid #f2f2f2;">
+                <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
+                    <span><span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> 画面描述</span>
+                    <span style="color: #007AFF; font-size: 10px;">▼</span>
+                </div>
+                <div class="manga-prompt-detail" style="display: none; margin-top: 8px; color: #666; line-height: 1.4; border-top: 1px dashed #eee; padding-top: 6px; word-break: break-all;">
+                    ${promptText}
+                </div>
             </div>
             <style> @keyframes nai-loop { to { transform: rotate(360deg); } } </style>
         </div>`;
 
         msg.setAttribute('data-rendered', 'true');
 
-        // 立即唤起引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
                 window.soulImageEngine(msgId, msgId, promptText);
