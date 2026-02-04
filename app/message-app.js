@@ -7553,15 +7553,17 @@ else if (raw.includes('|') && (raw.includes('红包') || raw.match(/\d+(\.\d+)?/
 
     // 清除间距
     if (bubble) {
+        // 标记这个泡泡是特殊的，以便 CSS 能够精准捕获
+        bubble.classList.add('service-card-bubble'); 
         bubble.style.cssText = "background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; margin:0 !important; overflow:visible !important; min-height:0 !important;";
     }
-    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important;";
+    // 强制 msg 容器不产生滚动条，不穿透
+    msg.style.cssText = "display:block !important; padding:0 !important; margin:0 !important; position:static !important; min-height:0 !important; overflow:visible !important;";
 
-    // 直接在 msg 内构建，不加额外包裹层防止位移叠加
     const card = document.createElement('div');
     card.className = 'beautiful-packet';
-    // 将 -40px 微调为 -20px 解决太偏左的问题，margin-top 设为 0 挤掉空隙
-    card.style.cssText = "margin-left: 0px !important; margin-top: 0px !important; position: relative !important; z-index: 999 !important; min-width: 200px !important; display: block !important; cursor: pointer; pointer-events: auto !important;";
+    // 重点：将 position 设为 relative 但限制其高度感官
+    card.style.cssText = "margin-left: 0px !important; margin-top: 0px !important; position: relative !important; z-index: 10 !important; min-width: 200px !important; display: block !important; cursor: pointer; pointer-events: auto !important; border-radius: 12px !important;";
     
     card.innerHTML = `<div>🧧 ${wish}</div><div style="font-size:11px; opacity:0.8; margin-top:6px; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">微信红包 (￥${amt})</div>`;
 
