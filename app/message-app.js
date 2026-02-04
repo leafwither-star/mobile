@@ -7946,16 +7946,17 @@ imageMsgs.forEach((msg, index) => {
    msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:zoom-in; z-index: 1;" 
-             onclick="if(event.target.tagName !== 'DIV') return; event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')">
-            
-            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
-            
+        <div style="height:240px; background:#f5f5f7; position:relative; overflow:hidden;">
+            <div id="${msgId}" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; cursor:zoom-in;" 
+                 onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')">
+                <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+                <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
+            </div>
+
             <div class="fold-trigger" title="展开详情" 
                  onclick="event.preventDefault(); event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');" 
-                 style="position:absolute; bottom:10px; right:10px; width:26px; height:26px; background:rgba(0,0,0,0.4); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; z-index:999999 !important; cursor:pointer; border:1px solid rgba(255,255,255,0.3); pointer-events: auto !important;">
-                 <span style="pointer-events: none;">···</span>
+                 style="position:absolute; bottom:12px; right:12px; width:28px; height:28px; background:rgba(0,0,0,0.5); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; z-index:9999; cursor:pointer; border:1px solid rgba(255,255,255,0.3); box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+                 <span style="pointer-events: none; line-height:1;">···</span>
             </div>
         </div>
         
