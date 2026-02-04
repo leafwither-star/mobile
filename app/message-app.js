@@ -7942,20 +7942,20 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入带【原图预览 + 优雅折叠】功能的 HTML
+   // 5. 注入带【原图预览 + 强制置顶折叠】功能的 HTML
    msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:zoom-in;" 
-             onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')">
+        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:zoom-in; z-index: 1;" 
+             onclick="if(event.target.tagName !== 'DIV') return; event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')">
             
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
             <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
             
-            <div title="展开详情" 
-                 onclick="event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');" 
-                 style="position:absolute; bottom:8px; right:8px; width:22px; height:22px; background:rgba(255,255,255,0.6); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px; z-index:99; cursor:pointer; border:0.5px solid rgba(0,0,0,0.05); box-shadow:0 2px 5px rgba(0,0,0,0.1);">
-                 ···
+            <div class="fold-trigger" title="展开详情" 
+                 onclick="event.preventDefault(); event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');" 
+                 style="position:absolute; bottom:10px; right:10px; width:26px; height:26px; background:rgba(0,0,0,0.4); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; z-index:999999 !important; cursor:pointer; border:1px solid rgba(255,255,255,0.3); pointer-events: auto !important;">
+                 <span style="pointer-events: none;">···</span>
             </div>
         </div>
         
