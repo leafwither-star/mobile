@@ -7945,13 +7945,13 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入结构 (最终稳定版：内置图片防跳补丁)
+   // 5. 注入结构 (最终大满贯版本：补回了输入框，且防跳依然稳健)
     msg.innerHTML = `
     <div class="nai-image-card" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
         <style>
             .nai-image-card img { pointer-events: none !important; }
-            .view-trigger { pointer-events: auto !important; } /* 确保按钮能点到 */
+            .view-trigger, .nai-collapse-content input, .nai-collapse-content button { pointer-events: auto !important; }
         </style>
 
         <div style="height:240px; background:#f5f5f7; position:relative; overflow:hidden;">
@@ -7972,9 +7972,15 @@ imageMsgs.forEach((msg, index) => {
             <div style="padding:10px; font-size:11px; color:#666; border-top:1px solid #f0f0f0;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
+            
             <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
-                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; font-weight:600;">🎲 重画</button>
-                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; font-weight:600;">💾 存档</button>
+                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
+                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+            </div>
+
+            <div style="padding:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+                <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                       style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
             </div>
         </div>
     </div>`;
