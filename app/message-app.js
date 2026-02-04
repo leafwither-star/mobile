@@ -7931,26 +7931,29 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-    // 5. 注入带【重画/存档/微调】功能的 HTML
+   // 5. 注入带【折叠功能】的 HTML (微创进化版)
     msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
-        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
+             onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">准备中...</span>
+            <span style="font-size:10px; color:#999; margin-left:8px;">准备中... (点击图片展开控制台)</span>
         </div>
         
-        <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-bottom:1px solid #f0f0f0; background:#fff;">
-            <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
-        </div>
+        <div class="nai-collapse-content" style="display: none; background: #fff;">
+            <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-top:1px solid #f0f0f0; background:#fff;">
+                <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
+            </div>
 
-        <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-bottom:1px solid #f0f0f0;">
-            <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
-            <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
-        </div>
-        
-        <div style="padding:8px; background:#fafafa;">
-            <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
-                   style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
+            <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
+                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+            </div>
+            
+            <div style="padding:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+                <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                       style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
+            </div>
         </div>
     </div>`;
 
