@@ -7884,17 +7884,6 @@ if (typeof window.voiceEventBound === 'undefined') {
     };
 
   // --- 智能提速逻辑 (图片精准补偿版) ---
-  window.viewNaiImage = function(msgId) {
-    const container = document.getElementById(msgId);
-    const globalViewer = document.getElementById('nai-global-viewer');
-    if (!container || !globalViewer) return;
-    
-    const img = container.querySelector('img');
-    if (img && img.src) {
-        globalViewer.querySelector('img').src = img.src;
-        globalViewer.style.display = 'flex';
-    }
-};
 let fastCycles = 0;
 const updateLoop = () => {
     // 1. 注入动画基础样式，不碰全局布局
@@ -7942,20 +7931,13 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入带【折叠功能】的 HTML (回归最稳版 + 全屏预览插拔)
+   // 5. 注入带【折叠功能】的 HTML (微创进化版)
     msg.innerHTML = `
-    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
-        
+    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
-             onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
-            
+             onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">准备中... (点击展开)</span>
-
-            <div title="查看原图" onclick="event.stopPropagation(); window.viewNaiImage('${msgId}')" 
-                 style="position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(0,0,0,0.4); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; z-index:10; border:1px solid rgba(255,255,255,0.2);">
-                 🔍
-            </div>
+            <span style="font-size:10px; color:#999; margin-left:8px;">准备中... (点击图片展开控制台)</span>
         </div>
         
         <div class="nai-collapse-content" style="display: none; background: #fff;">
@@ -7975,16 +7957,9 @@ imageMsgs.forEach((msg, index) => {
         </div>
     </div>`;
 
-    // 全局预览层逻辑 (这段只在第一次运行时添加)
-    if (!document.getElementById('nai-global-viewer')) {
-        const v = document.createElement('div');
-        v.id = 'nai-global-viewer';
-        v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;";
-        v.onclick = () => v.style.display = 'none';
-        v.innerHTML = `<img src="" style="max-width:98%; max-height:98%; object-fit:contain;"><div style="position:absolute; bottom:20px; color:#fff; font-size:12px;">点击退出预览</div>`;
-        document.body.appendChild(v);
-    }
-  
+    msg.setAttribute('data-rendered', 'true');
+    msg.setAttribute('data-bound-id', msgId);
+
     // 6. 智能启动：如果本地没缓存，才自动触发第一次生成
     setTimeout(() => {
         if (!localStorage.getItem(`cache_${msgId}`)) {
