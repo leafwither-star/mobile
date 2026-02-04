@@ -7885,6 +7885,19 @@ if (typeof window.voiceEventBound === 'undefined') {
 
   // --- 智能提速逻辑 (图片精准补偿版) ---
   // --- [1. 全球预览功能补全] ---
+window.viewNaiImage = function(e, msgId) {
+    if (e) { e.preventDefault(); e.stopPropagation(); } // 物理拦截
+    const container = document.getElementById(msgId);
+    const globalViewer = document.getElementById('nai-global-viewer');
+    if (!container || !globalViewer) return false;
+
+    const img = container.querySelector('img');
+    if (img && img.src) {
+        globalViewer.querySelector('img').src = img.src;
+        globalViewer.style.display = 'flex';
+    }
+    return false;
+};
 let fastCycles = 0;
 const updateLoop = () => {
     // 1. 注入动画基础样式，不碰全局布局
@@ -7932,15 +7945,15 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入结构 (自包含稳健版：无需外部函数，彻底防跳转)
+   // 5. 注入结构 (极致防跳版)
     msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <div class="view-trigger" 
-             onclick="event.preventDefault(); event.stopPropagation(); const f = this.closest('.nai-image-card').querySelector('.full-viewer'); f.style.display='flex'; const img = document.getElementById('${msgId}').querySelector('img'); if(img) f.querySelector('img').src = img.src;" 
-             style="position:absolute; top:8px; right:8px; width:24px; height:24px; background:rgba(0,0,0,0.3); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:99; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
+        <span class="view-trigger" 
+             onclick="window.viewNaiImage(event, '${msgId}');" 
+             style="position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(0,0,0,0.25); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:99; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
              ···
-        </div>
+        </span>
 
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
              onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
@@ -7957,22 +7970,16 @@ imageMsgs.forEach((msg, index) => {
                 <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
             </div>
         </div>
-
-        <div class="full-viewer" 
-             onclick="this.style.display='none'; event.stopPropagation();" 
-             style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;">
-             <img src="" style="max-width:100%; max-height:100%; object-fit:contain;">
-             <div style="position:absolute; bottom:30px; color:#fff; font-size:12px; opacity:0.6;">点击任意位置返回</div>
-        </div>
     </div>`;
 
-    // --- 全局预览层逻辑 (补全) ---
+    // --- 全球预览层初始化：只在 Body 挂载一次，彻底解决闪烁和遮挡 ---
     if (!document.getElementById('nai-global-viewer')) {
         const v = document.createElement('div');
         v.id = 'nai-global-viewer';
-        v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.95); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;";
-        v.onclick = () => v.style.display = 'none';
-        v.innerHTML = `<img src="" style="max-width:100%; max-height:100%; object-fit:contain;"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; opacity:0.6;">点击任意位置退出预览</div>`;
+        // 使用 z-index: 2147483647 (浏览器最大值) 确保盖过一切
+        v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.95); z-index:2147483647; align-items:center; justify-content:center; cursor:zoom-out;";
+        v.onclick = (e) => { e.stopPropagation(); v.style.display = 'none'; };
+        v.innerHTML = `<img src="" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events:none;"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; opacity:0.5;">点击任意位置退出</div>`;
         document.body.appendChild(v);
     }
 
