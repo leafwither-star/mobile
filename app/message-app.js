@@ -7942,67 +7942,46 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // --- 5. 注入结构 (移除 HTML 内联 onclick 以防拦截失败) ---
+   // 5. 注入带【折叠功能】的 HTML (回归最稳版 + 全屏预览插拔)
     msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <div style="height:240px; background:#f5f5f7; position:relative; overflow:hidden;">
-            <div class="nai-click-zone" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; cursor:zoom-in;">
-                <div id="${msgId}" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
-                    <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-                    <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
-                </div>
-            </div>
+        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
+             onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
+            
+            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+            <span style="font-size:10px; color:#999; margin-left:8px;">准备中... (点击展开)</span>
 
-            <div class="fold-trigger-btn" style="position:absolute; bottom:12px; right:12px; width:28px; height:28px; background:rgba(0,0,0,0.5); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; z-index:999; cursor:pointer; border:1px solid rgba(255,255,255,0.3); box-shadow:0 2px 8px rgba(0,0,0,0.2);">
-                 <span style="pointer-events: none; line-height:1;">···</span>
+            <div title="查看原图" onclick="event.stopPropagation(); window.viewNaiImage('${msgId}')" 
+                 style="position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(0,0,0,0.4); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; z-index:10; border:1px solid rgba(255,255,255,0.2);">
+                 🔍
             </div>
         </div>
         
         <div class="nai-collapse-content" style="display: none; background: #fff;">
-            <div style="padding:10px; font-size:11px; color:#666; line-height:1.4; border-top:1px solid #f2f2f2;">
+            <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-top:1px solid #f0f0f0; background:#fff;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
-            <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f2f2f2;">
-                <button class="btn-redraw" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
-                <button class="btn-save" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+
+            <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
+                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
             </div>
-            <div style="padding:8px; background:#fafafa; border-top:1px solid #f2f2f2;">
-                <input type="text" id="refine-${msgId}" placeholder="添加细节..." style="width:100%; border:1px solid #e5e5e5; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; background:#fff; outline:none;">
+            
+            <div style="padding:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+                <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                       style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
             </div>
         </div>
     </div>`;
 
-    // --- 6. 事件精准绑定 (物理切断跳转) ---
-    const card = msg.querySelector('.nai-image-card');
-    
-    // A. 绑定大图预览 (防止跳转的核心)
-    card.querySelector('.nai-click-zone').onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.viewNaiImage(msgId);
-        return false; // 双重拦截
-    };
-
-    // B. 绑定折叠圆点
-    card.querySelector('.fold-trigger-btn').onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const d = card.querySelector('.nai-collapse-content');
-        d.style.display = (d.style.display === 'none' ? 'block' : 'none');
-    };
-
-    // C. 绑定功能按钮
-    card.querySelector('.btn-redraw').onclick = () => window.reDraw(msgId, promptText, senderName);
-    card.querySelector('.btn-save').onclick = () => window.saveImageToCloud(msgId);
-
-    // --- 全局预览层初始化 ---
+    // 全局预览层逻辑 (这段只在第一次运行时添加)
     if (!document.getElementById('nai-global-viewer')) {
         const v = document.createElement('div');
         v.id = 'nai-global-viewer';
         v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;";
         v.onclick = () => v.style.display = 'none';
-        v.innerHTML = `<img src="" style="max-width:95%; max-height:95%; object-fit:contain; box-shadow: 0 0 20px rgba(0,0,0,0.5);"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 16px; border-radius:20px; backdrop-filter:blur(5px);">点击任意位置退出预览</div>`;
+        v.innerHTML = `<img src="" style="max-width:98%; max-height:98%; object-fit:contain;"><div style="position:absolute; bottom:20px; color:#fff; font-size:12px;">点击退出预览</div>`;
         document.body.appendChild(v);
     }
   
