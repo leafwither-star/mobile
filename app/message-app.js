@@ -7885,18 +7885,6 @@ if (typeof window.voiceEventBound === 'undefined') {
 
   // --- 智能提速逻辑 (图片精准补偿版) ---
   // --- [1. 全球预览功能补全] ---
-window.viewNaiImage = function(msgId) {
-    const container = document.getElementById(msgId);
-    const globalViewer = document.getElementById('nai-global-viewer');
-    if (!container || !globalViewer) return;
-    
-    // 找到容器里真正生成的 img 标签
-    const img = container.querySelector('img');
-    if (img && img.src) {
-        globalViewer.querySelector('img').src = img.src;
-        globalViewer.style.display = 'flex';
-    }
-};
 let fastCycles = 0;
 const updateLoop = () => {
     // 1. 注入动画基础样式，不碰全局布局
@@ -7944,30 +7932,37 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入带【折叠功能】的 HTML (微创稳健版 + 隐形大图按钮)
+   // 5. 注入结构 (自包含稳健版：无需外部函数，彻底防跳转)
     msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <div class="view-full-btn" 
-             onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')" 
-             style="position:absolute; top:8px; right:8px; width:24px; height:24px; background:rgba(0,0,0,0.2); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.8); font-size:12px; z-index:9999; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
+        <div class="view-trigger" 
+             onclick="event.preventDefault(); event.stopPropagation(); const f = this.closest('.nai-image-card').querySelector('.full-viewer'); f.style.display='flex'; const img = document.getElementById('${msgId}').querySelector('img'); if(img) f.querySelector('img').src = img.src;" 
+             style="position:absolute; top:8px; right:8px; width:24px; height:24px; background:rgba(0,0,0,0.3); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:99; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
              ···
         </div>
 
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
              onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">正在连接... (点击折叠)</span>
+            <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
         </div>
         
         <div class="nai-collapse-content" style="display: none; background: #fff;">
-            <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-top:1px solid #f0f0f0;">
+            <div style="padding:10px; font-size:11.5px; color:#444; border-top:1px solid #f0f0f0;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
             <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
                 <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
                 <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
             </div>
+        </div>
+
+        <div class="full-viewer" 
+             onclick="this.style.display='none'; event.stopPropagation();" 
+             style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;">
+             <img src="" style="max-width:100%; max-height:100%; object-fit:contain;">
+             <div style="position:absolute; bottom:30px; color:#fff; font-size:12px; opacity:0.6;">点击任意位置返回</div>
         </div>
     </div>`;
 
