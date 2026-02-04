@@ -7931,9 +7931,16 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入带【折叠功能】的 HTML (微创进化版)
+   // 5. 注入带【折叠功能】的 HTML (微创稳健版 + 悬浮大图按钮)
     msg.innerHTML = `
-    <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
+    <div class="nai-image-card nai-image-offset" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
+        
+        <div class="view-full-btn" 
+             onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')" 
+             style="position:absolute; top:10px; right:10px; width:28px; height:28px; background:rgba(0,0,0,0.5); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:9999; cursor:pointer; border:1px solid rgba(255,255,255,0.3); box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+             🔍
+        </div>
+
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
              onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
@@ -7944,18 +7951,26 @@ imageMsgs.forEach((msg, index) => {
             <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-top:1px solid #f0f0f0; background:#fff;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
-
             <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
                 <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
                 <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
             </div>
-            
             <div style="padding:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
-                <input type="text" id="refine-${msgId}" placeholder="添加细节(如: 穿着睡衣, 深夜...)" 
+                <input type="text" id="refine-${msgId}" placeholder="添加细节..." 
                        style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; outline:none; background:#fff;">
             </div>
         </div>
     </div>`;
+
+    // --- 全局预览层逻辑 (只需要执行一次) ---
+    if (!document.getElementById('nai-global-viewer')) {
+        const v = document.createElement('div');
+        v.id = 'nai-global-viewer';
+        v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;";
+        v.onclick = () => v.style.display = 'none';
+        v.innerHTML = `<img src="" style="max-width:98%; max-height:98%; object-fit:contain; border-radius:4px;"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 16px; border-radius:20px; backdrop-filter:blur(5px);">点击任意位置返回</div>`;
+        document.body.appendChild(v);
+    }
 
     msg.setAttribute('data-rendered', 'true');
     msg.setAttribute('data-bound-id', msgId);
