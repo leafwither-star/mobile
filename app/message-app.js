@@ -7935,7 +7935,7 @@ imageMsgs.forEach((msg, index) => {
     msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important;">
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
-             onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
+             onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
             <span style="font-size:10px; color:#999; margin-left:8px;">准备中... (点击图片展开控制台)</span>
         </div>
