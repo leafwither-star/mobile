@@ -7945,29 +7945,36 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入结构 (极致防跳版)
+   // 5. 注入结构 (最终稳定版：内置图片防跳补丁)
     msg.innerHTML = `
-    <div class="nai-image-card nai-image-offset" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
+    <div class="nai-image-card" style="width:195px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
-        <span class="view-trigger" 
-             onclick="window.viewNaiImage(event, '${msgId}');" 
-             style="position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(0,0,0,0.25); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:99; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
-             ···
-        </span>
+        <style>
+            .nai-image-card img { pointer-events: none !important; }
+            .view-trigger { pointer-events: auto !important; } /* 确保按钮能点到 */
+        </style>
 
-        <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:pointer;" 
-             onclick="event.preventDefault(); event.stopPropagation(); const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
-            <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
-            <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
+        <div style="height:240px; background:#f5f5f7; position:relative; overflow:hidden;">
+            <div id="${msgId}" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; cursor:pointer;" 
+                 onclick="event.preventDefault(); event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
+                <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
+                <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
+            </div>
+
+            <span class="view-trigger" 
+                  onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage(event, '${msgId}');" 
+                  style="position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(0,0,0,0.3); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:99; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
+                  ···
+            </span>
         </div>
         
         <div class="nai-collapse-content" style="display: none; background: #fff;">
-            <div style="padding:10px; font-size:11.5px; color:#444; border-top:1px solid #f0f0f0;">
+            <div style="padding:10px; font-size:11px; color:#666; border-top:1px solid #f0f0f0;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
             <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
-                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
-                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
+                <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; font-weight:600;">🎲 重画</button>
+                <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; font-weight:600;">💾 存档</button>
             </div>
         </div>
     </div>`;
