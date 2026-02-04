@@ -7048,9 +7048,10 @@ if (!window.launchPerfectPacket) { // 加个判断防止重复定义
         else if (content.includes('109_E')) content = "[深夜FM]";
         else if (content.includes('113_S')) content = "[匿名树洞]";
         else content = "[服务通知]";
+       } 
     else if (lines[j].includes('|图片|')) {
         content = "[照片]";
-    } 
+   }
     // B. 原有的 HTML 清洗逻辑（保留，以防万一有旧格式）
     else if (content.includes('<') && content.includes('>')) {
         content = content
