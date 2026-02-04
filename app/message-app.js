@@ -7625,34 +7625,41 @@ else if (raw.match(/\.(docx|pdf|xlsx|pptx)/i)) {
     msg.innerHTML = html;
     msg.setAttribute('data-rendered', 'true');
 }
-  // --- [分支 11]：AI 生图系统 (折叠增强微创版) ---
+  // --- [分支 11]：AI 生图系统 (红包/业务码兼容增强版) ---
 else if (raw.includes('|图片|')) {
-    const p = raw.match(/\|([^|]+)\|([^|]+)\|图片\|([^\]]+)/);
+    // 🔍 强化正则：捕获 [对方消息|姓名|...|图片|描述]
+    // 它会跳过中间不确定的业务码，直接抓取姓名和最后的描述
+    const p = raw.match(/消息\|([^|\]]+)\|.*图片\|([^\]]+)/);
+    
     if (p) {
         const sender = p[1];
-        const promptText = (p[3] || "正在传达视觉信号...").trim();
+        const promptText = (p[2] || "正在传达视觉信号...").trim();
+        
+        // 生成唯一ID (基于内容指纹)
         const safeId = btoa(encodeURIComponent(promptText)).replace(/[^a-zA-Z]/g, "").substr(0, 12);
         const msgId = `nai_id_${safeId}`;
 
         if (msg.getAttribute('data-rendered') === 'true') return;
 
+        // 样式镇压
         if (bubble) bubble.classList.add('service-card-bubble');
         msg.classList.add('service-card-text');
 
-        // 注入容器（保持原有图片容器，下方追加折叠区）
+        // 注入容器 (图片+折叠详情)
         msg.innerHTML = `
         <div class="service-card-container" style="margin-left: 0px !important; margin-top: 4px; width: 180px; border-radius: 12px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
             <div id="${msgId}" style="width: 180px; height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #dbdbdb;">
                 <div class="nai-loading-icon" style="width: 20px; height: 20px; border: 2px solid #fff; border-top-color: #007AFF; border-radius: 50%; animation: nai-loop 1s linear infinite;"></div>
                 <div style="font-size: 10px; color: #888; margin-top: 10px;">准备绘制...</div>
             </div>
-
+            
             <div style="padding: 8px 12px; background: #ffffff; font-size: 11px; color: #333; border-top: 1px solid #f2f2f2;">
-                <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
+                <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" 
+                     onclick="const d = this.nextElementSibling; d.style.display = (d.style.display === 'none' ? 'block' : 'none');">
                     <span><span style="color: #007AFF; font-weight: 800; font-size: 9px; margin-right: 4px;">IMAGE</span> 画面描述</span>
                     <span style="color: #007AFF; font-size: 10px;">▼</span>
                 </div>
-                <div class="manga-prompt-detail" style="display: none; margin-top: 8px; color: #666; line-height: 1.4; border-top: 1px dashed #eee; padding-top: 6px; word-break: break-all;">
+                <div style="display: none; margin-top: 8px; color: #666; line-height: 1.4; border-top: 1px dashed #eee; padding-top: 6px; word-break: break-all;">
                     ${promptText}
                 </div>
             </div>
@@ -7661,11 +7668,14 @@ else if (raw.includes('|图片|')) {
 
         msg.setAttribute('data-rendered', 'true');
 
+        // 唤起生图引擎
         setTimeout(() => {
             if (window.soulImageEngine) {
                 window.soulImageEngine(msgId, msgId, promptText);
             }
         }, 300);
+    } else {
+        console.warn("⚠️ 发现图片指令但匹配失败，Raw 内容:", raw);
     }
 }
 }); // 正确闭合 forEach
