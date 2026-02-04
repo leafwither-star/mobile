@@ -7942,42 +7942,44 @@ imageMsgs.forEach((msg, index) => {
     // 4. 识别发送者
     const senderName = msg.closest('.message')?.querySelector('.channame')?.innerText || "陈一众";
 
-   // 5. 注入带【原图预览 + 独立折叠】功能的 HTML
+   // 5. 注入带【原图预览 + 优雅折叠】功能的 HTML
    msg.innerHTML = `
     <div class="nai-image-card nai-image-offset" style="width:190px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid #eee; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-left:0px !important; position:relative;">
         
         <div id="${msgId}" style="height:240px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:zoom-in;" 
              onclick="event.preventDefault(); event.stopPropagation(); window.viewNaiImage('${msgId}')">
+            
             <div class="nai-loading-icon" style="width:20px; height:20px; border:2px solid #ccc; border-top-color:#007AFF; border-radius:50%;"></div>
             <span style="font-size:10px; color:#999; margin-left:8px;">正在显影...</span>
             
-            <div title="操作面板" onclick="event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');" 
-                 style="position:absolute; top:8px; right:8px; width:24px; height:24px; background:rgba(0,0,0,0.5); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; z-index:5; cursor:pointer;">
-                 ⚙️
+            <div title="展开详情" 
+                 onclick="event.stopPropagation(); const d = this.closest('.nai-image-card').querySelector('.nai-collapse-content'); d.style.display = (d.style.display === 'none' ? 'block' : 'none');" 
+                 style="position:absolute; bottom:8px; right:8px; width:22px; height:22px; background:rgba(255,255,255,0.6); backdrop-filter:blur(4px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px; z-index:99; cursor:pointer; border:0.5px solid rgba(0,0,0,0.05); box-shadow:0 2px 5px rgba(0,0,0,0.1);">
+                 ···
             </div>
         </div>
         
         <div class="nai-collapse-content" style="display: none; background: #fff;">
-            <div style="padding:10px; font-size:11.5px; color:#444; line-height:1.4; border-top:1px solid #f0f0f0;">
+            <div style="padding:10px; font-size:11px; color:#666; line-height:1.4; border-top:1px solid #f2f2f2;">
                 <span style="color:#007AFF; font-weight:800; font-size:9px; margin-right:4px;">PROMPT</span> ${promptText}
             </div>
-            <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
+            <div style="display:flex; padding:8px; gap:8px; background:#fafafa; border-top:1px solid #f2f2f2;">
                 <button onclick="window.reDraw('${msgId}', '${promptText}', '${senderName}')" style="flex:1; border:none; background:#007AFF; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">🎲 重画</button>
                 <button onclick="window.saveImageToCloud('${msgId}')" style="flex:1; border:none; background:#34C759; color:#fff; font-size:10px; padding:6px; border-radius:6px; cursor:pointer; font-weight:600;">💾 存档</button>
             </div>
-            <div style="padding:8px; background:#fafafa; border-top:1px solid #f0f0f0;">
-                <input type="text" id="refine-${msgId}" placeholder="添加细节..." style="width:100%; border:1px solid #e0e0e0; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; background:#fff;">
+            <div style="padding:8px; background:#fafafa; border-top:1px solid #f2f2f2;">
+                <input type="text" id="refine-${msgId}" placeholder="添加细节..." style="width:100%; border:1px solid #e5e5e5; border-radius:6px; font-size:10px; padding:6px; box-sizing:border-box; background:#fff; outline:none;">
             </div>
         </div>
     </div>`;
 
-    // 【重要：原图预览层搬家】将它挂载到 Body，防止被父级裁剪
+    // 全局预览层逻辑保持不变（记得把它挂载在 body 下）
     if (!document.getElementById('nai-global-viewer')) {
         const v = document.createElement('div');
         v.id = 'nai-global-viewer';
         v.style.cssText = "display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:999999; align-items:center; justify-content:center; cursor:zoom-out;";
         v.onclick = () => v.style.display = 'none';
-        v.innerHTML = `<img src="" style="max-width:95%; max-height:95%; object-fit:contain; box-shadow: 0 0 20px rgba(0,0,0,0.5);"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 16px; border-radius:20px; backdrop-filter:blur(5px);">点击任意位置退出预览</div>`;
+        v.innerHTML = `<img src="" style="max-width:95%; max-height:95%; object-fit:contain; box-shadow: 0 0 20px rgba(0,0,0,0.5); transition:transform 0.3s ease;"><div style="position:absolute; bottom:30px; color:#fff; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 16px; border-radius:20px; backdrop-filter:blur(5px);">点击任意位置退出预览</div>`;
         document.body.appendChild(v);
     }
   
