@@ -3,7 +3,7 @@
  * 功能：手机模拟器的 App 调度中心。
  * 原理：数据注入模式，拒绝正文正则扫描。
  */
-
+ 
 class MobileAppLoader {
     constructor() {
         this.apps = new Map(); // 存储已注册的 App 实例
