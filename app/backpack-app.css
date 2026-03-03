@@ -1,38 +1,21 @@
-/* * 【李至中手机模拟器 - 背包/收纳系统样式（待装修）】
- * 🚩 设计思路：
- * 1. 方案A：需要增加场景图容器样式，支持物品拖拽交互。
- * 2. 方案B：衣柜系统样式，采用精致的文字选框替代图片。
- * 3. 统一规范：李律师的审美偏向精致、略显昂贵，避免这种廉价的紫色渐变。
+/**
+ * 【李至中手机模拟器 - 背包资产样式（待重构）】
+ * 🚩 审美补丁：
+ * 1. [状态视觉]：
+ * - .item-rotten: 变质物品的滤镜（如：降低饱和度、带一点灰绿色调）。
+ * - .item-new: 新到货物品的“物流中”呼吸灯特效，以及“签收”后的闪烁提醒。
+ * 2. [交互按钮]：
+ * - .btn-gift: 优雅的礼品图标，点击时带有爱心溅射动效。
+ * - .btn-move: 指向房间的箭头，代表“移入收纳”。
+ * 3. [资产质感]：
+ * - Q版图标容器：给AI生成的缩小版icon一个圆润、精致的边框，符合李律师的精致感。
  */
 
-/* 手机App基础容器 */
 .backpack-app {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: #ffffff; /* 暂时回归纯净白，方便后期配色 */
-    font-family: -apple-system, sans-serif;
+    /* 保持清空，等待逻辑层注入卡片 */
 }
 
-/* 占位符样式：用于显示“正在装修” */
-.under-construction {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #999;
-    font-size: 14px;
-    flex-direction: column;
-}
-
-/* 以后这里会加入：
-   .room-scene { ... } 
-   .item-icon-q { ... } 
-   .closet-text-option { ... }
-*/
-
-/* 保留最基础的弹窗动画，以后用得着 */
-@keyframes slideUp {
-    from { transform: translateY(30px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+/* 预留变质滤镜 */
+.item-status-spoiled {
+    filter: sepia(0.5) contrast(0.8);
 }
