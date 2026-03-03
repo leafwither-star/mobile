@@ -1,45 +1,32 @@
 /**
- * 【李至中手机模拟器 - 背包与收纳系统（核心逻辑重构）】
- * 🚩 重建目标：
- * 1. 来源转变：从“扫描正文”改为“数据库同步”。李律师买的东西直接写入 phone_data.json。
- * 2. 交互升级：
- * - [赠予]：触发与陈一众/曹信的特定对话逻辑。
- * - [移入]：方案A（拖拽入场景）/ 方案B（文字存入衣柜）。
- * - [变质]：引入基于酒馆世界线时间的“新鲜度”倒计时。
- * 3. 托管模式：支持“发薪日自动购买”脚本注入。
+ * 【李至中手机模拟器 - 背包资产中转站（待重构）】
+ * 🚩 核心协议（不可遗忘的野心）：
+ * 1. 资产化存储：物品不再是字符串，而是对象 {id, name, type, location, status, timestamp}。
+ * 2. 交互动作 [赠予]：点击后发送指令触发“反向分享”，生成陈一众朋友圈或微信反馈。
+ * 3. 交互动作 [移入]：联动 storage-app.js，将物品从背包移除，挂载到房间场景锚点。
+ * 4. 真实感巡检：对接服务器巡检脚本，检测 timestamp。
+ * - 示例：[草莓蛋糕] 常温 3 天 -> 状态改为 [变质] -> 触发李至中哀嚎微信。
+ * 5. 延迟到货逻辑：联动“账单系统”，在购买 30s 后将物品从“物流中”状态转入“背包”。
+ * * 🚩 开发分工：
+ * - shopping-app.js：负责“花钱”和“搜钢笔”。
+ * - backpack-app.js：负责“存货”和“变质”。
+ * - storage-app.js：负责“房间场景方案A”和“物品互动”。
  */
 
 class MobileBackpackSystem {
     constructor() {
-        this.storage = []; // 存储物品对象：{id, name, type, icon, status: 'fresh', purchaseDate: '...'}
-        this.scenes = {};  // 存储房间场景数据
-        console.log('📦 [System] 背包收纳系统已切换至“数据存储模式”，等待注入商品...');
+        this.items = []; // phone_data.json 里的资产列表
     }
 
-    // 核心功能入口：添加商品（支持随机触发/指定触发）
-    addItem(itemData) {
-        // AI生成对应Q版icon的占位逻辑
-        console.log(`✨ [Backpack] 李至中获得了新宝贝: ${itemData.name}`);
-        this.storage.push(itemData);
+    // 接收来自购物app或随机事件的物品
+    receiveItem(item) {
+        // 处理 30s 到货延迟、银行扣款通知等逻辑
     }
 
-    // 交互逻辑：移入房间（方案A/B切换）
-    moveToScene(itemId, sceneId) {
-        console.log(`🏠 [Action] 物品 ${itemId} 已移至房间场景: ${sceneId}`);
-        // 这里对接方案B的文字选框逻辑
-    }
-
-    // 交互逻辑：赠予
-    giveGift(itemId, targetName) {
-        console.log(`🎁 [Action] 李至中把物品 ${itemId} 送给了 ${targetName}`);
-        // 触发反向分享逻辑
-    }
-
-    // 状态检查：变质提醒逻辑
-    checkPerishables() {
-        // 检查蛋糕等消耗品是否被吃掉或过期
+    // 处理变质/状态改变
+    onStatusChange(itemId, newStatus) {
+        // 触发李至中和陈一众的特定微信互动
     }
 }
 
-// 抹除旧的 BackpackApp 实例，启用新大脑
 window.backpackSystem = new MobileBackpackSystem();
