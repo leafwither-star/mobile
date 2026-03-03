@@ -1,4 +1,40 @@
 /**
+ * 【李至中手机模拟器 - 附件处理模块（待重构）】
+ * * 🚩 重构思路（占位注释）：
+ * 1. 核心任务：负责将李律师购买的商品、收到的图片转换为手机能显示的 Q 版 icon 或缩略图。
+ * 2. 拒绝操作：严禁直接去碰酒馆的发送框（send_textarea），那是旧时代的卡顿来源。
+ * 3. 未来对接：对接“收纳系统”方案A/B，当物品移入背包时，调用此脚本的 fileToBase64 功能。
+ */
+
+class MobileAttachmentTool {
+    constructor() {
+        // 限制10MB，保护内存
+        this.maxFileSize = 10 * 1024 * 1024;
+        this.supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        console.log('🖼️ [System] 附件处理工具已降级为纯净模式，等待新协议接入。');
+    }
+
+    // 未来保留：将图片转为Base64码（用于收纳盒图标生成）
+    async fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // 未来保留：验证文件大小（防止李律师买的“超大物件”撑爆内存）
+    validateFile(file) {
+        if (file.size > this.maxFileSize) return { isValid: false, error: '文件太大' };
+        return { isValid: true };
+    }
+}
+
+// 注册到全局，但现在不执行任何主动操作
+window.attachmentTool = new MobileAttachmentTool();
+
+/**
  * 附件发送器 - 处理文件上传和发送功能
  * 支持图片、文档等多种文件类型的上传和发送
  */
