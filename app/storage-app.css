@@ -1,0 +1,27 @@
+/**
+ * 【李至中手机模拟器 - 方案A 房间收纳空间样式】
+ * 🚩 重建协议（视觉核心）：
+ * 1. [场景容器]：
+ * - .room-container: 必须是绝对定位。AI生成的底图作为 background-size: cover。
+ * - .room-zoom: 实现你提到的“放大镜”或“横屏全图”效果。
+ * 2. [热点锚点]：
+ * - .hotspot: 初始状态下透明，只有当物品悬停在上方时，亮起微光边框。
+ * - .hotspot-active: 成功放置物品后的标记点。
+ * 3. [物品互动标签]：
+ * - .interaction-bubble: “泰迪熊多多”的小标签，文字背景要有那种半透明的磨砂玻璃质感（Backdrop-filter）。
+ * 4. [拖拽反馈]：
+ * - .dragging-icon: 物品从背包拉出来时的缩影，需要带有 0.8 的透明度和轻微旋转。
+ */
+
+.room-view {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 锚点微光动效 */
+@keyframes anchor-glow {
+    0% { box-shadow: 0 0 5px rgba(255,255,255,0.5); }
+    100% { box-shadow: 0 0 15px rgba(255,255,255,0.8); }
+}
