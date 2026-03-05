@@ -1,3 +1,4 @@
+// 【施工标记】神经元：保留数据接口，用于异步感知聊天内容。
 /**
  * Context Monitor Integration - 上下文监控器集成
  * 帮助其他组件正确使用ContextMonitor
