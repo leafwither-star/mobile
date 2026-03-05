@@ -2425,7 +2425,7 @@ html body .mobile-phone-frame .app-icon[data-app='shop'] .app-icon-bg {
 
 /* [第一排] 3. 健康 (ID: task) - 原任务位置 */
 html body .mobile-phone-frame .app-icon[data-app='task'] .app-icon-bg {
-    background-image: url('../mobile/images/health2.png') !important; /* 需确认文件名 */
+    background-image: url('../mobile/images/jiankang.png') !important; /* 需确认文件名 */
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
