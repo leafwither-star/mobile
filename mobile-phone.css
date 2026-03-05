@@ -2373,21 +2373,12 @@
 }
 .mobile-api-config-form #api-system-prompt{display: none;}
 
-/* 强力卸妆：隐藏所有原作者手画的黑色小图标 */
-.app-icon-bg::before, 
-.app-icon-bg::after {
-    display: none !important;
-}
+/* ============================================================
+   李律师手机 UI 深度定制插件 - 最终合并版
+   功能：清空旧图标 + 磨砂玻璃特效 + 微信图标注入
+   ============================================================ */
 
-/* 柔光滤镜：让图标背景框变得晶莹剔透 */
-.app-icon-bg {
-    background: rgba(255, 255, 255, 0.5) !important; /* 半透明果冻感 */
-    backdrop-filter: blur(8px); /* 磨砂玻璃效果 */
-    border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-}
-
-/* 暴力清空方案：强制隐藏所有图标内容，只留磨砂底色 */
+/* 1. 暴力清空与全局样式重置：让所有图标变为空白的磨砂方块 */
 .app-icon-bg::before, 
 .app-icon-bg::after,
 .app-icon-bg i, 
@@ -2397,16 +2388,36 @@
     opacity: 0 !important;
 }
 
-/* 确保磨砂方块是空的，方便李律师以后贴新图 */
 .app-icon-bg {
     font-size: 0 !important;
     color: transparent !important;
+    /* 磨砂玻璃质感设置 */
+    background: rgba(255, 255, 255, 0.45) !important; /* 半透明果冻感 */
+    backdrop-filter: blur(8px) !important; /* 磨砂效果 */
+    border: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.3s ease !important;
 }
 
-/* 给微信（messages）贴上新图标 */
-.app-icon[data-app='messages'] .app-icon-bg {
+/* 2. 微信图标精准注入：使用“超级长路径”确保不会被系统划掉 */
+html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
     background-image: url('../mobile/images/weixin.png') !important; 
-    background-size: 85%; /* 微信图标通常比较圆润，可以适当大一点 */
-    background-position: center;
-    background-repeat: no-repeat;
+    background-size: 80% !important; /* 调整图标大小，留出一点磨砂边框 */
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    display: flex !important; /* 确保图标容器处于显示状态 */
+    opacity: 1 !important; /* 确保可见 */
+}
+
+/* 3. 标签文字美化：让“信息”两个字在背景图上更清晰 */
+.app-icon[data-app='messages'] .app-label {
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+    font-weight: 500 !important;
+}
+
+/* 4. 消除微博和API等文字图标的顽固残留 */
+.app-icon[data-app='weibo'] .app-icon-bg,
+.app-icon[data-app='api'] .app-icon-bg {
+    font-size: 0 !important;
 }
