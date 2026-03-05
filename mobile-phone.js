@@ -356,7 +356,7 @@ class MobilePhone {
                                                 <div class="app-row">
                                                     <div class="app-icon" data-app="messages">
                                                         <div class="app-icon-bg pink">💬</div>
-                                                        <span class="app-label">信息</span>
+                                                        <span class="app-label">微信</span>
                                                     </div>
                                                     <div class="app-icon" data-app="shop">
                                                         <div class="app-icon-bg purple">购</div>
@@ -364,7 +364,7 @@ class MobilePhone {
                                                     </div>
                                                     <div class="app-icon" data-app="task">
                                                         <div class="app-icon-bg purple">📰</div>
-                                                        <span class="app-label">任务</span>
+                                                        <span class="app-label">健康</span>
                                                     </div>
                                                 </div>
                                                 <!-- 第二行：论坛，微博，直播 -->
@@ -375,7 +375,7 @@ class MobilePhone {
                                                     </div>
                                                     <div class="app-icon" data-app="weibo">
                                                         <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
-                                                        <span class="app-label">微博</span>
+                                                        <span class="app-label">收纳</span>
                                                     </div>
                                                     <div class="app-icon" data-app="live">
                                                         <div class="app-icon-bg red">🎬</div>
@@ -390,7 +390,7 @@ class MobilePhone {
                                                     </div>
                                                     <div class="app-icon" data-app="api">
                                                         <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
-                                                        <span class="app-label">API</span>
+                                                        <span class="app-label">设置</span>
                                                     </div>
                                                     <div class="app-icon" data-app="profile">
                                                         <div class="app-icon-bg green">📋</div>
