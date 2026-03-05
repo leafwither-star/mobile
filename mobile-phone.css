@@ -2386,3 +2386,27 @@
     border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
+
+/* 暴力清空方案：强制隐藏所有图标内容，只留磨砂底色 */
+.app-icon-bg::before, 
+.app-icon-bg::after,
+.app-icon-bg i, 
+.app-icon-bg span {
+    display: none !important;
+    content: none !important;
+    opacity: 0 !important;
+}
+
+/* 确保磨砂方块是空的，方便李律师以后贴新图 */
+.app-icon-bg {
+    font-size: 0 !important;
+    color: transparent !important;
+}
+
+/* 给微信（messages）贴上新图标 */
+.app-icon[data-app='messages'] .app-icon-bg {
+    background-image: url('../mobile/images/weixin.png') !important; 
+    background-size: 85%; /* 微信图标通常比较圆润，可以适当大一点 */
+    background-position: center;
+    background-repeat: no-repeat;
+}
