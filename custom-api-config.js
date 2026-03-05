@@ -1,3 +1,4 @@
+// 【施工标记】保留：独立API中心，未来对接Gemini异步生成。
 // ==Mobile Custom API Config==
 // @name         Mobile Custom API Configuration
 // @version      1.0.0
