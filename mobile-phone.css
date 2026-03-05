@@ -166,7 +166,7 @@
   gap: 20px;
   background: #fff;
   border-radius: 0 0 20px 20px;
-  background: url(../mobile/images/purple.jpg) no-repeat center center;
+  background: url(../mobile/images/J636aa.jpg) no-repeat center center;
   background-size: cover;
 }
 
@@ -2472,8 +2472,8 @@ html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
 }
 
 /* [第三排] 9. 档案 (ID: profile) */
-html body .mobile-phone-frame .app-icon[data-app='profile2'] .app-icon-bg {
-    background-image: url('../mobile/images/profile2.png') !important;
+html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
+    background-image: url('../mobile/images/profile3.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
