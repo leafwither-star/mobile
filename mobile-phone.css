@@ -2433,7 +2433,7 @@ html body .mobile-phone-frame .app-icon[data-app='task'] .app-icon-bg {
 
 /* [第二排] 4. 论坛 (ID: forum) */
 html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
-    background-image: url('../mobile/images/forum4.png') !important;
+    background-image: url('../mobile/images/forum2.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
