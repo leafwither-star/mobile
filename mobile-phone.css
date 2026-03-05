@@ -2410,7 +2410,7 @@
 /* [第一排] 1. 微信 (ID: messages) */
 html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
     background-image: url('../mobile/images/weixin.png') !important;
-    background-size: 85% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
@@ -2418,23 +2418,23 @@ html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
 /* [第一排] 2. 购物 (ID: shop) */
 html body .mobile-phone-frame .app-icon[data-app='shop'] .app-icon-bg {
     background-image: url('../mobile/images/shop.png') !important; /* 需确认文件名 */
-    background-size: 80% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
 /* [第一排] 3. 健康 (ID: task) - 原任务位置 */
 html body .mobile-phone-frame .app-icon[data-app='task'] .app-icon-bg {
-    background-image: url('../mobile/images/health.png') !important; /* 需确认文件名 */
-    background-size: 80% !important;
+    background-image: url('../mobile/images/health2.png') !important; /* 需确认文件名 */
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
 /* [第二排] 4. 论坛 (ID: forum) */
 html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
-    background-image: url('../mobile/images/forum.png') !important;
-    background-size: 80% !important;
+    background-image: url('../mobile/images/forum2.png') !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
@@ -2442,23 +2442,23 @@ html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
 /* [第二排] 5. 收纳 (ID: weibo) - 原微博位置 */
 html body .mobile-phone-frame .app-icon[data-app='weibo'] .app-icon-bg {
     background-image: url('../mobile/images/shouna.png') !important;
-    background-size: 80% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
 /* [第二排] 6. 直播 (ID: live) */
 html body .mobile-phone-frame .app-icon[data-app='live'] .app-icon-bg {
-    background-image: url('../mobile/images/live.png') !important;
-    background-size: 80% !important;
+    background-image: url('../mobile/images/live2.png') !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
 /* [第三排] 7. 背包 (ID: backpack) */
 html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
-    background-image: url('../mobile/images/beibao.png') !important;
-    background-size: 80% !important;
+    background-image: url('../mobile/images/backpack.png') !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
@@ -2466,7 +2466,7 @@ html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
 /* [第三排] 8. 设置 (ID: api) - 原API位置 */
 html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
     background-image: url('../mobile/images/setting.png') !important;
-    background-size: 75% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
@@ -2474,7 +2474,7 @@ html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
 /* [第三排] 9. 档案 (ID: profile) */
 html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
     background-image: url('../mobile/images/profile.png') !important;
-    background-size: 80% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
