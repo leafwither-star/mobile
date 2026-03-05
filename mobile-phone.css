@@ -2441,7 +2441,7 @@ html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
 
 /* [第二排] 5. 收纳 (ID: weibo) - 原微博位置 */
 html body .mobile-phone-frame .app-icon[data-app='weibo'] .app-icon-bg {
-    background-image: url('../mobile/images/shouna.png') !important;
+    background-image: url('../mobile/images/shouna2.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
@@ -2465,14 +2465,14 @@ html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
 
 /* [第三排] 8. 设置 (ID: api) - 原API位置 */
 html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
-    background-image: url('../mobile/images/setting.png') !important;
+    background-image: url('../mobile/images/setting2.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
 /* [第三排] 9. 档案 (ID: profile) */
-html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
+html body .mobile-phone-frame .app-icon[data-app='profile2'] .app-icon-bg {
     background-image: url('../mobile/images/profile.png') !important;
     background-size: 95% !important;
     background-position: center !important;
