@@ -166,7 +166,7 @@
   gap: 20px;
   background: #fff;
   border-radius: 0 0 20px 20px;
-  background: url(../mobile/images/J636aa.jpg) no-repeat center center;
+  background: url(../mobile/images/purple.jpg) no-repeat center center;
   background-size: cover;
 }
 
@@ -2374,11 +2374,10 @@
 .mobile-api-config-form #api-system-prompt{display: none;}
 
 /* ============================================================
-   李律师手机 UI 深度定制插件 - 最终合并版
-   功能：清空旧图标 + 磨砂玻璃特效 + 微信图标注入
+   李律师手机 UI 深度定制 - 九宫格全图标注入版
    ============================================================ */
 
-/* 1. 暴力清空与全局样式重置：让所有图标变为空白的磨砂方块 */
+/* --- 1. 全局卸妆：清空所有旧图标残留，建立磨砂底座 --- */
 .app-icon-bg::before, 
 .app-icon-bg::after,
 .app-icon-bg i, 
@@ -2391,33 +2390,91 @@
 .app-icon-bg {
     font-size: 0 !important;
     color: transparent !important;
-    /* 磨砂玻璃质感设置 */
-    background: rgba(255, 255, 255, 0.45) !important; /* 半透明果冻感 */
-    backdrop-filter: blur(8px) !important; /* 磨砂效果 */
+    background: rgba(255, 255, 255, 0.45) !important;
+    backdrop-filter: blur(8px) !important;
     border: 1.5px solid rgba(255, 255, 255, 0.7) !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
     transition: all 0.3s ease !important;
+    border-radius: 18px !important; /* 让方块更圆润可爱 */
 }
 
-/* 2. 微信图标精准注入：使用“超级长路径”确保不会被系统划掉 */
-html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
-    background-image: url('../mobile/images/weixin.png') !important; 
-    background-size: 90% !important; /* 调整图标大小，留出一点磨砂边框 */
-    background-position: center !important;
-    background-repeat: no-repeat !important;
-    display: flex !important; /* 确保图标容器处于显示状态 */
-    opacity: 1 !important; /* 确保可见 */
-}
-
-/* 3. 标签文字美化：让“信息”两个字在背景图上更清晰 */
-.app-icon[data-app='messages'] .app-label {
+/* 统一文字样式：白色字体 + 阴影 */
+.app-label {
     color: #ffffff !important;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
     font-weight: 500 !important;
 }
 
-/* 4. 消除微博和API等文字图标的顽固残留 */
-.app-icon[data-app='weibo'] .app-icon-bg,
-.app-icon[data-app='api'] .app-icon-bg {
-    font-size: 0 !important;
+/* --- 2. 精准贴图：按照厂长的新布局注入图标 --- */
+
+/* [第一排] 1. 微信 (ID: messages) */
+html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
+    background-image: url('../mobile/images/weixin.png') !important;
+    background-size: 85% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第一排] 2. 购物 (ID: shop) */
+html body .mobile-phone-frame .app-icon[data-app='shop'] .app-icon-bg {
+    background-image: url('../mobile/images/shop.png') !important; /* 需确认文件名 */
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第一排] 3. 健康 (ID: task) - 原任务位置 */
+html body .mobile-phone-frame .app-icon[data-app='task'] .app-icon-bg {
+    background-image: url('../mobile/images/health.png') !important; /* 需确认文件名 */
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第二排] 4. 论坛 (ID: forum) */
+html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
+    background-image: url('../mobile/images/forum.png') !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第二排] 5. 收纳 (ID: weibo) - 原微博位置 */
+html body .mobile-phone-frame .app-icon[data-app='weibo'] .app-icon-bg {
+    background-image: url('../mobile/images/shouna.png') !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第二排] 6. 直播 (ID: live) */
+html body .mobile-phone-frame .app-icon[data-app='live'] .app-icon-bg {
+    background-image: url('../mobile/images/live.png') !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第三排] 7. 背包 (ID: backpack) */
+html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
+    background-image: url('../mobile/images/beibao.png') !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第三排] 8. 设置 (ID: api) - 原API位置 */
+html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
+    background-image: url('../mobile/images/setting.png') !important;
+    background-size: 75% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* [第三排] 9. 档案 (ID: profile) */
+html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
+    background-image: url('../mobile/images/profile.png') !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
 }
