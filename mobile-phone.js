@@ -5957,7 +5957,7 @@ class MobilePhone {
         // 标记正在加载
         window._messageAppLoading = new Promise((resolve, reject) => {
             let loadedCount = 0;
-            const totalFiles = 8; // message-app.css + message-renderer.css + friends-circle.css + friend-renderer.js + message-renderer.js + message-sender.js + friends-circle.js + message-app.js
+            const totalFiles = 7; // message-app.css + message-renderer.css + friends-circle.css + friend-renderer.js + message-renderer.js + message-sender.js + friends-circle.js + message-app.js
 
             const checkComplete = () => {
                 loadedCount++;
@@ -6041,7 +6041,6 @@ class MobilePhone {
 
             // 加载JavaScript文件 - 按正确顺序
             const jsFiles = [
-                '/scripts/extensions/third-party/mobile/app/friend-renderer.js',
                 '/scripts/extensions/third-party/mobile/app/message-renderer.js',
                 '/scripts/extensions/third-party/mobile/app/message-sender.js',
                 '/scripts/extensions/third-party/mobile/app/friends-circle.js',
