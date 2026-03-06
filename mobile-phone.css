@@ -2466,7 +2466,7 @@ html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
 /* [第三排] 8. 设置 (ID: api) - 原API位置 */
 html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
     background-image: url('../mobile/images/setting2.png') !important;
-    background-size: 90% !important;
+    background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
@@ -2474,6 +2474,48 @@ html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
 /* [第三排] 9. 档案 (ID: profile) */
 html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
     background-image: url('../mobile/images/profile3.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* --- 第二屏 App 图标注入 --- */
+
+/* 1. 出行 (travel) */
+html body .mobile-phone-frame .app-icon[data-app='travel'] .app-icon-bg {
+    background-image: url('../mobile/images/travel.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* 2. 邮箱 (email) */
+html body .mobile-phone-frame .app-icon[data-app='email'] .app-icon-bg {
+    background-image: url('../mobile/images/email.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* 3. 账单 (bill) */
+html body .mobile-phone-frame .app-icon[data-app='bill'] .app-icon-bg {
+    background-image: url('../mobile/images/bill.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* 4. Gemini (gemini) */
+html body .mobile-phone-frame .app-icon[data-app='gemini'] .app-icon-bg {
+    background-image: url('../mobile/images/AI.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* 5. 同人网 (fanfic) */
+html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
+    background-image: url('../mobile/images/AO3.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
