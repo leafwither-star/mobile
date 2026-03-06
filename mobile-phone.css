@@ -2541,23 +2541,36 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     opacity: 0.85 !important;
 }
 
-/* --- 天气小框：精准定制浅紫色 #DCDEF7 --- */
-
-.weather-info {
-    /* 使用 rgba 把 #DCDEF7 转换为带 0.7 透明度的色值 */
-    background-color: rgba(220, 222, 247, 0.7) !important; 
-    border-radius: 20px !important;
-    padding: 4px 15px !important;
-    display: inline-block !important;
-    margin-top: 10px !important;
-    /* 核心：增加磨砂感，模糊背后的图案 */
-    backdrop-filter: blur(5px) !important; 
-    border: 1px solid rgba(255, 255, 255, 0.5) !important; /* 加个细白边更高级 */
-    box-shadow: 0 4px 10px rgba(55, 48, 113, 0.1) !important;
+/* 1. 先把外层的“大盒子”彻底掏空 */
+.weather-card {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
+/* 2. 再给真正的小框精准上色 + 磨砂 */
+html body .mobile-phone-frame .weather-info {
+    /* 使用更清透的 rgba 值，0.6 的透明度 */
+    background-color: rgba(220, 222, 247, 0.6) !important; 
+    border-radius: 20px !important;
+    padding: 4px 18px !important;
+    display: inline-block !important;
+    margin-top: 10px !important;
+    
+    /* 磨砂玻璃全套配置 */
+    backdrop-filter: blur(10px) !important; 
+    -webkit-backdrop-filter: blur(10px) !important; /* 兼容部分浏览器内核 */
+    
+    /* 增加精致感的细白边 */
+    border: 1.2px solid rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 4px 15px rgba(55, 48, 113, 0.15) !important;
+}
+
+/* 3. 文字颜色确保穿透 */
 .weather-desc {
     color: #373071 !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
     font-size: 14px !important;
+    letter-spacing: 0.5px !important;
 }
