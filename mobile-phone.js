@@ -403,26 +403,35 @@ class MobilePhone {
 
                                         <!-- 第二页 -->
                                         <div class="app-page">
-                                            <div class="app-grid">
-                                                <!-- 第一行：相册，邮件，音乐 -->
-                                                <div class="app-row">
-                                                    <div class="app-icon" data-app="settings">
-                                                        <div class="app-icon-bg purple">⚙️</div>
-                                                        <span class="app-label">设置</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="status">
-                                                        <div class="app-icon-bg blue">👤</div>
-                                                        <span class="app-label">状态</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="diary">
-                                                        <div class="app-icon-bg orange">📔</div>
-                                                        <span class="app-label">日记</span>
-                                                    </div>
-                                                </div>
+    <div class="app-grid">
+        <div class="app-row">
+            <div class="app-icon" data-app="travel">
+                <div class="app-icon-bg pink">✈️</div>
+                <span class="app-label">出行</span>
+            </div>
+            <div class="app-icon" data-app="email">
+                <div class="app-icon-bg blue">📧</div>
+                <span class="app-label">邮箱</span>
+            </div>
+            <div class="app-icon" data-app="bill">
+                <div class="app-icon-bg green">💰</div>
+                <span class="app-label">账单</span>
+            </div>
+        </div>
 
-                                            </div>
-                                        </div>
-                                    </div>
+        <div class="app-row">
+            <div class="app-icon" data-app="gemini">
+                <div class="app-icon-bg blue">✨</div>
+                <span class="app-label">AI</span>
+            </div>
+            <div class="app-icon" data-app="fanfic">
+                <div class="app-icon-bg red">📚</div>
+                <span class="app-label">AO3</span>
+            </div>
+            <div class="app-icon" style="visibility: hidden;"></div>
+        </div>
+    </div>
+</div>
 
                                     <!-- 页面指示器 -->
                                     <div class="page-indicators" id="page-indicators">
