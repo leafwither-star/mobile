@@ -2544,16 +2544,20 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
 /* --- 天气小框：精准定制浅紫色 #DCDEF7 --- */
 
 .weather-info {
-    background-color: #DCDEF7 !important; /* 厂长指定的浅紫色 */
-    border-radius: 20px !important; /* 椭圆效果 */
+    /* 使用 rgba 把 #DCDEF7 转换为带 0.7 透明度的色值 */
+    background-color: rgba(220, 222, 247, 0.7) !important; 
+    border-radius: 20px !important;
     padding: 4px 15px !important;
     display: inline-block !important;
     margin-top: 10px !important;
-    box-shadow: 0 2px 8px rgba(55, 48, 113, 0.1) !important; /* 淡淡的紫色阴影 */
+    /* 核心：增加磨砂感，模糊背后的图案 */
+    backdrop-filter: blur(5px) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.5) !important; /* 加个细白边更高级 */
+    box-shadow: 0 4px 10px rgba(55, 48, 113, 0.1) !important;
 }
 
 .weather-desc {
-    color: #373071 !important; /* 文字用深紫，形成对比 */
+    color: #373071 !important;
     font-weight: 500 !important;
     font-size: 14px !important;
 }
