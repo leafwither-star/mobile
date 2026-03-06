@@ -2483,7 +2483,7 @@ html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
 
 /* 1. 出行 (travel) */
 html body .mobile-phone-frame .app-icon[data-app='travel'] .app-icon-bg {
-    background-image: url('../mobile/images/travel.png') !important;
+    background-image: url('../mobile/images/travel2.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
@@ -2499,7 +2499,7 @@ html body .mobile-phone-frame .app-icon[data-app='email'] .app-icon-bg {
 
 /* 3. 账单 (bill) */
 html body .mobile-phone-frame .app-icon[data-app='bill'] .app-icon-bg {
-    background-image: url('../mobile/images/bill.png') !important;
+    background-image: url('../mobile/images/bill2.png') !important;
     background-size: 95% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
@@ -2516,7 +2516,7 @@ html body .mobile-phone-frame .app-icon[data-app='gemini'] .app-icon-bg {
 /* 5. 同人网 (fanfic) */
 html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-image: url('../mobile/images/AO3.png') !important;
-    background-size: 95% !important;
+    background-size: 90% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
