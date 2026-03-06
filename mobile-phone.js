@@ -402,33 +402,36 @@ class MobilePhone {
                                         </div>
 
                                         <!-- 第二页 -->
-                                        <div class="app-page">
+                                       <div class="app-page">
     <div class="app-grid">
         <div class="app-row">
             <div class="app-icon" data-app="travel">
-                <div class="app-icon-bg pink">✈️</div>
+                <div class="app-icon-bg">✈️</div>
                 <span class="app-label">出行</span>
             </div>
             <div class="app-icon" data-app="email">
-                <div class="app-icon-bg blue">📧</div>
+                <div class="app-icon-bg">📧</div>
                 <span class="app-label">邮箱</span>
             </div>
             <div class="app-icon" data-app="bill">
-                <div class="app-icon-bg green">💰</div>
+                <div class="app-icon-bg">💰</div>
                 <span class="app-label">账单</span>
             </div>
         </div>
 
         <div class="app-row">
             <div class="app-icon" data-app="gemini">
-                <div class="app-icon-bg blue">✨</div>
+                <div class="app-icon-bg">✨</div>
                 <span class="app-label">AI</span>
             </div>
             <div class="app-icon" data-app="fanfic">
-                <div class="app-icon-bg red">📚</div>
+                <div class="app-icon-bg">📚</div>
                 <span class="app-label">AO3</span>
             </div>
-            <div class="app-icon" style="visibility: hidden;"></div>
+            <div class="app-icon" style="opacity: 0; pointer-events: none;">
+                <div class="app-icon-bg"></div>
+                <span class="app-label"></span>
+            </div>
         </div>
     </div>
 </div>
