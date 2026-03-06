@@ -2520,3 +2520,33 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
+
+/* --- 首页时间与日期：优雅紫定制 --- */
+
+#home-time {
+    color: #373071 !important;
+    font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif !important;
+    font-weight: 300 !important; /* 极细体，高级感的来源 */
+    font-size: 72px !important; /* 如果觉得太大可以调小 */
+    letter-spacing: -2px !important; /* 让数字靠得更近，更有设计感 */
+    margin-bottom: 5px !important;
+    display: block !important;
+}
+
+#home-date {
+    color: rgba(55, 48, 113, 0.8) !important; /* 使用您的颜色，加了20%透明度更柔和 */
+    font-family: "PingFang SC", "Helvetica Neue", sans-serif !important;
+    font-weight: 400 !important;
+    font-size: 20px !important;
+    letter-spacing: 1px !important;
+    opacity: 0.9 !important;
+}
+
+/* 顺便把那个“多云转小雨”的椭圆小框也改改，不然太突兀了 */
+.weather-summary {
+    background: rgba(255, 255, 255, 0.5) !important;
+    color: #373071 !important;
+    border: 1px solid rgba(55, 48, 113, 0.2) !important;
+    font-size: 14px !important;
+    backdrop-filter: blur(4px);
+}
