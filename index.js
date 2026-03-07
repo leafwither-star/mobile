@@ -598,10 +598,10 @@ async function initMobileContextPlugin() {
     }
 
     // 初始化论坛功能
-    initForumFeatures();
+    // initForumFeatures();  // <-- 注释掉这一行
 
     // 初始化微博功能
-    initWeiboFeatures();
+    // initWeiboFeatures();  // <-- 如果微博也没写好，建议一起注释掉，防止报同样的错
 
     // 应用手机可见性设置
     updatePhoneVisibility();
