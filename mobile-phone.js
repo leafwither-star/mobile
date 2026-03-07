@@ -811,46 +811,45 @@ registerApps() {
     }
 }
 
-    // 返回主界面
+    // 1. 停止状态同步 (独立出来)
+    stopStateSyncLoop() {
+        if (this._syncTimer) {
+            clearInterval(this._syncTimer);
+            this._syncTimer = null;
+            console.log('[Mobile] 后台同步已停止');
+        }
+    }
+
+    // 2. 返回主界面 (正确闭合)
     goHome() {
-        // 防抖检查：如果正在返回主界面，直接返回
+        // 防抖检查
         if (this._goingHome) {
             console.log('[Mobile Phone] 防抖：正在返回主界面，跳过重复操作');
             return;
         }
 
-        stopStateSyncLoop() {
-    if (this._syncTimer) {
-        clearInterval(this._syncTimer);
-        this._syncTimer = null;
-        console.log('[Mobile] 后台同步已停止');
-    }
-}
         // 如果已经在主界面，直接返回
         if (!this.currentApp && !this.currentAppState && this.appStack.length === 0) {
             console.log('[Mobile Phone] 已在主界面，跳过重复操作');
             return;
         }
 
-        // 设置防抖标记
         this._goingHome = true;
 
         try {
             console.log('[Mobile Phone] 返回主界面');
-
-            // 清除用户导航意图
             this._userNavigationIntent = null;
-
             this.currentApp = null;
             this.currentAppState = null;
-            this.appStack = []; // 清空应用栈
-            document.getElementById('home-screen').style.display = 'block';
-            document.getElementById('app-screen').style.display = 'none';
+            this.appStack = []; 
 
-            // 停止状态同步，避免无谓轮询
+            const homeScreen = document.getElementById('home-screen');
+            const appScreen = document.getElementById('app-screen');
+            if (homeScreen) homeScreen.style.display = 'block';
+            if (appScreen) appScreen.style.display = 'none';
+
             this.stopStateSyncLoop();
         } finally {
-            // 清除防抖标记
             setTimeout(() => {
                 this._goingHome = false;
             }, 300);
