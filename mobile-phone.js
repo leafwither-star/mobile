@@ -353,7 +353,6 @@ class MobilePhone {
                 <div class="mobile-phone-overlay"></div>
                 <div class="mobile-phone-frame">
                     <div class="mobile-phone-screen">
-                        <!-- 状态栏 -->
                         <div class="mobile-status-bar">
                             <div class="status-left">
                                 <span class="time" id="mobile-time">08:08</span>
@@ -369,11 +368,8 @@ class MobilePhone {
                             </div>
                         </div>
 
-                        <!-- 主内容区域 -->
                         <div class="mobile-content" id="mobile-content">
-                            <!-- 主界面 -->
                             <div class="home-screen" id="home-screen">
-                                <!-- 时间天气卡片 -->
                                 <div class="weather-card">
                                     <div class="weather-time">
                                         <span class="current-time" id="home-time">08:08</span>
@@ -384,96 +380,51 @@ class MobilePhone {
                                     </div>
                                 </div>
 
-
-                                <!-- 应用页面容器 -->
                                 <div class="app-pages-container">
                                     <div class="app-pages-wrapper" id="app-pages-wrapper">
-                                        <!-- 第一页 -->
                                         <div class="app-page">
                                             <div class="app-grid">
-                                                <!-- 第一行：信息，购物，任务 -->
                                                 <div class="app-row">
-                                                    <div class="app-icon" data-app="messages">
-                                                        <div class="app-icon-bg pink">💬</div>
-                                                        <span class="app-label">微信</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="shop">
-                                                        <div class="app-icon-bg purple">购</div>
-                                                        <span class="app-label">购物</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="task">
-                                                        <div class="app-icon-bg purple">📰</div>
-                                                        <span class="app-label">健康</span>
-                                                    </div>
+                                                    <div class="app-icon" data-app="messages"><div class="app-icon-bg pink">💬</div><span class="app-label">微信</span></div>
+                                                    <div class="app-icon" data-app="shop"><div class="app-icon-bg purple">购</div><span class="app-label">购物</span></div>
+                                                    <div class="app-icon" data-app="task"><div class="app-icon-bg purple">📰</div><span class="app-label">健康</span></div>
                                                 </div>
-                                                <!-- 第二行：论坛，微博，直播 -->
                                                 <div class="app-row">
-                                                    <div class="app-icon" data-app="forum">
-                                                        <div class="app-icon-bg red">📰</div>
-                                                        <span class="app-label">论坛</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="weibo">
-                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
-                                                        <span class="app-label">收纳</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="live">
-                                                        <div class="app-icon-bg red">🎬</div>
-                                                        <span class="app-label">直播</span>
-                                                    </div>
+                                                    <div class="app-icon" data-app="forum"><div class="app-icon-bg red">📰</div><span class="app-label">论坛</span></div>
+                                                    <div class="app-icon" data-app="weibo"><div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div><span class="app-label">收纳</span></div>
+                                                    <div class="app-icon" data-app="live"><div class="app-icon-bg red">🎬</div><span class="app-label">直播</span></div>
                                                 </div>
-                                                <!-- 第三行：背包，API，设置 -->
                                                 <div class="app-row">
-                                                    <div class="app-icon" data-app="backpack">
-                                                        <div class="app-icon-bg orange">🎒</div>
-                                                        <span class="app-label">背包</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="api">
-                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
-                                                        <span class="app-label">设置</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="profile">
-                                                        <div class="app-icon-bg green">📋</div>
-                                                        <span class="app-label">档案</span>
-                                                    </div>
+                                                    <div class="app-icon" data-app="backpack"><div class="app-icon-bg orange">🎒</div><span class="app-label">背包</span></div>
+                                                    <div class="app-icon" data-app="api"><div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div><span class="app-label">设置</span></div>
+                                                    <div class="app-icon" data-app="profile"><div class="app-icon-bg green">📋</div><span class="app-label">档案</span></div>
                                                 </div>
-
                                             </div>
                                         </div>
 
-                                        <!-- 第二页 -->
-                                       <div class="app-page">
-    <div class="app-grid">
-        <div class="app-row">
-            <div class="app-icon" data-app="travel">
-                <div class="app-icon-bg">✈️</div>
-                <span class="app-label">出行</span>
-            </div>
-            <div class="app-icon" data-app="email">
-                <div class="app-icon-bg">📧</div>
-                <span class="app-label">邮箱</span>
-            </div>
-            <div class="app-icon" data-app="bill">
-                <div class="app-icon-bg">💰</div>
-                <span class="app-label">账单</span>
-            </div>
-        </div>
-
-        <div class="app-row">
-            <div class="app-icon" data-app="gemini">
-                <div class="app-icon-bg">✨</div>
-                <span class="app-label">AI</span>
-            </div>
-            <div class="app-icon" data-app="fanfic">
-                <div class="app-icon-bg">📚</div>
-                <span class="app-label">AO3</span>
-            </div>
-            <div class="app-icon" style="opacity: 0; pointer-events: none;">
-                <div class="app-icon-bg"></div>
-                <span class="app-label"></span>
-            </div>
-        </div>
-    </div>
-</div>
+                                        <div class="app-page">
+                                            <div class="app-grid">
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="travel"><div class="app-icon-bg">✈️</div><span class="app-label">出行</span></div>
+                                                    <div class="app-icon" data-app="email"><div class="app-icon-bg">📧</div><span class="app-label">邮箱</span></div>
+                                                    <div class="app-icon" data-app="bill"><div class="app-icon-bg">💰</div><span class="app-label">账单</span></div>
+                                                </div>
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="gemini"><div class="app-icon-bg">✨</div><span class="app-label">AI</span></div>
+                                                    <div class="app-icon" data-app="fanfic"><div class="app-icon-bg">📚</div><span class="app-label">AO3</span></div>
+                                                    <div class="app-icon" data-app="theme"><div class="app-icon-bg">🎨</div><span class="app-label">主题</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div> </div> <div class="page-indicator">
+                                    <div class="dot active"></div>
+                                    <div class="dot"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
 
                                     <!-- 页面指示器 -->
                                     <div class="page-indicators" id="page-indicators">
