@@ -813,9 +813,6 @@ registerApps() {
 
    // --- 导航逻辑补完 ---
 
-    // 确保上一个方法被正确关掉 (多写一个 } 也没关系，语法会容错)
-    } 
-
     // 1. 停止状态同步 (独立方法)
     stopStateSyncLoop() {
         if (this._syncTimer) {
