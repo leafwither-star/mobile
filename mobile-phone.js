@@ -441,7 +441,7 @@ class MobilePhone {
                                         </div>
 
                                         <!-- 第二页 -->
-                                        <div class="app-page">
+                                       <div class="app-page">
     <div class="app-grid">
         <div class="app-row">
             <div class="app-icon" data-app="travel">
@@ -457,6 +457,7 @@ class MobilePhone {
                 <span class="app-label">账单</span>
             </div>
         </div>
+
         <div class="app-row">
             <div class="app-icon" data-app="gemini">
                 <div class="app-icon-bg">✨</div>
