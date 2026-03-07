@@ -441,7 +441,7 @@ class MobilePhone {
                                         </div>
 
                                         <!-- 第二页 -->
-                                       <div class="app-page">
+                                        <div class="app-page">
     <div class="app-grid">
         <div class="app-row">
             <div class="app-icon" data-app="travel">
@@ -457,7 +457,6 @@ class MobilePhone {
                 <span class="app-label">账单</span>
             </div>
         </div>
-
         <div class="app-row">
             <div class="app-icon" data-app="gemini">
                 <div class="app-icon-bg">✨</div>
@@ -467,9 +466,13 @@ class MobilePhone {
                 <div class="app-icon-bg">📚</div>
                 <span class="app-label">AO3</span>
             </div>
-            <div class="app-icon" data-app="api">
+            <div class="app-icon" data-app="theme">
                 <div class="app-icon-bg">🎨</div>
                 <span class="app-label">主题</span>
+            </div>
+            <div class="app-icon" style="opacity: 0; pointer-events: none;">
+                <div class="app-icon-bg"></div>
+                <span class="app-label"></span>
             </div>
         </div>
     </div>
