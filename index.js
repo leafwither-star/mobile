@@ -201,25 +201,6 @@ contextEditorScript.onerror = () => {
 };
 document.head.appendChild(contextEditorScript);
 
-// 加载自定义API配置模块
-const customAPIScript = document.createElement('script');
-customAPIScript.src = './scripts/extensions/third-party/mobile/custom-api-config.js';
-customAPIScript.onload = () => {
-  console.log('[Mobile Context] 自定义API配置模块加载完成');
-  // 检查API配置模块是否创建成功
-  setTimeout(() => {
-    if (window.mobileCustomAPIConfig) {
-      console.log('[Mobile Context] ✅ 自定义API配置模块创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 自定义API配置模块创建失败');
-    }
-  }, 100);
-};
-customAPIScript.onerror = () => {
-  console.error('[Mobile Context] 自定义API配置模块加载失败');
-};
-document.head.appendChild(customAPIScript);
-
 // 加载MesID楼层监听器模块
 const mesidFloorScript = document.createElement('script');
 mesidFloorScript.src = './scripts/extensions/third-party/mobile/mesid-floor-monitor.js';
@@ -288,25 +269,6 @@ phoneScript.onerror = () => {
   console.error('[Mobile Context] 手机界面脚本加载失败');
 };
 document.head.appendChild(phoneScript);
-
-// 加载语音消息处理器脚本
-const voiceMessageScript = document.createElement('script');
-voiceMessageScript.src = './scripts/extensions/third-party/mobile/app/voice-message-handler.js';
-voiceMessageScript.onload = () => {
-  console.log('[Mobile Context] 语音消息处理器加载完成');
-  // 检查语音消息处理器是否创建成功
-  setTimeout(() => {
-    if (window.voiceMessageHandler) {
-      console.log('[Mobile Context] ✅ 语音消息处理器创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 语音消息处理器创建失败');
-    }
-  }, 100);
-};
-voiceMessageScript.onerror = () => {
-  console.error('[Mobile Context] 语音消息处理器加载失败');
-};
-document.head.appendChild(voiceMessageScript);
 
 // 加载图片配置弹窗脚本
 const imageConfigScript = document.createElement('script');
