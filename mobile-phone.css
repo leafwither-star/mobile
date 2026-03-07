@@ -2520,3 +2520,12 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
+
+/* 6. 主题/API (api) */
+html body .mobile-phone-frame .app-icon[data-app='theme'] .app-icon-bg {
+    background-image: url('../mobile/images/theme2.png') !important; /* 假设你的图标名叫这个 */
+    background-size: 90% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    font-size: 0; /* 隐藏备用的表情符号 */
+}
