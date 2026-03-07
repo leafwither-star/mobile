@@ -2483,7 +2483,7 @@ html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
 
 /* 1. 出行 (travel) */
 html body .mobile-phone-frame .app-icon[data-app='travel'] .app-icon-bg {
-    background-image: url('../mobile/images/travel2.png') !important;
+    background-image: url('../mobile/images/travel.png') !important;
     background-size: 100% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
@@ -2519,4 +2519,13 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-size: 80% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
+}
+
+/* 6. 主题/API (api) */
+html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
+    background-image: url('../mobile/images/theme2.png') !important; /* 假设你的图标名叫这个 */
+    background-size: 90% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    font-size: 0; /* 隐藏备用的表情符号 */
 }
