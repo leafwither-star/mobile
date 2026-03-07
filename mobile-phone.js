@@ -467,13 +467,12 @@ class MobilePhone {
                 <div class="app-icon-bg">📚</div>
                 <span class="app-label">AO3</span>
             </div>
-            <div class="app-icon" data-app="theme">
-                <div class="app-icon-bg">🎨</div>
-                <span class="app-label">主题</span>
+            <div class="app-icon" style="opacity: 0; pointer-events: none;">
+                <div class="app-icon-bg"></div>
+                <span class="app-label"></span>
             </div>
         </div>
     </div>
-</div>
 </div>
 
                                     <!-- 页面指示器 -->
