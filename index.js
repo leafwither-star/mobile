@@ -108,30 +108,6 @@ async function initOptimizedLoading() {
         priority: 'medium',
         required: false,
       },
-      {
-        src: './scripts/extensions/third-party/mobile/app/weibo-app/weibo-manager.js',
-        name: 'weibo-manager',
-        priority: 'medium',
-        required: false,
-      },
-      {
-        src: './scripts/extensions/third-party/mobile/app/forum-app/forum-manager.js',
-        name: 'forum-manager',
-        priority: 'medium',
-        required: false,
-      },
-      {
-        src: './scripts/extensions/third-party/mobile/app/weibo-app/weibo-auto-listener.js',
-        name: 'weibo-auto-listener',
-        priority: 'low',
-        required: false,
-      },
-      {
-        src: './scripts/extensions/third-party/mobile/app/forum-app/forum-auto-listener.js',
-        name: 'forum-auto-listener',
-        priority: 'low',
-        required: false,
-      },
     ];
 
     // 优化：并行加载核心模块
@@ -262,103 +238,6 @@ mesidFloorScript.onerror = () => {
   console.error('[Mobile Context] MesID楼层监听器模块加载失败');
 };
 document.head.appendChild(mesidFloorScript);
-
-// 加载微博功能模块
-// 1. 加载微博管理器
-const weiboManagerScript = document.createElement('script');
-weiboManagerScript.src = './scripts/extensions/third-party/mobile/app/weibo-app/weibo-manager.js';
-weiboManagerScript.onload = () => {
-  console.log('[Mobile Context] 微博管理器加载完成');
-  // 检查微博管理器是否创建成功
-  setTimeout(() => {
-    if (window.weiboManager) {
-      console.log('[Mobile Context] ✅ 微博管理器创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 微博管理器创建失败');
-    }
-  }, 100);
-};
-weiboManagerScript.onerror = () => {
-  console.error('[Mobile Context] 微博管理器加载失败');
-};
-document.head.appendChild(weiboManagerScript);
-
-// 2. 加载微博自动监听器
-const weiboAutoListenerScript = document.createElement('script');
-weiboAutoListenerScript.src = './scripts/extensions/third-party/mobile/app/weibo-app/weibo-auto-listener.js';
-weiboAutoListenerScript.onload = () => {
-  console.log('[Mobile Context] 微博自动监听器加载完成');
-  // 检查微博自动监听器是否创建成功
-  setTimeout(() => {
-    if (window.weiboAutoListener) {
-      console.log('[Mobile Context] ✅ 微博自动监听器创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 微博自动监听器创建失败');
-    }
-  }, 100);
-};
-weiboAutoListenerScript.onerror = () => {
-  console.error('[Mobile Context] 微博自动监听器加载失败');
-};
-document.head.appendChild(weiboAutoListenerScript);
-
-// 加载论坛功能模块
-// 1. 先加载论坛管理器
-const forumManagerScript = document.createElement('script');
-forumManagerScript.src = './scripts/extensions/third-party/mobile/app/forum-app/forum-manager.js';
-forumManagerScript.onload = () => {
-  console.log('[Mobile Context] 论坛管理器加载完成');
-  // 检查论坛管理器是否创建成功
-  setTimeout(() => {
-    if (window.forumManager) {
-      console.log('[Mobile Context] ✅ 论坛管理器创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 论坛管理器创建失败');
-    }
-  }, 100);
-};
-forumManagerScript.onerror = () => {
-  console.error('[Mobile Context] 论坛管理器加载失败');
-};
-document.head.appendChild(forumManagerScript);
-
-// 2. 加载论坛风格定义
-const forumStylesScript = document.createElement('script');
-forumStylesScript.src = './scripts/extensions/third-party/mobile/app/forum-app/forum-styles.js';
-forumStylesScript.onload = () => {
-  console.log('[Mobile Context] 论坛风格模块加载完成');
-  // 检查论坛风格是否创建成功
-  setTimeout(() => {
-    if (window.forumStyles) {
-      console.log('[Mobile Context] ✅ 论坛风格模块创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 论坛风格模块创建失败');
-    }
-  }, 100);
-};
-forumStylesScript.onerror = () => {
-  console.error('[Mobile Context] 论坛风格模块加载失败');
-};
-document.head.appendChild(forumStylesScript);
-
-// 3. 加载论坛自动监听器
-const forumAutoListenerScript = document.createElement('script');
-forumAutoListenerScript.src = './scripts/extensions/third-party/mobile/app/forum-app/forum-auto-listener.js';
-forumAutoListenerScript.onload = () => {
-  console.log('[Mobile Context] 论坛自动监听器加载完成');
-  // 检查论坛自动监听器是否创建成功
-  setTimeout(() => {
-    if (window.forumAutoListener) {
-      console.log('[Mobile Context] ✅ 论坛自动监听器创建成功');
-    } else {
-      console.error('[Mobile Context] ❌ 论坛自动监听器创建失败');
-    }
-  }, 100);
-};
-forumAutoListenerScript.onerror = () => {
-  console.error('[Mobile Context] 论坛自动监听器加载失败');
-};
-document.head.appendChild(forumAutoListenerScript);
 
 // 加载手机界面样式（先加载样式）
 const phoneStyle = document.createElement('link');
