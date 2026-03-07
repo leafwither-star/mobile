@@ -66,7 +66,7 @@ class MobilePhone {
 
         this.init();
     }
-
+ 
     init() {
         this.loadDragHelper();
         this.clearPositionCache(); // 清理位置缓存
