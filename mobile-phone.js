@@ -682,16 +682,6 @@ registerApps() {
    /**
  * 极简重构版：手机生命周期与导航管理器
  */
-class MobilePhone {
-    constructor() {
-        this.isVisible = false;
-        this.currentApp = null;
-        this.currentAppState = null;
-        this.appStack = [];
-        this.apps = {}; 
-        this.registerApps(); // 初始化应用列表
-    }
-
     // --- 1. 显示控制 (生命周期) ---
     
     togglePhone() {
