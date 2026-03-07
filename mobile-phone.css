@@ -272,13 +272,18 @@
 
 .app-pages-wrapper {
   display: flex;
-  flex: 1;
+  /* 1. 删除 flex: 1，改用 width: 200% (如果你有两页) */
+  /* 或者更通用的做法是不设宽度，让子元素撑开 */
+  width: 200%; 
   transition: transform 0.3s ease-out;
   touch-action: pan-y;
+  /* 2. 确保没有溢出隐藏限制 */
+  height: 100%;
 }
 
 .app-page {
-  min-width: 100%;
+  /* 3. 这里的 50% 对应 wrapper 的 200%，正好是一个屏幕宽 */
+  width: 50%; 
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
