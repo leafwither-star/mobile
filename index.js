@@ -246,30 +246,6 @@ imageConfigStyle.onerror = () => {
 };
 document.head.appendChild(imageConfigStyle);
 
-// 加载手机界面脚本（在样式之后）
-const phoneScript = document.createElement('script');
-phoneScript.src = './scripts/extensions/third-party/mobile/mobile-phone.js';
-phoneScript.onload = () => {
-  console.log('[Mobile Context] 手机界面脚本加载完成');
-  // 检查按钮是否创建成功
-  setTimeout(() => {
-    const trigger = document.getElementById('mobile-phone-trigger');
-    if (trigger) {
-      console.log('[Mobile Context] ✅ 手机按钮创建成功');
-      // 添加上传按钮到手机界面
-      addUploadButtonToMobilePhone();
-      // 应用手机可见性设置
-      updatePhoneVisibility();
-    } else {
-      console.error('[Mobile Context] ❌ 手机按钮创建失败');
-    }
-  }, 100);
-};
-phoneScript.onerror = () => {
-  console.error('[Mobile Context] 手机界面脚本加载失败');
-};
-document.head.appendChild(phoneScript);
-
 // 加载图片配置弹窗脚本
 const imageConfigScript = document.createElement('script');
 imageConfigScript.src = './scripts/extensions/third-party/mobile/app/image-config-modal.js';
@@ -390,13 +366,12 @@ function waitForAllModules() {
  */
 async function initMobileContextPlugin() {
   try {
-    // 集成 SillyTavern 的 extension_settings
+    // 1. 集成 SillyTavern 的 extension_settings
     const context = SillyTavern.getContext();
     if (!context.extensionSettings.mobile_context) {
       context.extensionSettings.mobile_context = { ...defaultSettings };
       context.saveSettingsDebounced();
     } else {
-      // 合并默认设置，确保新增的设置项存在
       for (const key of Object.keys(defaultSettings)) {
         if (context.extensionSettings.mobile_context[key] === undefined) {
           context.extensionSettings.mobile_context[key] = defaultSettings[key];
@@ -405,52 +380,46 @@ async function initMobileContextPlugin() {
       context.saveSettingsDebounced();
     }
 
-    // 使用 SillyTavern 的 extension_settings
     extension_settings = context.extensionSettings;
 
-    // 等待 ContextMonitor 类加载
+    // 2. 等待基础类加载
     await waitForContextMonitor();
-
-    // 初始化上下文监控器
     contextMonitor = new window.ContextMonitor(extension_settings.mobile_context);
 
-    // 创建设置UI
+    // 3. 创建设置UI
     createSettingsUI();
 
-    // 等待所有模块加载完成后再注册控制台命令
+    // 4. 重要：等待所有模块（包括 mobile-phone.js）加载完成
     await waitForAllModules();
 
-    // 注册控制台命令
+    // 5. 注册控制台命令
     registerConsoleCommands();
 
-    // 启动监控
+    // 6. 启动监控
     if (extension_settings.mobile_context.enabled) {
       contextMonitor.start();
     }
 
-    // 初始化上传功能
+    // 7. 初始化上传功能
     if (extension_settings.mobile_context.uploadEnabled) {
       initUploadFeature();
+      // 这里执行原 onload 里的逻辑：尝试把上传按钮塞进手机界面
+      if (typeof addUploadButtonToMobilePhone === 'function') {
+          addUploadButtonToMobilePhone();
+      }
     }
 
-    // 初始化楼层监听器
+    // 8. 初始化楼层监听器
     if (extension_settings.mobile_context.mesidFloorEnabled) {
       initMesIDFloorMonitor();
     }
 
-    // 初始化论坛功能
-    // initForumFeatures();  // <-- 注释掉这一行
-
-    // 初始化微博功能
-    // initWeiboFeatures();  // <-- 如果微博也没写好，建议一起注释掉，防止报同样的错
-
-    // 应用手机可见性设置
+    // 9. 应用手机可见性设置（原 onload 里的逻辑）
     updatePhoneVisibility();
 
     isInitialized = true;
-    console.log(
-      '[Mobile Context] v2.4 插件已加载（包含上传功能、上下文编辑器、自定义API配置、MesID楼层监听器和论坛管理器，使用SillyTavern.getContext() API集成）',
-    );
+    console.log('[Mobile Context] v2.4 插件已通过优化加载器成功加载！');
+    
   } catch (error) {
     console.error('[Mobile Context] 插件初始化失败:', error);
   }
