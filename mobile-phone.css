@@ -272,18 +272,13 @@
 
 .app-pages-wrapper {
   display: flex;
-  /* 1. 删除 flex: 1，改用 width: 200% (如果你有两页) */
-  /* 或者更通用的做法是不设宽度，让子元素撑开 */
-  width: 200%; 
+  flex: 1;
   transition: transform 0.3s ease-out;
   touch-action: pan-y;
-  /* 2. 确保没有溢出隐藏限制 */
-  height: 100%;
 }
 
 .app-page {
-  /* 3. 这里的 50% 对应 wrapper 的 200%，正好是一个屏幕宽 */
-  width: 50%; 
+  min-width: 100%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -2524,13 +2519,4 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-size: 80% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
-}
-
-/* 6. 主题/API (api) */
-html body .mobile-phone-frame .app-icon[data-app='theme'] .app-icon-bg {
-    background-image: url('../mobile/images/theme2.png') !important; /* 假设你的图标名叫这个 */
-    background-size: 90% !important;
-    background-position: center !important;
-    background-repeat: no-repeat !important;
-    font-size: 0; /* 隐藏备用的表情符号 */
 }
