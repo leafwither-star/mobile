@@ -811,7 +811,12 @@ registerApps() {
     }
 }
 
-    // 1. 停止状态同步 (独立出来)
+   // --- 导航逻辑补完 ---
+
+    // 确保上一个方法被正确关掉 (多写一个 } 也没关系，语法会容错)
+    } 
+
+    // 1. 停止状态同步 (独立方法)
     stopStateSyncLoop() {
         if (this._syncTimer) {
             clearInterval(this._syncTimer);
@@ -820,7 +825,7 @@ registerApps() {
         }
     }
 
-    // 2. 返回主界面 (正确闭合)
+    // 2. 返回主界面
     goHome() {
         // 防抖检查
         if (this._goingHome) {
@@ -856,7 +861,7 @@ registerApps() {
         }
     }
 
-    // 开始时钟
+    // 3. 开始时钟 (独立方法)
     startClock() {
         const updateTime = () => {
             const now = new Date();
@@ -867,23 +872,14 @@ registerApps() {
             });
             const dateString = `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
 
-            // 更新状态栏时间
             const mobileTime = document.getElementById('mobile-time');
-            if (mobileTime) {
-                mobileTime.textContent = timeString;
-            }
+            if (mobileTime) mobileTime.textContent = timeString;
 
-            // 更新主界面时间
             const homeTime = document.getElementById('home-time');
             const homeDate = document.getElementById('home-date');
-            if (homeTime) {
-                homeTime.textContent = timeString;
-            }
-            if (homeDate) {
-                homeDate.textContent = dateString;
-            }
+            if (homeTime) homeTime.textContent = timeString;
+            if (homeDate) homeDate.textContent = dateString;
         };
-
         updateTime();
         setInterval(updateTime, 1000);
     }
