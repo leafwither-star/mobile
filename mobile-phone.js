@@ -809,7 +809,6 @@ registerApps() {
         document.getElementById('app-screen').style.display = 'none';
         document.getElementById('home-screen').style.display = 'block';
     }
-}
 
    // --- 导航逻辑补完 ---
 
@@ -956,6 +955,7 @@ registerApps() {
         this.applyTextColor(savedColor);
         console.log(`[Mobile Phone] 初始化文字颜色: ${savedColor}`);
     }
+}
 
 // 初始化手机界面
 function initMobilePhone() {
