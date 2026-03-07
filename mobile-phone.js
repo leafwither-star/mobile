@@ -669,16 +669,16 @@ registerApps() {
         'messages': { name: '微信', isCustomApp: true },  // 对应 李律师的核心功能
         'shop':     { name: '购物', isCustomApp: true },
         'task':     { name: '健康', isCustomApp: true },  // 解决了 Task 报错问题
-        'forum':    { name: '本地生活', isCustomApp: true }, // 法律人/本地论坛
+        'forum':    { name: '论坛', isCustomApp: true }, // 法律人/本地论坛
         'weibo':    { name: '收纳', isCustomApp: true },  // 强制把名字改成“收纳”！
-        'live':     { name: '直播App', isCustomApp: true },
+        'live':     { name: '直播', isCustomApp: true },
         'backpack': { name: '背包', isCustomApp: true },
-        'api':      { name: '主题设置', isCustomApp: true },
+        'api':      { name: '设置', isCustomApp: true },
         'profile':  { name: '档案', isCustomApp: true },
         'travel':   { name: '出行', isCustomApp: true },
         'email':    { name: '邮箱', isCustomApp: true },
         'bill':     { name: '账单', isCustomApp: true },  // 独立的 App
-        'gemini':   { name: 'Gemini', isCustomApp: true },
+        'gemini':   { name: 'AI', isCustomApp: true },
         'fanfic':   { name: 'AO3', isCustomApp: true }
     };
 }
