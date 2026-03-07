@@ -810,9 +810,8 @@ registerApps() {
         document.getElementById('home-screen').style.display = 'block';
     }
 
-   // --- 导航逻辑补完 ---
+   // --- 以下是补全的导航与生命周期逻辑 ---
 
-    // 1. 停止状态同步 (独立方法)
     stopStateSyncLoop() {
         if (this._syncTimer) {
             clearInterval(this._syncTimer);
@@ -821,25 +820,13 @@ registerApps() {
         }
     }
 
-    // 2. 返回主界面
     goHome() {
-        // 防抖检查
-        if (this._goingHome) {
-            console.log('[Mobile Phone] 防抖：正在返回主界面，跳过重复操作');
-            return;
-        }
-
-        // 如果已经在主界面，直接返回
-        if (!this.currentApp && !this.currentAppState && this.appStack.length === 0) {
-            console.log('[Mobile Phone] 已在主界面，跳过重复操作');
-            return;
-        }
+        if (this._goingHome) return;
+        if (!this.currentApp && !this.currentAppState && this.appStack.length === 0) return;
 
         this._goingHome = true;
-
         try {
             console.log('[Mobile Phone] 返回主界面');
-            this._userNavigationIntent = null;
             this.currentApp = null;
             this.currentAppState = null;
             this.appStack = []; 
@@ -851,28 +838,19 @@ registerApps() {
 
             this.stopStateSyncLoop();
         } finally {
-            setTimeout(() => {
-                this._goingHome = false;
-            }, 300);
+            setTimeout(() => { this._goingHome = false; }, 300);
         }
     }
 
-    // 3. 开始时钟 (独立方法)
     startClock() {
         const updateTime = () => {
             const now = new Date();
-            const timeString = now.toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-            });
+            const timeString = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
             const dateString = `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
-
             const mobileTime = document.getElementById('mobile-time');
-            if (mobileTime) mobileTime.textContent = timeString;
-
             const homeTime = document.getElementById('home-time');
             const homeDate = document.getElementById('home-date');
+            if (mobileTime) mobileTime.textContent = timeString;
             if (homeTime) homeTime.textContent = timeString;
             if (homeDate) homeDate.textContent = dateString;
         };
@@ -880,100 +858,29 @@ registerApps() {
         setInterval(updateTime, 1000);
     }
 
-    // 获取当前文字颜色设置
-    getCurrentTextColor() {
-        // 从全局CSS配置的Data Bank中获取
+    initTextColor() {
         if (window.styleConfigManager && window.styleConfigManager.getConfig) {
             const config = window.styleConfigManager.getConfig();
-            return config.messageTextColor || 'black';
-        }
-
-        // 从localStorage获取（备用方案）
-        return localStorage.getItem('messageTextColor') || 'black';
-    }
-
-    // 切换文字颜色
-    toggleTextColor() {
-        // 直接从DOM获取当前状态，更可靠
-        const body = document.body;
-        const isCurrentlyWhite = body.classList.contains('text-color-white');
-        const newColor = isCurrentlyWhite ? 'black' : 'white';
-
-        console.log(`[Mobile Phone] 切换文字颜色: ${isCurrentlyWhite ? 'white' : 'black'} -> ${newColor}`);
-
-        // 保存到全局CSS配置的Data Bank
-        if (window.styleConfigManager && window.styleConfigManager.updateConfig) {
-            window.styleConfigManager.updateConfig({
-                messageTextColor: newColor,
-            });
+            this.applyTextColor(config.messageTextColor || 'black');
         } else {
-            // 备用方案：保存到localStorage
-            localStorage.setItem('messageTextColor', newColor);
+            const savedColor = localStorage.getItem('messageTextColor') || 'black';
+            this.applyTextColor(savedColor);
         }
-
-        // 应用颜色到页面
-        this.applyTextColor(newColor);
-
-        // 更新按钮文字
-        this.updateTextColorButton(newColor);
-
-        // 显示提示
-        MobilePhone.showToast(`文字颜色已切换为${newColor === 'white' ? '白色' : '黑色'}`);
     }
 
-    // 应用文字颜色到页面
     applyTextColor(color) {
-        const root = document.documentElement;
-        const body = document.body;
-
-        // 移除之前的颜色类
-        body.classList.remove('text-color-white', 'text-color-black');
-
-        // 添加新的颜色类
-        body.classList.add(`text-color-${color}`);
-
-        // 设置CSS变量
-        root.style.setProperty('--message-text-color', color === 'white' ? '#fff' : '#000');
-
-        console.log(`[Mobile Phone] 已应用文字颜色: ${color}`);
+        document.body.classList.remove('text-color-white', 'text-color-black');
+        document.body.classList.add(`text-color-${color}`);
+        document.documentElement.style.setProperty('--message-text-color', color === 'white' ? '#fff' : '#000');
     }
+} // <--- 类到此为止完全结束
 
-    // 更新文字颜色按钮显示
-    updateTextColorButton(color) {
-        const button = document.querySelector('.text-color-toggle');
-        if (button) {
-            // 显示将要切换到的颜色（与当前颜色相反）
-            button.innerHTML = color === 'white' ? '黑' : '白';
-            button.title = `当前: ${color === 'white' ? '白色' : '黑色'}文字，点击切换为${color === 'white' ? '黑色' : '白色'
-                }`;
-        }
-    }
-
-    // 初始化文字颜色设置
-    initTextColor() {
-        const savedColor = this.getCurrentTextColor();
-        this.applyTextColor(savedColor);
-        console.log(`[Mobile Phone] 初始化文字颜色: ${savedColor}`);
-    }
-}
-
-// 初始化手机界面
+// --- 外部初始化逻辑 ---
 function initMobilePhone() {
-    if (document.readyState === 'loading') {
-        // 如果文档还在加载，等待DOMContentLoaded
-        document.addEventListener('DOMContentLoaded', () => {
-            window.mobilePhone = new MobilePhone();
-            console.log('[Mobile Phone] 手机界面初始化完成');
-        });
-    } else {
-        // 如果文档已经加载完成，直接初始化
+    if (!window.mobilePhone) {
         window.mobilePhone = new MobilePhone();
         console.log('[Mobile Phone] 手机界面初始化完成');
     }
 }
-
-// 立即执行初始化
 initMobilePhone();
-
-// 创建全局的showToast函数供其他模块使用
 window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
