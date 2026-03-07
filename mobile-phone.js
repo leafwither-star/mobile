@@ -474,6 +474,7 @@ class MobilePhone {
         </div>
     </div>
 </div>
+</div>
 
                                     <!-- 页面指示器 -->
                                     <div class="page-indicators" id="page-indicators">
@@ -680,7 +681,6 @@ registerApps() {
         'bill':     { name: '账单', isCustomApp: true },  // 独立的 App
         'gemini':   { name: 'AI', isCustomApp: true },
         'fanfic':   { name: 'AO3', isCustomApp: true }
-        'theme':    { name: '主题', isCustomApp: true }
     };
 }
 
