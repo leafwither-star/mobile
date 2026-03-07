@@ -98,7 +98,7 @@ class MobilePhone {
 
             if (!wrapper || !indicators) {
                 console.log('[Mobile Phone] 页面元素未找到，延迟初始化拖拽功能');
-                setTimeout(() => this.initPageSwipe(), 100);
+                setTimeout(() => this.initPageSwipe(), 1000);
                 return;
             }
 
