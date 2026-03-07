@@ -349,6 +349,7 @@ class MobilePhone {
             container.className = 'mobile-phone-container';
             container.style.display = 'none';
 
+            // 注意：这里使用了反引号开始
             container.innerHTML = `
                 <div class="mobile-phone-overlay"></div>
                 <div class="mobile-phone-frame">
@@ -401,7 +402,6 @@ class MobilePhone {
                                                 </div>
                                             </div>
                                         </div>
-
                                         <div class="app-page">
                                             <div class="app-grid">
                                                 <div class="app-row">
@@ -416,46 +416,29 @@ class MobilePhone {
                                                 </div>
                                             </div>
                                         </div>
-                                    </div> </div> <div class="page-indicator">
-                                    <div class="dot active"></div>
-                                    <div class="dot"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-                                    <!-- 页面指示器 -->
-                                    <div class="page-indicators" id="page-indicators">
-                                        <div class="indicator active"></div>
-                                        <div class="indicator"></div>
                                     </div>
                                 </div>
-
+                                <div class="page-indicators" id="page-indicators">
+                                    <div class="indicator active"></div>
+                                    <div class="indicator"></div>
+                                </div>
                             </div>
 
-                            <!-- 应用界面容器 -->
                             <div class="app-screen" id="app-screen" style="display: none;">
                                 <div class="app-header" id="app-header">
                                     <button class="back-button" id="back-button">
                                         <span class="back-icon">←</span>
                                     </button>
                                     <h1 class="app-title" id="app-title">应用</h1>
-                                    <div class="app-header-right" id="app-header-right">
-                                        <!-- 动态功能按钮将在这里添加 -->
-                                    </div>
+                                    <div class="app-header-right" id="app-header-right"></div>
                                 </div>
-                                <div class="app-content" id="app-content">
-                                    <!-- 应用内容将在这里动态加载 -->
-                                </div>
+                                <div class="app-content" id="app-content"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-            `;
+            `; // 这里的反引号闭合非常关键
 
-            // 确保body存在
             if (!document.body) {
                 console.error('[Mobile Phone] document.body 不存在，延迟创建容器');
                 setTimeout(() => this.createPhoneContainer(), 100);
@@ -464,10 +447,7 @@ class MobilePhone {
 
             document.body.appendChild(container);
             this.bindEvents();
-
-            // 为手机框架添加拖拽功能
             this.initFrameDrag();
-
             console.log('[Mobile Phone] 手机容器创建成功');
         } catch (error) {
             console.error('[Mobile Phone] 创建容器时发生错误:', error);
