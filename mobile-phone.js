@@ -902,21 +902,26 @@ registerApps() {
 } // <--- 类到此为止完全结束
 
 // --- 外部初始化逻辑 ---
+// --- 修复后的外部初始化逻辑 ---
 function initMobilePhone() {
     if (!window.mobilePhone) {
+        // 1. 正常执行手机类实例化
         window.mobilePhone = new MobilePhone();
         console.log('[Mobile Phone] 手机界面初始化完成');
 
-        // --- 【新增：云端主题静默激活】 ---
+        // 2. 重新绑定原有的全局工具（确保悬浮窗和 Toast 正常）
+        window.showMobileToast = MobilePhone.showToast ? MobilePhone.showToast.bind(MobilePhone) : null;
+
+        // 3. 核心：云端主题静默激活
         const savedTheme = localStorage.getItem('last-theme-name');
         if (savedTheme && savedTheme !== 'default') {
             console.log(`[Theme] 检测到持久化主题: ${savedTheme}，正在强制同步...`);
             fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
             .then(res => res.json())
             .then(config => {
-                window.themeState = config; // 挂载到全局供 theme.js 使用
+                window.themeState = config; // 同步给设置 App 使用
                 
-                // 1. 注入 CSS 变量和强力样式
+                // A. 注入全局 CSS 强力样式表
                 let bruteStyle = document.getElementById('brute-force-theme');
                 if (!bruteStyle) {
                     bruteStyle = document.createElement('style');
@@ -935,13 +940,14 @@ function initMobilePhone() {
                     .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
                 `;
 
-                // 2. 注入图标替换
+                // B. 注入图标替换
                 if (config.icons) {
                     Object.keys(config.icons).forEach(id => {
-                        let iconStyle = document.getElementById(`icon-style-${id}`);
+                        let iconStyleId = `icon-style-${id}`;
+                        let iconStyle = document.getElementById(iconStyleId);
                         if (!iconStyle) {
                             iconStyle = document.createElement('style');
-                            iconStyle.id = `icon-style-${id}`;
+                            iconStyle.id = iconStyleId;
                             document.head.appendChild(iconStyle);
                         }
                         iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
@@ -952,5 +958,7 @@ function initMobilePhone() {
         }
     }
 }
+// 立即执行初始化
+initMobilePhone();
 initMobilePhone();
 window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
