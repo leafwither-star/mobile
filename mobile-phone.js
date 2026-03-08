@@ -83,64 +83,70 @@ class MobilePhone {
     }
 
     // === 核心翻页逻辑重构 (替换原有的 initPageSwipe 到 updateIndicators) ===
-    initPageSwipe() {
+   initPageSwipe() {
         this.currentPageIndex = 0;
         this.totalPages = 2;
         this.isDragging = false;
         this.startX = 0;
         this.currentX = 0;
-        this.threshold = 40; // 降低阈值，电脑端更灵敏
+        this.threshold = 40; 
 
         setTimeout(() => {
             const wrapper = document.getElementById('app-pages-wrapper');
             const indicators = document.getElementById('page-indicators');
 
             if (!wrapper || !indicators) {
-                console.log('[Mobile Phone] 页面元素未找到，延迟初始化');
+                console.log('[Mobile Phone] 页面元素未找到，正在重试...');
                 setTimeout(() => this.initPageSwipe(), 500);
                 return;
             }
 
-            // 1. 彻底解决 PC 端点击穿透/失效：使用 window 监听移动和结束
-            // 先清理可能存在的旧监听器
+            // 1. 定义处理函数，通过 bind 确保 this 指向正确
             const startHandler = (e) => this.handleStart(e);
             const moveHandler = (e) => this.handleMove(e);
             const endHandler = (e) => this.handleEnd(e);
 
-            wrapper.addEventListener('mousedown', startHandler);
-            window.addEventListener('mousemove', moveHandler); // 挂在 window 上更稳
+            // 2. 绑定事件：PC端鼠标
+            // 使用 true (捕获模式) 确保划动优于图标点击
+            wrapper.addEventListener('mousedown', startHandler, true);
+            window.addEventListener('mousemove', moveHandler, { passive: false });
             window.addEventListener('mouseup', endHandler);
 
-            // 2. 触摸事件保持不变
+            // 3. 绑定事件：移动端触摸
             wrapper.addEventListener('touchstart', startHandler, { passive: false });
             wrapper.addEventListener('touchmove', moveHandler, { passive: false });
             wrapper.addEventListener('touchend', endHandler);
 
-            // 3. 指示器点击逻辑保留
+            // 4. 指示器点击跳转
             const indicatorElements = indicators.querySelectorAll('.indicator');
             indicatorElements.forEach((indicator, index) => {
                 indicator.onclick = () => this.goToPage(index);
             });
 
-            console.log('[Mobile Phone] 原生增强版翻页系统初始化完成');
+            console.log('[Mobile Phone] 捕获级翻页系统已就绪');
         }, 300);
     }
 
     handleStart(e) {
-        // 排除掉可能干扰的子元素点击，确保是在划动容器
+        // 【关键行】如果是鼠标操作，只响应左键；并防止事件干扰
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        
         this.isDragging = true;
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
         this.currentX = this.startX;
 
         const wrapper = document.getElementById('app-pages-wrapper');
-        if (wrapper) wrapper.style.transition = 'none';
+        if (wrapper) {
+            wrapper.style.transition = 'none';
+            wrapper.style.cursor = 'grabbing';
+        }
     }
 
     handleMove(e) {
         if (!this.isDragging) return;
         
-        // PC端防止拖拽时选中文字导致卡顿
-        if (e.type === 'mousemove') e.preventDefault();
+        // 阻止默认行为（如拖拽选中文本）
+        if (e.cancelable) e.preventDefault();
 
         this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
         const deltaX = this.currentX - this.startX;
@@ -148,7 +154,6 @@ class MobilePhone {
         const wrapper = document.getElementById('app-pages-wrapper');
         if (!wrapper) return;
 
-        // 核心修正：使用 320 作为安全宽度，防止 offsetWidth 为 0
         const phoneWidth = wrapper.offsetWidth || 320;
         const movePercent = (deltaX / phoneWidth) * 100;
         const translateX = -this.currentPageIndex * 100 + movePercent;
@@ -160,14 +165,16 @@ class MobilePhone {
         if (!this.isDragging) return;
         this.isDragging = false;
 
-        const deltaX = this.currentX - this.startX;
         const wrapper = document.getElementById('app-pages-wrapper');
-        if (!wrapper) return;
+        if (wrapper) {
+            wrapper.style.cursor = 'grab';
+            wrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        }
 
-        wrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-
-        // 判定翻页：滑动距离超过容器宽度的 15% 即可
+        const deltaX = this.currentX - this.startX;
         const phoneWidth = wrapper.offsetWidth || 320;
+
+        // 判定翻页：滑动距离超过 15% 宽度
         if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
             if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
                 this.goToPage(this.currentPageIndex + 1);
