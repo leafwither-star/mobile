@@ -83,7 +83,8 @@ class MobilePhone {
     }
 
     // === 核心翻页逻辑重构 (替换原有的 initPageSwipe 到 updateIndicators) ===
-   initPageSwipe() {
+    initPageSwipe() {
+        const self = this; // 【重要】锁定作用域，确保 setTimeout 里也能找到 handleStart
         this.currentPageIndex = 0;
         this.totalPages = 2;
         this.isDragging = false;
@@ -97,22 +98,22 @@ class MobilePhone {
 
             if (!wrapper || !indicators) {
                 console.log('[Mobile Phone] 页面元素未找到，正在重试...');
-                setTimeout(() => this.initPageSwipe(), 500);
+                setTimeout(() => self.initPageSwipe(), 500);
                 return;
             }
 
-            // 【新增】暴力禁止所有图标图片的默认拖拽行为，防止 PC 端宕机
+            // 暴力禁止所有图标图片的默认拖拽行为
             wrapper.querySelectorAll('img, a').forEach(el => {
                 el.draggable = false;
                 el.style.userSelect = 'none';
                 el.addEventListener('dragstart', (e) => e.preventDefault());
             });
 
-            const startHandler = (e) => this.handleStart(e);
-            const moveHandler = (e) => this.handleMove(e);
-            const endHandler = (e) => this.handleEnd(e);
+            // 这里的 this 换成 self，确保指向万无一失
+            const startHandler = (e) => self.handleStart(e);
+            const moveHandler = (e) => self.handleMove(e);
+            const endHandler = (e) => self.handleEnd(e);
 
-            // 保持 true (捕获模式)，确保 wrapper 优先抓取事件
             wrapper.addEventListener('mousedown', startHandler, true);
             window.addEventListener('mousemove', moveHandler, { passive: false });
             window.addEventListener('mouseup', endHandler);
@@ -123,64 +124,54 @@ class MobilePhone {
 
             const indicatorElements = indicators.querySelectorAll('.indicator');
             indicatorElements.forEach((indicator, index) => {
-                indicator.onclick = () => this.goToPage(index);
+                indicator.onclick = () => self.goToPage(index);
             });
 
-            console.log('[Mobile Phone] 捕获级翻页系统已就绪（已注入防干扰逻辑）');
+            console.log('[Mobile Phone] 捕获级翻页系统已就绪');
         }, 300);
     }
 
-    handleEnd(e) {
-        if (!this.isDragging) return;
-        this.isDragging = false;
+    // 【这就是你补上的函数 1】负责记录按下的瞬间
+    handleStart(e) {
+        // 只允许左键按下
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        
+        this.isDragging = true;
+        this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
+        this.currentX = this.startX;
 
-        const deltaX = this.currentX - this.startX;
-        const phoneWidth = this.wrapper.offsetWidth || 320;
-
-        // --- 核心逻辑闸门 ---
-        // 如果滑动的距离非常小（比如小于 5 像素），我们认为这不是划动，而是“点击”
-        if (Math.abs(deltaX) < 5) {
-            // 这里什么都不做，让浏览器默认的 click 事件穿透下去触发 App 打开
-            console.log("检测为点击，准备打开 App");
-        } else {
-            // 如果划动距离大了，就执行翻页结算，并阻止后续的 click 误触发
-            e.preventDefault(); 
-            this.settlePageScroll(deltaX, phoneWidth);
+        const wrapper = document.getElementById('app-pages-wrapper');
+        if (wrapper) {
+            wrapper.style.transition = 'none'; // 拖动时关掉动画，否则会“粘手”
+            wrapper.style.cursor = 'grabbing';
         }
     }
 
+    // 【这就是你补上的函数 2】负责跟着鼠标/手指跑
     handleMove(e) {
         if (!this.isDragging) return;
 
-        // 1. 暴力清除选中，防止 PC 端拖拽宕机
         if (e.type === 'mousemove') {
             e.preventDefault();
             window.getSelection().removeAllRanges();
         }
 
-        // 2. 获取当前坐标
         this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
         const deltaX = this.currentX - this.startX;
 
-        // 3. 关键：直接获取 DOM 元素并赋值，不再绕弯子
         const wrapper = document.getElementById('app-pages-wrapper');
         if (!wrapper) return;
 
-        // 4. 确保 pageIndex 是安全的数字
         const safePageIndex = this.currentPageIndex || 0;
         const phoneWidth = wrapper.offsetWidth || 320;
         
-        // 计算百分比
         const movePercent = (deltaX / phoneWidth) * 100;
         const translateX = -(safePageIndex * 100) + movePercent;
 
-        // 5. 暴力驱动位移 (添加 !important 级强制力)
         wrapper.style.setProperty('transform', `translateX(${translateX}%)`, 'important');
-        
-        // 调试用（如果还是不动，看一眼这里输出的数值）
-        // console.log(`[Debug] Index: ${safePageIndex}, Move: ${translateX}%`);
     }
-    
+
+    // 【这就是你补上的函数 3】负责松手后的结算
     handleEnd(e) {
         if (!this.isDragging) return;
         this.isDragging = false;
@@ -192,8 +183,9 @@ class MobilePhone {
         }
 
         const deltaX = this.currentX - this.startX;
-        const phoneWidth = wrapper.offsetWidth || 320;
+        const phoneWidth = wrapper ? wrapper.offsetWidth : 320;
 
+        // 如果滑动距离够大，就翻页；否则弹回原位
         if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
             if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
                 this.goToPage(this.currentPageIndex + 1);
