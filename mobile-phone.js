@@ -703,13 +703,19 @@ registerApps() {
     }
 
     // --- 2. 应用导航 (核心引擎) ---
-
     /**
-     * 打开应用：秒开逻辑，删除了虚假的进度条
+     * 打开应用：增加了远程脚本预加载逻辑
      */
-    openApp(appName) {
+    async openApp(appName) {
         const app = this.apps[appName];
         if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
+
+        // === 【新增】远程脚本自动加载引擎 ===
+        // 如果路由表里有 JS 路径，且该应用还没加载过
+        if (this.APP_ROUTING[appName] && !app.isLoaded) {
+            console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
+            await this.loadRemoteApp(appName);
+        }
 
         // 防止重复打开同一个 App 的根界面
         if (this.currentApp === appName && this.appStack.length === 1) return;
@@ -732,6 +738,42 @@ registerApps() {
         this.renderAppState(app, appState);
     }
 
+    /**
+     * 远程脚本加载器
+     */
+    async loadRemoteApp(appName) {
+        const route = this.APP_ROUTING[appName];
+        if (!route || !route.js || !route.js.length) return;
+
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            // 加上时间戳，防止浏览器缓存旧的代码
+            const remoteUrl = route.js[0];
+            script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            
+            script.onload = () => {
+                // 脚本加载成功后，检查是否带有 window.currentApp
+                if (window.currentApp) {
+                    // 核心注入：将远程的 init 函数绑定到本地的 customHandler 上
+                    this.apps[appName].customHandler = (state) => {
+                        const container = document.getElementById('app-content');
+                        if (container) window.currentApp.init(container);
+                    };
+                    this.apps[appName].isLoaded = true;
+                    console.log(`[Mobile] ${appName} 远程脚本注入并初始化成功！`);
+                }
+                resolve();
+            };
+            
+            script.onerror = () => {
+                console.error(`[Mobile] 无法加载远程脚本: ${remoteUrl}`);
+                resolve();
+            };
+            
+            document.head.appendChild(script);
+        });
+    }
+    
     /**
      * 渲染应用界面
      */
