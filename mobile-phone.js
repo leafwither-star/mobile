@@ -62,6 +62,10 @@ class MobilePhone {
             'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] } // AO3 [cite: 2026-02-26]
+       'theme':    { 
+        js: ['http://43.165.171.111/style-app.js'], 
+        css: [] // 如果以后有远程 CSS 也可以填在这里 [cite: 2026-02-26]
+    }
         };
 
         this.init();
@@ -658,6 +662,7 @@ registerApps() {
         'bill':     { name: '账单', isCustomApp: true },  // 独立的 App
         'gemini':   { name: 'AI', isCustomApp: true },
         'fanfic':   { name: 'AO3', isCustomApp: true }
+        'theme':    { name: '主题', isCustomApp: true }
     };
 }
 
