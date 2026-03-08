@@ -745,15 +745,15 @@ registerApps() {
         const route = this.APP_ROUTING[appName];
         if (!route || !route.js || !route.js.length) return;
 
-        // 1. 每次加载前，先清理掉之前可能存在的旧脚本标签，保持页面干净
+        // 清理旧脚本标签
         const oldScript = document.getElementById(`remote-script-${appName}`);
         if (oldScript) oldScript.remove();
 
         return new Promise((resolve) => {
             const script = document.createElement('script');
-            script.id = `remote-script-${appName}`; // 给脚本一个固定ID方便管理
+            script.id = `remote-script-${appName}`;
             
-            // 2. 核心：通过 Math.random() 确保浏览器认为这是一个全新的请求
+            // 保持随机数防止缓存，实现实时更新
             const remoteUrl = route.js[0];
             const nocacheUrl = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
             
@@ -761,23 +761,22 @@ registerApps() {
             
             script.onload = () => {
                 if (window.currentApp) {
-                    // 3. 动态重写 customHandler
+                    // 【关键修复】：这里只定义逻辑，不手动操作 innerHTML = ''
+                    // 这样 renderAppState 执行时，会走原作者定义的动画流程
                     this.apps[appName].customHandler = (state) => {
                         const container = document.getElementById('app-content');
                         if (container) {
-                            container.innerHTML = ''; // 渲染新代码前先清空旧容器
+                            // 移除这里的 container.innerHTML = ''
                             window.currentApp.init(container);
                         }
                     };
-                    // 注意：这里不再设置 isLoaded = true，
-                    // 这样下次点击时，openApp 依然会进入此函数进行更新
-                    console.log(`[Mobile] ${appName} 远程代码已同步至最新版本`);
+                    console.log(`[Mobile] ${appName} 远程代码已同步，跳转动画已重置`);
                 }
                 resolve();
             };
             
             script.onerror = () => {
-                console.error(`[Mobile] 远程链接失效: ${remoteUrl}`);
+                console.error(`[Mobile] 链接失效: ${remoteUrl}`);
                 resolve();
             };
             
