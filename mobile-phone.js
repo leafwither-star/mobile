@@ -710,14 +710,12 @@ registerApps() {
     const app = this.apps[appName];
     if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
 
-    // --- 修改这里：无论是否加载过，都执行 loadRemoteApp 以后台更新 ---
-    if (this.APP_ROUTING[appName]) {
-        console.log(`[Mobile] 正在获取最新脚本: ${appName}`);
+    // 1. 如果是远程应用且未加载，先加载
+    if (this.APP_ROUTING[appName] && !app.isLoaded) {
+        console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
         await this.loadRemoteApp(appName);
+        app.isLoaded = true; // 标记已加载，防止重复加载
     }
-    
-    // ... 后续显示 UI 的代码保持不变 ...
-}
 
     // 2. 【关键修正】强制切换 UI 状态
     console.log(`[Mobile] 正在进入: ${app.name}`);
@@ -740,57 +738,47 @@ registerApps() {
     this.currentApp = appName;
 }
 
-   /**
- * 远程脚本加载器：支持热更新（无须刷新页面即可加载最新代码）
- * @param {string} appName 应用名称 (如 'api' 或 'theme')
- */
-async loadRemoteApp(appName) {
+    /**
+     * 远程脚本加载器
+     */
+    async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return;
 
-    // 1. 【清理旧脚本】如果页面上已经存在该应用的旧脚本标签，先移除它
+    // 清理旧脚本标签
     const oldScript = document.getElementById(`remote-script-${appName}`);
-    if (oldScript) {
-        oldScript.remove();
-        console.log(`[Mobile] 已清理旧脚本标签: ${appName}`);
-    }
+    if (oldScript) oldScript.remove();
 
     return new Promise((resolve) => {
         const script = document.createElement('script');
         script.id = `remote-script-${appName}`;
-        
-        // 2. 【核心热更新】在 URL 末尾注入当前时间戳，强制浏览器从服务器获取最新版
         const remoteUrl = route.js[0];
-        const timestamp = Date.now();
-        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + timestamp;
+        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
         
         script.onload = () => {
-            const container = document.getElementById('app-content');
-            if (!container) return;
+    const container = document.getElementById('app-content');
+    if (!container) return;
 
-            // 3. 【探针机制】尝试寻找并启动对应的 App 类实例
-            const activateApp = () => {
-                // 此时 class 已经分开，逻辑非常清晰：
-                if (appName === 'api' && window.MobileSettingApp) {
-                    window.MobileSettingApp.init(container); // 启动设置 App
-                    return true;
-                } 
-                if (appName === 'theme' && window.MobileThemeApp) {
-                    window.MobileThemeApp.init(container); // 启动主题 App
-                    return true;
-                }
-                return false;
-            };
+    // 尝试寻找 App 实例的方法
+    const activateApp = () => {
+        if (appName === 'api' && window.MobileSettingApp) {
+            window.MobileSettingApp.init(container);
+            return true;
+        } 
+        if (appName === 'theme' && window.MobileThemeApp) {
+            window.MobileThemeApp.init(container);
+            return true;
+        }
+        return false;
+    };
 
-            // 如果脚本执行较慢，稍微等 50ms 再试一次
-            if (!activateApp()) {
-                console.log(`[Mobile] 脚本已加载，正在等待实例挂载: ${appName}...`);
-                setTimeout(activateApp, 50); 
-            }
-            resolve();
-        };
-
-        // 将脚本注入到 head 中触发下载
+    // 如果立即找找不到，等 50 毫秒再找一次（给脚本执行实例化留点时间）
+    if (!activateApp()) {
+        console.log(`[Mobile] 等待 ${appName} 实例挂载...`);
+        setTimeout(activateApp, 50); 
+    }
+    resolve();
+};
         document.head.appendChild(script);
     });
 }
@@ -925,78 +913,63 @@ async loadRemoteApp(appName) {
     }
 } // <--- 类到此为止完全结束
 
-/**
- * --- 外部初始化逻辑 (2026-03-09 修复版) ---
- * 确保即使主题同步失败，手机悬浮球也能正常显示
- */
+// --- 外部初始化逻辑 ---
+// --- 修复后的外部初始化逻辑 ---
 function initMobilePhone() {
-    try {
-        // 1. 实例化手机系统（统一使用 window.myMobilePhone）
-        if (!window.myMobilePhone) {
-            window.myMobilePhone = new MobilePhone();
-            console.log('✅ [Mobile Phone] 实例创建成功，悬浮球应已显示');
-        }
+    if (!window.mobilePhone) {
+        // 1. 正常执行手机类实例化
+        window.mobilePhone = new MobilePhone();
+        console.log('[Mobile Phone] 手机界面初始化完成');
 
-        // 2. 安全绑定 Toast 工具
-        if (typeof MobilePhone.showToast === 'function') {
-            window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
-        }
+        // 2. 重新绑定原有的全局工具（确保悬浮窗和 Toast 正常）
+        window.showMobileToast = MobilePhone.showToast ? MobilePhone.showToast.bind(MobilePhone) : null;
 
-        // 3. 【核心修复】云端主题静默激活 (放入 try-catch 保护，防止它搞崩溃主程序)
+        // 3. 核心：云端主题静默激活
         const savedTheme = localStorage.getItem('last-theme-name');
         if (savedTheme && savedTheme !== 'default') {
-            console.log(`[Theme] 正在同步持久化主题: ${savedTheme}`);
-            applyPersistentTheme(savedTheme);
-        }
+            console.log(`[Theme] 检测到持久化主题: ${savedTheme}，正在强制同步...`);
+            fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
+            .then(res => res.json())
+            .then(config => {
+                window.themeState = config; // 同步给设置 App 使用
+                
+                // A. 注入全局 CSS 强力样式表
+                let bruteStyle = document.getElementById('brute-force-theme');
+                if (!bruteStyle) {
+                    bruteStyle = document.createElement('style');
+                    bruteStyle.id = 'brute-force-theme';
+                    document.head.appendChild(bruteStyle);
+                }
+                
+                const hex = config.wtrBg || "#ffffff";
+                const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+                
+                bruteStyle.innerHTML = `
+                    #home-screen { background-image: url('${config.bgUrl || ''}') !important; background-position: ${config.bgX || 50}% ${config.bgY || 50}% !important; background-size: cover !important; }
+                    #home-time { color: ${config.timeClr || '#fff'} !important; font-size: ${config.timeSize || 48}px !important; }
+                    #home-date { color: ${config.dateClr || '#fff'} !important; font-size: ${config.dateSize || 16}px !important; }
+                    .weather-info { background-color: rgba(${r},${g},${b},${config.wtrOp || 0.3}) !important; }
+                    .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
+                `;
 
-    } catch (fatalError) {
-        console.error("❌ [Mobile] 启动过程发生严重错误:", fatalError);
+                // B. 注入图标替换
+                if (config.icons) {
+                    Object.keys(config.icons).forEach(id => {
+                        let iconStyleId = `icon-style-${id}`;
+                        let iconStyle = document.getElementById(iconStyleId);
+                        if (!iconStyle) {
+                            iconStyle = document.createElement('style');
+                            iconStyle.id = iconStyleId;
+                            document.head.appendChild(iconStyle);
+                        }
+                        iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
+                    });
+                }
+            })
+            .catch(e => console.error("[Theme] 开机同步失败:", e));
+        }
     }
 }
-
-/**
- * 独立的主题同步函数，防止干扰主程序启动
- */
-function applyPersistentTheme(themeName) {
-    fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(themeName)}`)
-    .then(res => res.json())
-    .then(config => {
-        if (!config) return;
-        window.themeState = config;
-        
-        // 注入全局 CSS 样式
-        let bruteStyle = document.getElementById('brute-force-theme') || document.createElement('style');
-        bruteStyle.id = 'brute-force-theme';
-        
-        const hex = config.wtrBg || "#ffffff";
-        const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
-        
-        bruteStyle.innerHTML = `
-            #home-screen { background-image: url('${config.bgUrl || ''}') !important; background-position: ${config.bgX || 50}% ${config.bgY || 50}% !important; background-size: cover !important; }
-            #home-time { color: ${config.timeClr || '#fff'} !important; font-size: ${config.timeSize || 48}px !important; }
-            #home-date { color: ${config.dateClr || '#fff'} !important; font-size: ${config.dateSize || 16}px !important; }
-            .weather-info { background-color: rgba(${r},${g},${b},${config.wtrOp || 0.3}) !important; }
-            .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
-        `;
-        if (!bruteStyle.parentNode) document.head.appendChild(bruteStyle);
-
-        // 注入图标替换
-        if (config.icons) {
-            Object.keys(config.icons).forEach(id => {
-                let iconStyle = document.getElementById(`icon-style-${id}`) || document.createElement('style');
-                iconStyle.id = `icon-style-${id}`;
-                iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
-                if (!iconStyle.parentNode) document.head.appendChild(iconStyle);
-            });
-        }
-    })
-    .catch(e => console.error("[Theme] 主题静默同步失败:", e));
-}
-
-// === 立即执行初始化 ===
-// 确保 DOM 加载完成后运行
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobilePhone);
-} else {
-    initMobilePhone();
-}
+// 立即执行初始化
+initMobilePhone();
+window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
