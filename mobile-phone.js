@@ -179,17 +179,41 @@ class MobilePhone {
     handleEnd(e) {
         if (!this.isDragging) return;
         
-        if (this.dragMode === 'page') {
-            // 原有的翻页结算逻辑
+        const wrapper = document.getElementById('app-pages-wrapper');
+
+        if (this.dragMode === 'page' && wrapper) {
+            // --- 翻页结算逻辑开始 ---
+            wrapper.style.cursor = 'grab';
+            wrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+
             const deltaX = this.currentX - this.startX;
-            this.settlePageScroll(deltaX); // 或者是你之前的翻页结算逻辑代码
+            const phoneWidth = wrapper.offsetWidth || 320;
+
+            // 划过 15% 宽度就翻页
+            if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
+                if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
+                    this.currentPageIndex++;
+                } else if (deltaX > 0 && this.currentPageIndex > 0) {
+                    this.currentPageIndex--;
+                }
+            }
+            
+            // 执行翻页动画
+            wrapper.style.transform = `translateX(-${this.currentPageIndex * 100}%)`;
+            this.updateIndicators(); 
+            // --- 翻页结算逻辑结束 ---
+            
         } else if (this.dragMode === 'trigger') {
-            // 悬浮球松手后恢复稍微灵动的动画感
-            if (this.dragTarget) this.dragTarget.style.transition = 'all 0.3s ease';
+            // 悬浮球松手逻辑
+            if (this.dragTarget) {
+                this.dragTarget.style.transition = 'all 0.3s ease';
+            }
         }
 
+        // 核心：无论如何都要释放拖拽状态
         this.isDragging = false;
         this.dragMode = null;
+        console.log('[Mobile Phone] 拖拽结束，状态已重置');
     }
 
     goToPage(pageIndex) {
