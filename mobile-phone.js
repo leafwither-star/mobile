@@ -62,7 +62,7 @@ class MobilePhone {
             'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
-            'theme':    { js: ['http://43.165.171.111/style-app.js'], css: [] } // 新增的主题 App [cite: 2026-02-26]
+            'theme':    { js: ['http://43.165.171.111/style-app.js?v=' + Date.now()], css: [] } // 新增的主题 App [cite: 2026-02-26]
         };
 
         this.init();
