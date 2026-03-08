@@ -756,20 +756,17 @@ registerApps() {
         script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
         
         script.onload = () => {
-            const container = document.getElementById('app-content');
-            if (container) {
-                // 根据 appName 精准初始化 [cite: 2026-02-26]
-                if (appName === 'api' && window.MobileSettingApp) {
-                    window.MobileSettingApp.init(container);
-                } else if (appName === 'theme' && window.MobileThemeApp) {
-                    window.MobileThemeApp.init(container);
-                } else if (window.currentApp) {
-                    // 兼容旧的尚未重构的应用
-                    window.currentApp.init(container);
-                }
-            }
-            resolve();
-        };
+    const container = document.getElementById('app-content');
+    if (!container) return;
+
+    // 清除之前的 App 实例显示，准备注入新 App [cite: 2026-02-24]
+    if (appName === 'api' && window.MobileSettingApp) {
+        window.MobileSettingApp.init(container);
+    } else if (appName === 'theme' && window.MobileThemeApp) {
+        window.MobileThemeApp.init(container);
+    }
+    resolve();
+};
         script.onerror = () => {
             console.error(`加载 App [${appName}] 失败`);
             resolve();
