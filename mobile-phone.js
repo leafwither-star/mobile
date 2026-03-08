@@ -759,18 +759,26 @@ registerApps() {
     const container = document.getElementById('app-content');
     if (!container) return;
 
-    // 清除之前的 App 实例显示，准备注入新 App [cite: 2026-02-24]
-    if (appName === 'api' && window.MobileSettingApp) {
-        window.MobileSettingApp.init(container);
-    } else if (appName === 'theme' && window.MobileThemeApp) {
-        window.MobileThemeApp.init(container);
+    // 尝试寻找 App 实例的方法
+    const activateApp = () => {
+        if (appName === 'api' && window.MobileSettingApp) {
+            window.MobileSettingApp.init(container);
+            return true;
+        } 
+        if (appName === 'theme' && window.MobileThemeApp) {
+            window.MobileThemeApp.init(container);
+            return true;
+        }
+        return false;
+    };
+
+    // 如果立即找找不到，等 50 毫秒再找一次（给脚本执行实例化留点时间）
+    if (!activateApp()) {
+        console.log(`[Mobile] 等待 ${appName} 实例挂载...`);
+        setTimeout(activateApp, 50); 
     }
     resolve();
 };
-        script.onerror = () => {
-            console.error(`加载 App [${appName}] 失败`);
-            resolve();
-        };
         document.head.appendChild(script);
     });
 }
