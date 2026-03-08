@@ -2528,3 +2528,28 @@ html body .mobile-phone-frame .app-icon[data-app='theme'] .app-icon-bg {
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
+
+/* --- 手机交互安全性补丁 --- */
+.app-icon, 
+.app-icon-bg, 
+.app-label {
+    /* 核心：禁止抹蓝和选中，释放翻页权限 */
+    user-select: none !important;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    
+    /* 核心：解决 PC 端图标被“拎起来”飞出的尴尬 */
+    -webkit-user-drag: none !important;
+    
+    /* 核心：保持点击依然有效 */
+    pointer-events: auto !important;
+    
+    /* 视觉反馈：鼠标移上去变成小手，像真实的网页交互 */
+    cursor: pointer;
+}
+
+/* 确保容器在划动时不会误触发系统的拖拽意图 */
+#app-pages-wrapper {
+    touch-action: pan-y; /* 允许垂直滚动（如果有的话），拦截水平默认行为 */
+    user-select: none;
+}
