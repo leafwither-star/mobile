@@ -707,36 +707,36 @@ registerApps() {
      * 打开应用：增加了远程脚本预加载逻辑
      */
     async openApp(appName) {
-        const app = this.apps[appName];
-        if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
+    const app = this.apps[appName];
+    if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
 
-        // === 【新增】远程脚本自动加载引擎 ===
-        // 如果路由表里有 JS 路径，且该应用还没加载过
-        if (this.APP_ROUTING[appName] && !app.isLoaded) {
-            console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
-            await this.loadRemoteApp(appName);
-        }
-
-        // 防止重复打开同一个 App 的根界面
-        if (this.currentApp === appName && this.appStack.length === 1) return;
-
-        console.log(`[Mobile] 正在进入: ${app.name}`);
-        this.currentApp = appName;
-
-        // 构建初始状态
-        const appState = {
-            app: appName,
-            title: app.name,
-            view: 'main'
-        };
-
-        // 重置栈并推送新状态
-        this.appStack = [appState];
-        this.currentAppState = appState;
-
-        // UI 切换
-        this.renderAppState(app, appState);
+    // 1. 如果是远程应用且未加载，先加载
+    if (this.APP_ROUTING[appName] && !app.isLoaded) {
+        console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
+        await this.loadRemoteApp(appName);
+        app.isLoaded = true; // 标记已加载，防止重复加载
     }
+
+    // 2. 【关键修正】强制切换 UI 状态
+    console.log(`[Mobile] 正在进入: ${app.name}`);
+    
+    // 隐藏主屏幕/其他页面
+    const homeScreen = document.getElementById('home-screen'); // 请确认你主页面的 ID
+    const appScreen = document.getElementById('app-screen');   // 请确认你 App 容器页面的 ID
+    const container = document.getElementById('app-content');
+
+    if (homeScreen) homeScreen.style.display = 'none';
+    if (appScreen) appScreen.style.display = 'block';
+
+    // 3. 如果脚本已经加载过了，手动再 init 一次确保内容刷新
+    if (appName === 'theme' && window.MobileThemeApp) {
+        window.MobileThemeApp.init(container);
+    } else if (appName === 'api' && window.MobileSettingApp) {
+        window.MobileSettingApp.init(container);
+    }
+    
+    this.currentApp = appName;
+}
 
     /**
      * 远程脚本加载器
