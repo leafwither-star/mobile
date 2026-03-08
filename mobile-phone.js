@@ -708,14 +708,15 @@ registerApps() {
      */
     async openApp(appName) {
     const app = this.apps[appName];
-    if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
+    if (!app) return;
 
-    // 1. 如果是远程应用且未加载，先加载
-    if (this.APP_ROUTING[appName] && !app.isLoaded) {
-        console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
+    // --- 最小化改动区 ---
+    // 只要是路由表里的应用，每次打开都重新运行一遍加载器（获取最新脚本）
+    if (this.APP_ROUTING[appName]) {
+        console.log(`[Mobile] 正在热更新应用: ${appName}`);
         await this.loadRemoteApp(appName);
-        app.isLoaded = true; // 标记已加载，防止重复加载
     }
+    // --- 改动结束 ---
 
     // 2. 【关键修正】强制切换 UI 状态
     console.log(`[Mobile] 正在进入: ${app.name}`);
@@ -753,32 +754,32 @@ registerApps() {
         const script = document.createElement('script');
         script.id = `remote-script-${appName}`;
         const remoteUrl = route.js[0];
+        // 通过时间戳强制获取最新版本 [cite: 2026-02-24, 2026-02-26]
         script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
         
         script.onload = () => {
-    const container = document.getElementById('app-content');
-    if (!container) return;
+            const container = document.getElementById('app-content');
+            if (!container) return;
 
-    // 尝试寻找 App 实例的方法
-    const activateApp = () => {
-        if (appName === 'api' && window.MobileSettingApp) {
-            window.MobileSettingApp.init(container);
-            return true;
-        } 
-        if (appName === 'theme' && window.MobileThemeApp) {
-            window.MobileThemeApp.init(container);
-            return true;
-        }
-        return false;
-    };
+            // 核心逻辑：尝试启动 App [cite: 2026-02-26]
+            const activateApp = () => {
+                if (appName === 'api' && window.MobileSettingApp) {
+                    window.MobileSettingApp.init(container);
+                    return true;
+                } 
+                if (appName === 'theme' && window.MobileThemeApp) {
+                    window.MobileThemeApp.init(container);
+                    return true;
+                }
+                return false;
+            };
 
-    // 如果立即找找不到，等 50 毫秒再找一次（给脚本执行实例化留点时间）
-    if (!activateApp()) {
-        console.log(`[Mobile] 等待 ${appName} 实例挂载...`);
-        setTimeout(activateApp, 50); 
-    }
-    resolve();
-};
+            // 【关键小改动】：如果第一次没找到实例，50ms 后再试一次
+            if (!activateApp()) {
+                setTimeout(activateApp, 50); 
+            }
+            resolve();
+        };
         document.head.appendChild(script);
     });
 }
@@ -913,7 +914,6 @@ registerApps() {
     }
 } // <--- 类到此为止完全结束
 
-// --- 外部初始化逻辑 ---
 // --- 修复后的外部初始化逻辑 ---
 function initMobilePhone() {
     if (!window.mobilePhone) {
