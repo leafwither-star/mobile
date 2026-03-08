@@ -82,9 +82,9 @@ class MobilePhone {
         }, 1000); // 延迟初始化，确保页面加载完成
     }
 
-    // === 核心翻页逻辑重构 (替换原有的 initPageSwipe 到 updateIndicators) ===
+    // === 核心翻页逻辑：带探针版 ===
     initPageSwipe() {
-        const self = this; // 【重要】锁定作用域，确保 setTimeout 里也能找到 handleStart
+        const self = this; 
         this.currentPageIndex = 0;
         this.totalPages = 2;
         this.isDragging = false;
@@ -97,19 +97,21 @@ class MobilePhone {
             const indicators = document.getElementById('page-indicators');
 
             if (!wrapper || !indicators) {
-                console.log('[Mobile Phone] 页面元素未找到，正在重试...');
+                console.log('[Mobile Phone] 页面未就绪，重试中...');
                 setTimeout(() => self.initPageSwipe(), 500);
                 return;
             }
 
-            // 暴力禁止所有图标图片的默认拖拽行为
+            // 【关键修复 1】强制给容器加上“爪子”样式，只要鼠标移上去必定是爪子
+            wrapper.style.cursor = 'grab';
+
+            // 暴力禁止图标图片默认行为
             wrapper.querySelectorAll('img, a').forEach(el => {
                 el.draggable = false;
                 el.style.userSelect = 'none';
                 el.addEventListener('dragstart', (e) => e.preventDefault());
             });
 
-            // 这里的 this 换成 self，确保指向万无一失
             const startHandler = (e) => self.handleStart(e);
             const moveHandler = (e) => self.handleMove(e);
             const endHandler = (e) => self.handleEnd(e);
@@ -127,32 +129,34 @@ class MobilePhone {
                 indicator.onclick = () => self.goToPage(index);
             });
 
-            console.log('[Mobile Phone] 捕获级翻页系统已就绪');
+            console.log('[Mobile Phone] 📱 翻页系统初始化完成，已挂载所有监听');
         }, 300);
     }
 
-    // 【这就是你补上的函数 1】负责记录按下的瞬间
     handleStart(e) {
-        // 只允许左键按下
-        if (e.type === 'mousedown' && e.button !== 0) return;
-        
+        // 【窃听器 1】看看鼠标按下去时，到底有没有触发！
+        console.log('[Mobile Phone] 侦测到按下动作:', e.type);
+
+        if (e.type === 'mousedown') {
+            window.getSelection().removeAllRanges();
+        }
+
         this.isDragging = true;
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
         this.currentX = this.startX;
 
         const wrapper = document.getElementById('app-pages-wrapper');
         if (wrapper) {
-            wrapper.style.transition = 'none'; // 拖动时关掉动画，否则会“粘手”
-            wrapper.style.cursor = 'grabbing';
+            wrapper.style.transition = 'none'; 
+            wrapper.style.cursor = 'grabbing'; // 按下变成紧握的爪子
         }
     }
 
-    // 【这就是你补上的函数 2】负责跟着鼠标/手指跑
     handleMove(e) {
         if (!this.isDragging) return;
 
         if (e.type === 'mousemove') {
-            e.preventDefault();
+            e.preventDefault(); 
             window.getSelection().removeAllRanges();
         }
 
@@ -171,21 +175,22 @@ class MobilePhone {
         wrapper.style.setProperty('transform', `translateX(${translateX}%)`, 'important');
     }
 
-    // 【这就是你补上的函数 3】负责松手后的结算
     handleEnd(e) {
         if (!this.isDragging) return;
         this.isDragging = false;
+        
+        // 【窃听器 2】看看松开手时的数据
+        console.log('[Mobile Phone] 侦测到松开动作，准备结算位移');
 
         const wrapper = document.getElementById('app-pages-wrapper');
         if (wrapper) {
-            wrapper.style.cursor = 'grab';
+            wrapper.style.cursor = 'grab'; // 恢复张开的爪子
             wrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
         }
 
         const deltaX = this.currentX - this.startX;
         const phoneWidth = wrapper ? wrapper.offsetWidth : 320;
 
-        // 如果滑动距离够大，就翻页；否则弹回原位
         if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
             if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
                 this.goToPage(this.currentPageIndex + 1);
