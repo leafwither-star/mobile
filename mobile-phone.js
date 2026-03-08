@@ -960,5 +960,4 @@ function initMobilePhone() {
 }
 // 立即执行初始化
 initMobilePhone();
-initMobilePhone();
 window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
