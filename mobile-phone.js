@@ -710,12 +710,14 @@ registerApps() {
     const app = this.apps[appName];
     if (!app) return console.warn(`[Mobile] 应用 ${appName} 不存在`);
 
-    // 1. 如果是远程应用且未加载，先加载
-    if (this.APP_ROUTING[appName] && !app.isLoaded) {
-        console.log(`[Mobile] 检测到远程应用，正在获取脚本: ${appName}`);
+    // --- 修改这里：无论是否加载过，都执行 loadRemoteApp 以后台更新 ---
+    if (this.APP_ROUTING[appName]) {
+        console.log(`[Mobile] 正在获取最新脚本: ${appName}`);
         await this.loadRemoteApp(appName);
-        app.isLoaded = true; // 标记已加载，防止重复加载
     }
+    
+    // ... 后续显示 UI 的代码保持不变 ...
+}
 
     // 2. 【关键修正】强制切换 UI 状态
     console.log(`[Mobile] 正在进入: ${app.name}`);
@@ -738,47 +740,57 @@ registerApps() {
     this.currentApp = appName;
 }
 
-    /**
-     * 远程脚本加载器
-     */
-    async loadRemoteApp(appName) {
+   /**
+ * 远程脚本加载器：支持热更新（无须刷新页面即可加载最新代码）
+ * @param {string} appName 应用名称 (如 'api' 或 'theme')
+ */
+async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return;
 
-    // 清理旧脚本标签
+    // 1. 【清理旧脚本】如果页面上已经存在该应用的旧脚本标签，先移除它
     const oldScript = document.getElementById(`remote-script-${appName}`);
-    if (oldScript) oldScript.remove();
+    if (oldScript) {
+        oldScript.remove();
+        console.log(`[Mobile] 已清理旧脚本标签: ${appName}`);
+    }
 
     return new Promise((resolve) => {
         const script = document.createElement('script');
         script.id = `remote-script-${appName}`;
+        
+        // 2. 【核心热更新】在 URL 末尾注入当前时间戳，强制浏览器从服务器获取最新版
         const remoteUrl = route.js[0];
-        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+        const timestamp = Date.now();
+        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + timestamp;
         
         script.onload = () => {
-    const container = document.getElementById('app-content');
-    if (!container) return;
+            const container = document.getElementById('app-content');
+            if (!container) return;
 
-    // 尝试寻找 App 实例的方法
-    const activateApp = () => {
-        if (appName === 'api' && window.MobileSettingApp) {
-            window.MobileSettingApp.init(container);
-            return true;
-        } 
-        if (appName === 'theme' && window.MobileThemeApp) {
-            window.MobileThemeApp.init(container);
-            return true;
-        }
-        return false;
-    };
+            // 3. 【探针机制】尝试寻找并启动对应的 App 类实例
+            const activateApp = () => {
+                // 此时 class 已经分开，逻辑非常清晰：
+                if (appName === 'api' && window.MobileSettingApp) {
+                    window.MobileSettingApp.init(container); // 启动设置 App
+                    return true;
+                } 
+                if (appName === 'theme' && window.MobileThemeApp) {
+                    window.MobileThemeApp.init(container); // 启动主题 App
+                    return true;
+                }
+                return false;
+            };
 
-    // 如果立即找找不到，等 50 毫秒再找一次（给脚本执行实例化留点时间）
-    if (!activateApp()) {
-        console.log(`[Mobile] 等待 ${appName} 实例挂载...`);
-        setTimeout(activateApp, 50); 
-    }
-    resolve();
-};
+            // 如果脚本执行较慢，稍微等 50ms 再试一次
+            if (!activateApp()) {
+                console.log(`[Mobile] 脚本已加载，正在等待实例挂载: ${appName}...`);
+                setTimeout(activateApp, 50); 
+            }
+            resolve();
+        };
+
+        // 将脚本注入到 head 中触发下载
         document.head.appendChild(script);
     });
 }
