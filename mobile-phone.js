@@ -785,29 +785,40 @@ registerApps() {
     }
     
     /**
-     * 渲染应用界面
+     * 渲染应用界面 - 丝滑平移优化版
      */
     renderAppState(app, state) {
         // 1. 更新顶部标题栏
         this.updateAppHeader(state);
 
-        // 2. 切换容器显示
-        document.getElementById('home-screen').style.display = 'none';
+        // 2. 准备容器
+        const homeScreen = document.getElementById('home-screen');
         const appScreen = document.getElementById('app-screen');
+        const appContent = document.getElementById('app-content');
+
+        // 先移除之前的动画类，防止状态重叠
+        appScreen.classList.remove('slide-in');
+        homeScreen.style.display = 'none';
         appScreen.style.display = 'block';
         
-        // 3. 填充内容：如果是自定义处理器则执行，否则填充 HTML
+        // 3. 填充内容
         if (app.isCustomApp && app.customHandler) {
+            // 执行我们的 style-app.js 初始化逻辑
             app.customHandler(state);
         } else {
-            document.getElementById('app-content').innerHTML = app.content || '';
+            appContent.innerHTML = app.content || '';
         }
 
-        // 4. 执行入场动画
-        appScreen.classList.add('slide-in');
+        // 4. 【核心修复】：延迟一帧触发动画
+        // 这样浏览器会先处理完上面的 DOM 注入，再平滑地执行 slide-in 动画
+        requestAnimationFrame(() => {
+            appScreen.classList.add('slide-in');
+        });
+
+        // 5. 动画结束后清理（维持原作者逻辑）
         setTimeout(() => appScreen.classList.remove('slide-in'), 300);
     }
-
+    
     // --- 3. 状态管理 (返回键逻辑) ---
 
     pushAppState(state) {
