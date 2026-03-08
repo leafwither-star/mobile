@@ -101,34 +101,36 @@ class MobilePhone {
                 return;
             }
 
-            // 1. 定义处理函数，通过 bind 确保 this 指向正确
+            // 【新增】暴力禁止所有图标图片的默认拖拽行为，防止 PC 端宕机
+            wrapper.querySelectorAll('img, a').forEach(el => {
+                el.draggable = false;
+                el.style.userSelect = 'none';
+                el.addEventListener('dragstart', (e) => e.preventDefault());
+            });
+
             const startHandler = (e) => this.handleStart(e);
             const moveHandler = (e) => this.handleMove(e);
             const endHandler = (e) => this.handleEnd(e);
 
-            // 2. 绑定事件：PC端鼠标
-            // 使用 true (捕获模式) 确保划动优于图标点击
+            // 保持 true (捕获模式)，确保 wrapper 优先抓取事件
             wrapper.addEventListener('mousedown', startHandler, true);
             window.addEventListener('mousemove', moveHandler, { passive: false });
             window.addEventListener('mouseup', endHandler);
 
-            // 3. 绑定事件：移动端触摸
             wrapper.addEventListener('touchstart', startHandler, { passive: false });
             wrapper.addEventListener('touchmove', moveHandler, { passive: false });
             wrapper.addEventListener('touchend', endHandler);
 
-            // 4. 指示器点击跳转
             const indicatorElements = indicators.querySelectorAll('.indicator');
             indicatorElements.forEach((indicator, index) => {
                 indicator.onclick = () => this.goToPage(index);
             });
 
-            console.log('[Mobile Phone] 捕获级翻页系统已就绪');
+            console.log('[Mobile Phone] 捕获级翻页系统已就绪（已注入防干扰逻辑）');
         }, 300);
     }
 
     handleStart(e) {
-        // 【关键行】如果是鼠标操作，只响应左键；并防止事件干扰
         if (e.type === 'mousedown' && e.button !== 0) return;
         
         this.isDragging = true;
@@ -145,7 +147,7 @@ class MobilePhone {
     handleMove(e) {
         if (!this.isDragging) return;
         
-        // 阻止默认行为（如拖拽选中文本）
+        // 关键：阻止默认行为，防止划动时选中文字或触发系统拖拽
         if (e.cancelable) e.preventDefault();
 
         this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
@@ -174,7 +176,6 @@ class MobilePhone {
         const deltaX = this.currentX - this.startX;
         const phoneWidth = wrapper.offsetWidth || 320;
 
-        // 判定翻页：滑动距离超过 15% 宽度
         if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
             if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
                 this.goToPage(this.currentPageIndex + 1);
@@ -203,139 +204,87 @@ class MobilePhone {
         });
     }
 
-    // 加载拖拽辅助插件
     loadDragHelper() {
-        // 加载CSS样式
         const cssLink = document.createElement('link');
         cssLink.rel = 'stylesheet';
         cssLink.href = '/scripts/extensions/third-party/mobile/drag-helper.css';
         document.head.appendChild(cssLink);
 
-        // 加载JS插件
         if (typeof DragHelper === 'undefined') {
             const script = document.createElement('script');
             script.src = '/scripts/extensions/third-party/mobile/drag-helper.js';
-            script.onload = () => {
-                console.log('[Mobile Phone] 拖拽插件加载成功');
-            };
-            script.onerror = () => {
-                console.error('[Mobile Phone] 拖拽插件加载失败');
-            };
+            script.onload = () => console.log('[Mobile Phone] 拖拽插件加载成功');
             document.head.appendChild(script);
         }
     }
 
-    // 创建弹出按钮
     createPhoneButton() {
         try {
-            // 检查是否已经存在按钮
             const existingButton = document.getElementById('mobile-phone-trigger');
-            if (existingButton) {
-                console.log('[Mobile Phone] 按钮已存在，移除旧按钮');
-                existingButton.remove();
-            }
+            if (existingButton) existingButton.remove();
 
             const button = document.createElement('button');
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
             button.innerHTML = '📱';
-            button.title = '打开手机界面';
+            // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
+            button.style.zIndex = "99999";
+            button.style.position = "fixed";
+            
             button.addEventListener('click', () => this.togglePhone());
-
-            // 确保body存在
             if (!document.body) {
-                console.error('[Mobile Phone] document.body 不存在，延迟创建按钮');
                 setTimeout(() => this.createPhoneButton(), 100);
                 return;
             }
-
             document.body.appendChild(button);
-
-            // 初始化拖拽功能
             this.initDragForButton(button);
-
-            console.log('[Mobile Phone] 手机按钮创建成功');
         } catch (error) {
-            console.error('[Mobile Phone] 创建按钮时发生错误:', error);
+            console.error('[Mobile Phone] 创建按钮错误:', error);
         }
     }
 
-    // 为按钮初始化拖拽功能
     initDragForButton(button) {
-        // 延迟初始化以确保DragHelper已加载
         const tryInitDrag = () => {
             if (typeof DragHelper !== 'undefined') {
-                // 销毁旧的拖拽实例
-                if (this.dragHelper) {
-                    this.dragHelper.destroy();
-                }
-
-                // 创建新的拖拽实例
+                if (this.dragHelper) this.dragHelper.destroy();
                 this.dragHelper = new DragHelper(button, {
                     boundary: document.body,
-                    clickThreshold: 8, // 稍微增加点击阈值确保点击功能正常
+                    clickThreshold: 8,
                     dragClass: 'mobile-phone-trigger-dragging',
-                    savePosition: false, // 不保存位置
-                    storageKey: 'mobile-phone-trigger-position',
+                    savePosition: false,
                 });
-
-                console.log('[Mobile Phone] 拖拽功能初始化成功');
             } else {
-                // 如果DragHelper还未加载，继续等待
                 setTimeout(tryInitDrag, 100);
             }
         };
-
         tryInitDrag();
     }
 
-    // 清理位置缓存
     clearPositionCache() {
-        try {
-            // 清理按钮位置缓存
-            localStorage.removeItem('mobile-phone-trigger-position');
-            // 清理框架位置缓存
-            localStorage.removeItem('mobile-phone-frame-position');
-            console.log('[Mobile Phone] 位置缓存已清理');
-        } catch (error) {
-            console.warn('[Mobile Phone] 清理位置缓存时发生错误:', error);
-        }
+        localStorage.removeItem('mobile-phone-trigger-position');
+        localStorage.removeItem('mobile-phone-frame-position');
     }
 
-    // 为手机框架初始化拖拽功能
     initFrameDrag() {
-        // 延迟初始化以确保DragHelper已加载
         const tryInitFrameDrag = () => {
             if (typeof DragHelper !== 'undefined') {
                 const phoneFrame = document.querySelector('.mobile-phone-frame');
                 if (phoneFrame) {
-                    // 销毁旧的框架拖拽实例
-                    if (this.frameDragHelper) {
-                        this.frameDragHelper.destroy();
-                    }
-
-                    // 创建新的拖拽实例
+                    if (this.frameDragHelper) this.frameDragHelper.destroy();
                     this.frameDragHelper = new DragHelper(phoneFrame, {
                         boundary: document.body,
-                        clickThreshold: 10, // 增加阈值避免误触
-                        dragClass: 'mobile-phone-frame-dragging',
-                        savePosition: false, // 不保存位置
-                        storageKey: 'mobile-phone-frame-position',
-                        touchTimeout: 300, // 增加触摸超时时间
-                        dragHandle: '.mobile-status-bar', // 指定拖拽手柄为状态栏
+                        clickThreshold: 10,
+                        dragHandle: '.mobile-status-bar',
+                        savePosition: false,
                     });
-
-                    console.log('[Mobile Phone] 框架拖拽功能初始化成功');
                 }
             } else {
-                // 如果DragHelper还未加载，继续等待
                 setTimeout(tryInitFrameDrag, 100);
             }
         };
-
         tryInitFrameDrag();
     }
-
+    
     // 创建手机容器
     createPhoneContainer() {
         try {
