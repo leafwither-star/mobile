@@ -131,8 +131,16 @@ class MobilePhone {
     }
 
     handleStart(e) {
+        // 1. 基础检查
         if (e.type === 'mousedown' && e.button !== 0) return;
         
+        // 2. 核心补丁：点击图标时，强制禁止系统的文本选择行为
+        // 这能防止 PC 浏览器因为想“选中”🎨图标而打断滑动逻辑
+        if (e.type === 'mousedown') {
+            // 这种方式比 preventDefault 更兼容
+            window.getSelection().removeAllRanges();
+        }
+
         this.isDragging = true;
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
         this.currentX = this.startX;
@@ -140,15 +148,20 @@ class MobilePhone {
         const wrapper = document.getElementById('app-pages-wrapper');
         if (wrapper) {
             wrapper.style.transition = 'none';
+            // 强制改变光标，给用户明确反馈
             wrapper.style.cursor = 'grabbing';
         }
     }
 
     handleMove(e) {
         if (!this.isDragging) return;
-        
-        // 关键：阻止默认行为，防止划动时选中文字或触发系统拖拽
-        if (e.cancelable) e.preventDefault();
+
+        // 3. 核心补丁：在移动过程中持续清除选中状态
+        // 这样即便鼠标滑过 App 名字，也不会变成“文本选中”状态
+        if (e.type === 'mousemove') {
+            e.preventDefault(); 
+            window.getSelection().removeAllRanges();
+        }
 
         this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
         const deltaX = this.currentX - this.startX;
@@ -162,7 +175,7 @@ class MobilePhone {
 
         wrapper.style.transform = `translateX(${translateX}%)`;
     }
-
+    
     handleEnd(e) {
         if (!this.isDragging) return;
         this.isDragging = false;
