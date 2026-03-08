@@ -2520,3 +2520,11 @@ html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
+
+/* 6. 主题 (theme) */
+html body .mobile-phone-frame .app-icon[data-app='theme'] .app-icon-bg {
+    background-image: url('../mobile/images/theme2.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
