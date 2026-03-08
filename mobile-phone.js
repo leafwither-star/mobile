@@ -775,34 +775,26 @@ registerApps() {
      * 渲染应用界面 - 丝滑平移优化版
      */
     renderAppState(app, state) {
-        // 1. 更新顶部标题栏
         this.updateAppHeader(state);
-
-        // 2. 准备容器
+        
         const homeScreen = document.getElementById('home-screen');
         const appScreen = document.getElementById('app-screen');
         const appContent = document.getElementById('app-content');
 
-        // 先移除之前的动画类，防止状态重叠
-        appScreen.classList.remove('slide-in');
         homeScreen.style.display = 'none';
         appScreen.style.display = 'block';
         
-        // 3. 填充内容
+        // 关键：在填充新内容前，先把旧的彻底清掉，防止两个App的内容重叠导致弹跳
+        appContent.innerHTML = ''; 
+
         if (app.isCustomApp && app.customHandler) {
-            // 执行我们的 style-app.js 初始化逻辑
             app.customHandler(state);
         } else {
             appContent.innerHTML = app.content || '';
         }
 
-        // 4. 【核心修复】：延迟一帧触发动画
-        // 这样浏览器会先处理完上面的 DOM 注入，再平滑地执行 slide-in 动画
-        requestAnimationFrame(() => {
-            appScreen.classList.add('slide-in');
-        });
-
-        // 5. 动画结束后清理（维持原作者逻辑）
+        // 暂时注释掉动画，或者只用最简单的渐现
+        appScreen.classList.add('slide-in'); 
         setTimeout(() => appScreen.classList.remove('slide-in'), 300);
     }
     
