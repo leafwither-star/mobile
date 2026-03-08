@@ -755,17 +755,21 @@ registerApps() {
             script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
             
             script.onload = () => {
-                if (window.currentApp) {
-                    this.apps[appName].customHandler = (state) => {
-                        const container = document.getElementById('app-content');
-                        if (container) {
-                            // 仅仅是初始化，不在这里做 display 操作
-                            window.currentApp.init(container);
-                        }
-                    };
-                }
-                resolve();
-            };
+    const container = document.getElementById('app-content');
+    if (!container) return;
+
+    // 根据 appName 动态识别实例
+    let appInstance = null;
+    if (appName === 'api') appInstance = window.MobileSettingApp;
+    if (appName === 'theme') appInstance = window.MobileThemeApp; // 假设主题 App 也改名了
+    
+    // 如果找到了对应的实例，就初始化它
+    if (appInstance && typeof appInstance.init === 'function') {
+        appInstance.init(container);
+    }
+    
+    resolve();
+};
             script.onerror = () => resolve();
             document.head.appendChild(script);
         });
