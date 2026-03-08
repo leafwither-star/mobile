@@ -47,19 +47,19 @@ class MobilePhone {
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
-            this.APP_ROUTING = {
+        this.APP_ROUTING = {
             'messages': { js: ['/scripts/extensions/third-party/mobile/app/message-app.js'], css: ['/scripts/extensions/third-party/mobile/app/message-app.css'] },
             'shop':     { js: ['/scripts/extensions/third-party/mobile/app/shopping-app.js'], css: ['/scripts/extensions/third-party/mobile/app/shopping-app.css'] },
-            'task':     { js: ['/scripts/extensions/third-party/mobile/app/profile-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/profile-app.css'] },
+            'task':     { js: ['/scripts/extensions/third-party/mobile/app/profile-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/profile-app.css'] }, // 健康 [cite: 2026-02-26]
             'forum':    { js: ['/scripts/extensions/third-party/mobile/app/forum-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/forum-app.css'] },
-            'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] },
+            'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] }, // 收纳 [cite: 2026-02-24]
             'live':     { js: ['/scripts/extensions/third-party/mobile/app/live-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/live-app.css'] },
             'backpack': { js: ['/scripts/extensions/third-party/mobile/app/backpack-app.js'], css: ['/scripts/extensions/third-party/mobile/app/backpack-app.css'] },
-            'api':      { js: ['/scripts/extensions/third-party/mobile/app/app/style-config-manager.js'], css: ['/scripts/extensions/third-party/mobile/app/style-config-manager.css'] },
-            'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] },
+            'api':      { js: ['/scripts/extensions/third-party/mobile/app/app/style-config-manager.js'], css: ['/scripts/extensions/third-party/mobile/app/style-config-manager.css'] }, // 设置
+            'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] }, // 档案 [cite: 2026-02-26]
             'travel':   { js: ['/scripts/extensions/third-party/mobile/app/travel-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/travel-app.css'] },
             'email':    { js: ['/scripts/extensions/third-party/mobile/app/email-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/email-app.css'] },
-            'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] },
+            'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
             'theme':    { js: ['http://43.165.171.111/style-app.js'], css: [] } // 新增的主题 App [cite: 2026-02-26]
@@ -645,21 +645,21 @@ pushAppState(state) {
 // 3. 极简的应用注册表（只定义名称，内容由 App 自己注入）
 registerApps() {
     this.apps = {
-        'messages': { name: '微信', isCustomApp: true },  // 对应 李律师的核心功能 [cite: 2026-02-26]
-        'shop':      { name: '购物', isCustomApp: true }, [cite: 2026-02-24]
-        'task':      { name: '健康', isCustomApp: true },  // 解决了 Task 报错问题 [cite: 2026-02-26]
-        'forum':     { name: '论坛', isCustomApp: true }, // 法律人/本地论坛 [cite: 2026-02-26]
-        'weibo':     { name: '收纳', isCustomApp: true },  // 强制把名字改成“收纳”！ [cite: 2026-02-24]
-        'live':      { name: '直播', isCustomApp: true }, [cite: 2026-02-26]
-        'backpack': { name: '背包', isCustomApp: true }, [cite: 2026-02-24]
-        'api':       { name: '设置', isCustomApp: true },
-        'profile':   { name: '档案', isCustomApp: true }, [cite: 2026-02-26]
-        'travel':    { name: '出行', isCustomApp: true },
-        'email':     { name: '邮箱', isCustomApp: true },
-        'bill':      { name: '账单', isCustomApp: true },  // 独立的 App [cite: 2026-02-24]
-        'gemini':    { name: 'AI', isCustomApp: true },
-        'fanfic':    { name: 'AO3', isCustomApp: true }, // <--- 这里必须补上逗号！[cite: 2026-02-26]
-        'theme':     { name: '主题', isCustomApp: true }  // 远程加载的主题 App [cite: 2026-02-26]
+        'messages': { name: '微信', isCustomApp: true },  // 对应 李律师的核心功能
+        'shop':     { name: '购物', isCustomApp: true },
+        'task':     { name: '健康', isCustomApp: true },  // 解决了 Task 报错问题
+        'forum':    { name: '论坛', isCustomApp: true }, // 法律人/本地论坛
+        'weibo':    { name: '收纳', isCustomApp: true },  // 强制把名字改成“收纳”！
+        'live':     { name: '直播', isCustomApp: true },
+        'backpack': { name: '背包', isCustomApp: true },
+        'api':      { name: '设置', isCustomApp: true },
+        'profile':  { name: '档案', isCustomApp: true },
+        'travel':   { name: '出行', isCustomApp: true },
+        'email':    { name: '邮箱', isCustomApp: true },
+        'bill':     { name: '账单', isCustomApp: true },  // 独立的 App
+        'gemini':   { name: 'AI', isCustomApp: true },
+        'fanfic':   { name: 'AO3', isCustomApp: true },
+        'theme':    { name: '主题', isCustomApp: true }  [cite: 2026-02-26]
     };
 }
 
