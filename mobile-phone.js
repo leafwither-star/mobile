@@ -130,26 +130,22 @@ class MobilePhone {
         }, 300);
     }
 
-    handleStart(e) {
-        // 1. 基础检查
-        if (e.type === 'mousedown' && e.button !== 0) return;
-        
-        // 2. 核心补丁：点击图标时，强制禁止系统的文本选择行为
-        // 这能防止 PC 浏览器因为想“选中”🎨图标而打断滑动逻辑
-        if (e.type === 'mousedown') {
-            // 这种方式比 preventDefault 更兼容
-            window.getSelection().removeAllRanges();
-        }
+    handleEnd(e) {
+        if (!this.isDragging) return;
+        this.isDragging = false;
 
-        this.isDragging = true;
-        this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
-        this.currentX = this.startX;
+        const deltaX = this.currentX - this.startX;
+        const phoneWidth = this.wrapper.offsetWidth || 320;
 
-        const wrapper = document.getElementById('app-pages-wrapper');
-        if (wrapper) {
-            wrapper.style.transition = 'none';
-            // 强制改变光标，给用户明确反馈
-            wrapper.style.cursor = 'grabbing';
+        // --- 核心逻辑闸门 ---
+        // 如果滑动的距离非常小（比如小于 5 像素），我们认为这不是划动，而是“点击”
+        if (Math.abs(deltaX) < 5) {
+            // 这里什么都不做，让浏览器默认的 click 事件穿透下去触发 App 打开
+            console.log("检测为点击，准备打开 App");
+        } else {
+            // 如果划动距离大了，就执行翻页结算，并阻止后续的 click 误触发
+            e.preventDefault(); 
+            this.settlePageScroll(deltaX, phoneWidth);
         }
     }
 
