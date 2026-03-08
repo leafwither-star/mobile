@@ -745,28 +745,39 @@ registerApps() {
         const route = this.APP_ROUTING[appName];
         if (!route || !route.js || !route.js.length) return;
 
+        // 1. 每次加载前，先清理掉之前可能存在的旧脚本标签，保持页面干净
+        const oldScript = document.getElementById(`remote-script-${appName}`);
+        if (oldScript) oldScript.remove();
+
         return new Promise((resolve) => {
             const script = document.createElement('script');
-            // 加上时间戳，防止浏览器缓存旧的代码
+            script.id = `remote-script-${appName}`; // 给脚本一个固定ID方便管理
+            
+            // 2. 核心：通过 Math.random() 确保浏览器认为这是一个全新的请求
             const remoteUrl = route.js[0];
-            script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            const nocacheUrl = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
+            
+            script.src = nocacheUrl;
             
             script.onload = () => {
-                // 脚本加载成功后，检查是否带有 window.currentApp
                 if (window.currentApp) {
-                    // 核心注入：将远程的 init 函数绑定到本地的 customHandler 上
+                    // 3. 动态重写 customHandler
                     this.apps[appName].customHandler = (state) => {
                         const container = document.getElementById('app-content');
-                        if (container) window.currentApp.init(container);
+                        if (container) {
+                            container.innerHTML = ''; // 渲染新代码前先清空旧容器
+                            window.currentApp.init(container);
+                        }
                     };
-                    this.apps[appName].isLoaded = true;
-                    console.log(`[Mobile] ${appName} 远程脚本注入并初始化成功！`);
+                    // 注意：这里不再设置 isLoaded = true，
+                    // 这样下次点击时，openApp 依然会进入此函数进行更新
+                    console.log(`[Mobile] ${appName} 远程代码已同步至最新版本`);
                 }
                 resolve();
             };
             
             script.onerror = () => {
-                console.error(`[Mobile] 无法加载远程脚本: ${remoteUrl}`);
+                console.error(`[Mobile] 远程链接失效: ${remoteUrl}`);
                 resolve();
             };
             
