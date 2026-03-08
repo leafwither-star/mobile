@@ -742,38 +742,41 @@ registerApps() {
      * 远程脚本加载器
      */
     async loadRemoteApp(appName) {
-        const route = this.APP_ROUTING[appName];
-        if (!route || !route.js) return;
+    const route = this.APP_ROUTING[appName];
+    if (!route || !route.js) return;
 
-        const oldScript = document.getElementById(`remote-script-${appName}`);
-        if (oldScript) oldScript.remove();
+    // 清理旧脚本标签
+    const oldScript = document.getElementById(`remote-script-${appName}`);
+    if (oldScript) oldScript.remove();
 
-        return new Promise((resolve) => {
-            const script = document.createElement('script');
-            script.id = `remote-script-${appName}`;
-            const remoteUrl = route.js[0];
-            script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
-            
-            script.onload = () => {
-    const container = document.getElementById('app-content');
-    if (!container) return;
-
-    // 根据 appName 动态识别实例
-    let appInstance = null;
-    if (appName === 'api') appInstance = window.MobileSettingApp;
-    if (appName === 'theme') appInstance = window.MobileThemeApp; // 假设主题 App 也改名了
-    
-    // 如果找到了对应的实例，就初始化它
-    if (appInstance && typeof appInstance.init === 'function') {
-        appInstance.init(container);
-    }
-    
-    resolve();
-};
-            script.onerror = () => resolve();
-            document.head.appendChild(script);
-        });
-    }
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.id = `remote-script-${appName}`;
+        const remoteUrl = route.js[0];
+        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+        
+        script.onload = () => {
+            const container = document.getElementById('app-content');
+            if (container) {
+                // 根据 appName 精准初始化 [cite: 2026-02-26]
+                if (appName === 'api' && window.MobileSettingApp) {
+                    window.MobileSettingApp.init(container);
+                } else if (appName === 'theme' && window.MobileThemeApp) {
+                    window.MobileThemeApp.init(container);
+                } else if (window.currentApp) {
+                    // 兼容旧的尚未重构的应用
+                    window.currentApp.init(container);
+                }
+            }
+            resolve();
+        };
+        script.onerror = () => {
+            console.error(`加载 App [${appName}] 失败`);
+            resolve();
+        };
+        document.head.appendChild(script);
+    });
+}
     
     /**
      * 渲染应用界面 - 丝滑平移优化版
