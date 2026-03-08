@@ -152,24 +152,33 @@ class MobilePhone {
     handleMove(e) {
         if (!this.isDragging) return;
 
-        // 3. 核心补丁：在移动过程中持续清除选中状态
-        // 这样即便鼠标滑过 App 名字，也不会变成“文本选中”状态
+        // 1. 暴力清除选中，防止 PC 端拖拽宕机
         if (e.type === 'mousemove') {
-            e.preventDefault(); 
+            e.preventDefault();
             window.getSelection().removeAllRanges();
         }
 
+        // 2. 获取当前坐标
         this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
         const deltaX = this.currentX - this.startX;
 
+        // 3. 关键：直接获取 DOM 元素并赋值，不再绕弯子
         const wrapper = document.getElementById('app-pages-wrapper');
         if (!wrapper) return;
 
+        // 4. 确保 pageIndex 是安全的数字
+        const safePageIndex = this.currentPageIndex || 0;
         const phoneWidth = wrapper.offsetWidth || 320;
+        
+        // 计算百分比
         const movePercent = (deltaX / phoneWidth) * 100;
-        const translateX = -this.currentPageIndex * 100 + movePercent;
+        const translateX = -(safePageIndex * 100) + movePercent;
 
-        wrapper.style.transform = `translateX(${translateX}%)`;
+        // 5. 暴力驱动位移 (添加 !important 级强制力)
+        wrapper.style.setProperty('transform', `translateX(${translateX}%)`, 'important');
+        
+        // 调试用（如果还是不动，看一眼这里输出的数值）
+        // console.log(`[Debug] Index: ${safePageIndex}, Move: ${translateX}%`);
     }
     
     handleEnd(e) {
