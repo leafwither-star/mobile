@@ -83,75 +83,61 @@ class MobilePhone {
     }
 
     // === 核心翻页逻辑：带探针版 ===
-    initPageSwipe() {
-        const self = this; 
+   initPageSwipe() {
+        const self = this;
         this.currentPageIndex = 0;
         this.totalPages = 2;
         this.isDragging = false;
-        this.startX = 0;
-        this.currentX = 0;
-        this.threshold = 40; 
+        
+        // 【核心修复】将监听器移至全局 window，绕过中间层的拦截
+        const startHandler = (e) => self.handleStart(e);
+        const moveHandler = (e) => self.handleMove(e);
+        const endHandler = (e) => self.handleEnd(e);
 
+        // PC 端：直接在全局捕获 mousedown
+        window.addEventListener('mousedown', startHandler, { capture: true, passive: false });
+        window.addEventListener('mousemove', moveHandler, { passive: false });
+        window.addEventListener('mouseup', endHandler, { capture: true });
+
+        // 移动端保持现状
+        window.addEventListener('touchstart', startHandler, { passive: false });
+        window.addEventListener('touchmove', moveHandler, { passive: false });
+        window.addEventListener('touchend', endHandler);
+
+        // 样式初始化
         setTimeout(() => {
             const wrapper = document.getElementById('app-pages-wrapper');
-            const indicators = document.getElementById('page-indicators');
-
-            if (!wrapper || !indicators) {
-                console.log('[Mobile Phone] 页面未就绪，重试中...');
-                setTimeout(() => self.initPageSwipe(), 500);
-                return;
+            if (wrapper) {
+                wrapper.style.cursor = 'grab';
+                wrapper.style.userSelect = 'none';
+                // 彻底禁止图片拖拽干扰
+                wrapper.querySelectorAll('img').forEach(img => img.draggable = false);
             }
-
-            // 【关键修复 1】强制给容器加上“爪子”样式，只要鼠标移上去必定是爪子
-            wrapper.style.cursor = 'grab';
-
-            // 暴力禁止图标图片默认行为
-            wrapper.querySelectorAll('img, a').forEach(el => {
-                el.draggable = false;
-                el.style.userSelect = 'none';
-                el.addEventListener('dragstart', (e) => e.preventDefault());
-            });
-
-            const startHandler = (e) => self.handleStart(e);
-            const moveHandler = (e) => self.handleMove(e);
-            const endHandler = (e) => self.handleEnd(e);
-
-            wrapper.addEventListener('mousedown', startHandler, true);
-            window.addEventListener('mousemove', moveHandler, { passive: false });
-            window.addEventListener('mouseup', endHandler);
-
-            wrapper.addEventListener('touchstart', startHandler, { passive: false });
-            wrapper.addEventListener('touchmove', moveHandler, { passive: false });
-            wrapper.addEventListener('touchend', endHandler);
-
-            const indicatorElements = indicators.querySelectorAll('.indicator');
-            indicatorElements.forEach((indicator, index) => {
-                indicator.onclick = () => self.goToPage(index);
-            });
-
-            console.log('[Mobile Phone] 📱 翻页系统初始化完成，已挂载所有监听');
-        }, 300);
+        }, 500);
     }
 
     handleStart(e) {
-        // 【窃听器 1】看看鼠标按下去时，到底有没有触发！
-        console.log('[Mobile Phone] 侦测到按下动作:', e.type);
+        // 【关键逻辑】判断点到的是不是手机内部元素
+        const isPhoneElement = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
+        const isTrigger = e.target.closest('#mobile-phone-trigger');
 
-        if (e.type === 'mousedown') {
-            window.getSelection().removeAllRanges();
-        }
+        if (!isPhoneElement && !isTrigger) return; // 没点到手机，不干预
+
+        console.log('[Mobile Phone] 全局截获按下动作:', e.type);
 
         this.isDragging = true;
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
         this.currentX = this.startX;
 
-        const wrapper = document.getElementById('app-pages-wrapper');
-        if (wrapper) {
-            wrapper.style.transition = 'none'; 
-            wrapper.style.cursor = 'grabbing'; // 按下变成紧握的爪子
+        if (isPhoneElement) {
+            const wrapper = document.getElementById('app-pages-wrapper');
+            if (wrapper) {
+                wrapper.style.transition = 'none';
+                wrapper.style.cursor = 'grabbing';
+            }
         }
     }
-
+    
     handleMove(e) {
         if (!this.isDragging) return;
 
