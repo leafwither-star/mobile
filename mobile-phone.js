@@ -117,24 +117,28 @@ class MobilePhone {
     }
 
     handleStart(e) {
-        // 【关键逻辑】判断点到的是不是手机内部元素
-        const isPhoneElement = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
+        // 1. 身份识别：如果是点到了悬浮球，直接返回，不触发翻页逻辑
         const isTrigger = e.target.closest('#mobile-phone-trigger');
+        if (isTrigger) {
+            console.log('[Mobile Phone] 检测到操作悬浮球，跳过翻页逻辑');
+            return; // 核心：在这里停住，把控制权交给 DragHelper
+        }
 
-        if (!isPhoneElement && !isTrigger) return; // 没点到手机，不干预
+        // 2. 检查是不是点到了手机外壳或内部
+        const isPhoneElement = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
+        if (!isPhoneElement) return; 
 
-        console.log('[Mobile Phone] 全局截获按下动作:', e.type);
+        // 3. 以下才是翻页逻辑
+        console.log('[Mobile Phone] 全局截获按下动作 (翻页):', e.type);
 
         this.isDragging = true;
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
         this.currentX = this.startX;
 
-        if (isPhoneElement) {
-            const wrapper = document.getElementById('app-pages-wrapper');
-            if (wrapper) {
-                wrapper.style.transition = 'none';
-                wrapper.style.cursor = 'grabbing';
-            }
+        const wrapper = document.getElementById('app-pages-wrapper');
+        if (wrapper) {
+            wrapper.style.transition = 'none';
+            wrapper.style.cursor = 'grabbing';
         }
     }
     
