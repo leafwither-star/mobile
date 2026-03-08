@@ -743,43 +743,30 @@ registerApps() {
      */
     async loadRemoteApp(appName) {
         const route = this.APP_ROUTING[appName];
-        if (!route || !route.js || !route.js.length) return;
+        if (!route || !route.js) return;
 
-        // 清理旧脚本标签
         const oldScript = document.getElementById(`remote-script-${appName}`);
         if (oldScript) oldScript.remove();
 
         return new Promise((resolve) => {
             const script = document.createElement('script');
             script.id = `remote-script-${appName}`;
-            
-            // 保持随机数防止缓存，实现实时更新
             const remoteUrl = route.js[0];
-            const nocacheUrl = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
-            
-            script.src = nocacheUrl;
+            script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Math.random();
             
             script.onload = () => {
                 if (window.currentApp) {
-                    // 【关键修复】：这里只定义逻辑，不手动操作 innerHTML = ''
-                    // 这样 renderAppState 执行时，会走原作者定义的动画流程
                     this.apps[appName].customHandler = (state) => {
                         const container = document.getElementById('app-content');
                         if (container) {
-                            // 移除这里的 container.innerHTML = ''
+                            // 仅仅是初始化，不在这里做 display 操作
                             window.currentApp.init(container);
                         }
                     };
-                    console.log(`[Mobile] ${appName} 远程代码已同步，跳转动画已重置`);
                 }
                 resolve();
             };
-            
-            script.onerror = () => {
-                console.error(`[Mobile] 链接失效: ${remoteUrl}`);
-                resolve();
-            };
-            
+            script.onerror = () => resolve();
             document.head.appendChild(script);
         });
     }
