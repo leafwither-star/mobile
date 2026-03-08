@@ -47,7 +47,6 @@ class MobilePhone {
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
-        this.APP_ROUTING = {
             this.APP_ROUTING = {
             'messages': { js: ['/scripts/extensions/third-party/mobile/app/message-app.js'], css: ['/scripts/extensions/third-party/mobile/app/message-app.css'] },
             'shop':     { js: ['/scripts/extensions/third-party/mobile/app/shopping-app.js'], css: ['/scripts/extensions/third-party/mobile/app/shopping-app.css'] },
