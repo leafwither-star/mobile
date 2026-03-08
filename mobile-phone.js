@@ -906,6 +906,50 @@ function initMobilePhone() {
     if (!window.mobilePhone) {
         window.mobilePhone = new MobilePhone();
         console.log('[Mobile Phone] 手机界面初始化完成');
+
+        // --- 【新增：云端主题静默激活】 ---
+        const savedTheme = localStorage.getItem('last-theme-name');
+        if (savedTheme && savedTheme !== 'default') {
+            console.log(`[Theme] 检测到持久化主题: ${savedTheme}，正在强制同步...`);
+            fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
+            .then(res => res.json())
+            .then(config => {
+                window.themeState = config; // 挂载到全局供 theme.js 使用
+                
+                // 1. 注入 CSS 变量和强力样式
+                let bruteStyle = document.getElementById('brute-force-theme');
+                if (!bruteStyle) {
+                    bruteStyle = document.createElement('style');
+                    bruteStyle.id = 'brute-force-theme';
+                    document.head.appendChild(bruteStyle);
+                }
+                
+                const hex = config.wtrBg || "#ffffff";
+                const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+                
+                bruteStyle.innerHTML = `
+                    #home-screen { background-image: url('${config.bgUrl || ''}') !important; background-position: ${config.bgX || 50}% ${config.bgY || 50}% !important; background-size: cover !important; }
+                    #home-time { color: ${config.timeClr || '#fff'} !important; font-size: ${config.timeSize || 48}px !important; }
+                    #home-date { color: ${config.dateClr || '#fff'} !important; font-size: ${config.dateSize || 16}px !important; }
+                    .weather-info { background-color: rgba(${r},${g},${b},${config.wtrOp || 0.3}) !important; }
+                    .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
+                `;
+
+                // 2. 注入图标替换
+                if (config.icons) {
+                    Object.keys(config.icons).forEach(id => {
+                        let iconStyle = document.getElementById(`icon-style-${id}`);
+                        if (!iconStyle) {
+                            iconStyle = document.createElement('style');
+                            iconStyle.id = `icon-style-${id}`;
+                            document.head.appendChild(iconStyle);
+                        }
+                        iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
+                    });
+                }
+            })
+            .catch(e => console.error("[Theme] 开机同步失败:", e));
+        }
     }
 }
 initMobilePhone();
