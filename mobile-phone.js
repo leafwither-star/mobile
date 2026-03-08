@@ -117,81 +117,79 @@ class MobilePhone {
     }
 
     handleStart(e) {
-        // 1. 身份识别：如果是点到了悬浮球，直接返回，不触发翻页逻辑
-        const isTrigger = e.target.closest('#mobile-phone-trigger');
-        if (isTrigger) {
-            console.log('[Mobile Phone] 检测到操作悬浮球，跳过翻页逻辑');
-            return; // 核心：在这里停住，把控制权交给 DragHelper
-        }
+        // 1. 识别目标
+        const trigger = e.target.closest('#mobile-phone-trigger');
+        const phone = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
 
-        // 2. 检查是不是点到了手机外壳或内部
-        const isPhoneElement = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
-        if (!isPhoneElement) return; 
-
-        // 3. 以下才是翻页逻辑
-        console.log('[Mobile Phone] 全局截获按下动作 (翻页):', e.type);
+        if (!trigger && !phone) return;
 
         this.isDragging = true;
+        // 记录起始点
         this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
+        this.startY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
         this.currentX = this.startX;
 
-        const wrapper = document.getElementById('app-pages-wrapper');
-        if (wrapper) {
-            wrapper.style.transition = 'none';
-            wrapper.style.cursor = 'grabbing';
+        if (trigger) {
+            // === 模式 A：拖拽悬浮球 ===
+            this.dragMode = 'trigger';
+            this.dragTarget = trigger;
+            // 记录按钮当前的初始位置
+            const rect = trigger.getBoundingClientRect();
+            this.initialTriggerX = rect.left;
+            this.initialTriggerY = rect.top;
+            trigger.style.transition = 'none'; // 拖动时禁止动画
+        } else if (phone) {
+            // === 模式 B：内部翻页 ===
+            this.dragMode = 'page';
+            const wrapper = document.getElementById('app-pages-wrapper');
+            if (wrapper) {
+                wrapper.style.transition = 'none';
+                wrapper.style.cursor = 'grabbing';
+            }
         }
     }
-    
+
     handleMove(e) {
         if (!this.isDragging) return;
-
-        if (e.type === 'mousemove') {
-            e.preventDefault(); 
-            window.getSelection().removeAllRanges();
-        }
-
-        this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
-        const deltaX = this.currentX - this.startX;
-
-        const wrapper = document.getElementById('app-pages-wrapper');
-        if (!wrapper) return;
-
-        const safePageIndex = this.currentPageIndex || 0;
-        const phoneWidth = wrapper.offsetWidth || 320;
         
-        const movePercent = (deltaX / phoneWidth) * 100;
-        const translateX = -(safePageIndex * 100) + movePercent;
+        const x = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
+        const y = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
+        const deltaX = x - this.startX;
+        const deltaY = y - this.startY;
+        this.currentX = x;
 
-        wrapper.style.setProperty('transform', `translateX(${translateX}%)`, 'important');
+        if (this.dragMode === 'trigger' && this.dragTarget) {
+            // 强行改变悬浮球位置 (PC/手机通用)
+            const newX = this.initialTriggerX + deltaX;
+            const newY = this.initialTriggerY + deltaY;
+            this.dragTarget.style.left = `${newX}px`;
+            this.dragTarget.style.top = `${newY}px`;
+            this.dragTarget.style.right = 'auto'; // 清除右对齐干扰
+            this.dragTarget.style.bottom = 'auto';
+        } else if (this.dragMode === 'page') {
+            // 原有的翻页逻辑
+            const wrapper = document.getElementById('app-pages-wrapper');
+            if (!wrapper) return;
+            const movePercent = (deltaX / (wrapper.offsetWidth || 320)) * 100;
+            const translateX = -(this.currentPageIndex * 100) + movePercent;
+            wrapper.style.setProperty('transform', `translateX(${translateX}%)`, 'important');
+        }
     }
 
     handleEnd(e) {
         if (!this.isDragging) return;
-        this.isDragging = false;
         
-        // 【窃听器 2】看看松开手时的数据
-        console.log('[Mobile Phone] 侦测到松开动作，准备结算位移');
-
-        const wrapper = document.getElementById('app-pages-wrapper');
-        if (wrapper) {
-            wrapper.style.cursor = 'grab'; // 恢复张开的爪子
-            wrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        if (this.dragMode === 'page') {
+            // 原有的翻页结算逻辑
+            const deltaX = this.currentX - this.startX;
+            this.settlePageScroll(deltaX); // 或者是你之前的翻页结算逻辑代码
+        } else if (this.dragMode === 'trigger') {
+            // 悬浮球松手后恢复稍微灵动的动画感
+            if (this.dragTarget) this.dragTarget.style.transition = 'all 0.3s ease';
         }
 
-        const deltaX = this.currentX - this.startX;
-        const phoneWidth = wrapper ? wrapper.offsetWidth : 320;
-
-        if (Math.abs(deltaX) > (phoneWidth * 0.15)) {
-            if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
-                this.goToPage(this.currentPageIndex + 1);
-            } else if (deltaX > 0 && this.currentPageIndex > 0) {
-                this.goToPage(this.currentPageIndex - 1);
-            } else {
-                this.goToPage(this.currentPageIndex);
-            }
-        } else {
-            this.goToPage(this.currentPageIndex);
-        }
+        this.isDragging = false;
+        this.dragMode = null;
     }
 
     goToPage(pageIndex) {
