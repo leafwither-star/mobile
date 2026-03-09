@@ -704,69 +704,79 @@ registerApps() {
 
     // --- 2. 应用导航 (核心引擎) ---
     /**
-     * 打开应用：增加了远程脚本预加载逻辑
-     */
-    async openApp(appName) {
+ * 打开应用：热更新与 UI 切换引擎
+ */
+async openApp(appName) {
     const app = this.apps[appName];
     if (!app) return;
 
-    // --- 最小化改动区 ---
-    // 只要是路由表里的应用，每次打开都重新运行一遍加载器（获取最新脚本）
+    const container = document.getElementById('app-content');
+    const homeScreen = document.getElementById('home-screen'); // 手机主页 ID
+    const appScreen = document.getElementById('app-screen');   // 容器页面 ID
+
+    // 1. 【热更新】如果是路由表里的应用，强制拉取内存副本
     if (this.APP_ROUTING[appName]) {
-        console.log(`[Mobile] 正在热更新应用: ${appName}`);
+        console.log(`[Mobile] 正在热更新应用源码: ${appName}`);
+        // 先把容器清空，避免新旧内容重叠
+        if (container) container.innerHTML = '<div style="padding:20px;color:#999;text-align:center;">正在加载最新配置...</div>';
+        
         await this.loadRemoteApp(appName);
     }
-    // --- 改动结束 ---
 
-    // 2. 【关键修正】强制切换 UI 状态
-    console.log(`[Mobile] 正在进入: ${app.name}`);
-    
-    // 隐藏主屏幕/其他页面
-    const homeScreen = document.getElementById('home-screen'); // 请确认你主页面的 ID
-    const appScreen = document.getElementById('app-screen');   // 请确认你 App 容器页面的 ID
-    const container = document.getElementById('app-content');
-
+    // 2. 【UI 切换】隐藏主页，显示应用容器
     if (homeScreen) homeScreen.style.display = 'none';
     if (appScreen) appScreen.style.display = 'block';
 
-    // 3. 如果脚本已经加载过了，手动再 init 一次确保内容刷新
-    if (appName === 'theme' && window.MobileThemeApp) {
-        window.MobileThemeApp.init(container);
-    } else if (appName === 'api' && window.MobileSettingApp) {
-        window.MobileSettingApp.init(container);
+    // 3. 【实例激活】确保脚本加载后立即执行 init
+    // 即使 loadRemoteApp 内部有 activateApp，这里手动调用一次双保险
+    if (container) {
+        if (appName === 'api' && window.MobileSettingApp) {
+            window.MobileSettingApp.init(container);
+        } else if (appName === 'theme' && window.MobileThemeApp) {
+            window.MobileThemeApp.init(container);
+        }
     }
     
     this.currentApp = appName;
+    console.log(`✨ [Mobile] ${appName} 已成功进入`);
 }
 
     /**
-     * 远程脚本加载器
-     */
-    async loadRemoteApp(appName) {
+ * 远程脚本加载器 (增强热更新版)
+ * 逻辑：fetch源码 -> 清理旧实例 -> 重新执行注入 -> 初始化UI
+ */
+async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return;
 
-    // 清理旧脚本标签
-    const oldScript = document.getElementById(`remote-script-${appName}`);
-    if (oldScript) oldScript.remove();
+    // 1. 构造带时间戳的 URL，确保 fetch 拿到的是硬盘上最新的文件 [cite: 2026-03-09]
+    const remoteUrl = route.js[0] + (route.js[0].includes('?') ? '&' : '?') + 't=' + Date.now();
+    
+    try {
+        // 2. 直接获取脚本的文本内容
+        const response = await fetch(remoteUrl);
+        const scriptText = await response.text();
 
-    return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.id = `remote-script-${appName}`;
-        const remoteUrl = route.js[0];
-        // 通过时间戳强制获取最新版本 [cite: 2026-02-24, 2026-02-26]
-        script.src = remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
-        
-        script.onload = () => {
-            const container = document.getElementById('app-content');
-            if (!container) return;
+        // 3. 核心：在注入新脚本前，必须先手动置空旧实例，否则新脚本的构造函数可能不触发 [cite: 2026-03-09]
+        if (appName === 'api') window.MobileSettingApp = null;
+        if (appName === 'theme') window.MobileThemeApp = null;
 
-            // 核心逻辑：尝试启动 App [cite: 2026-02-26]
+        // 4. 将文本转为可执行函数并运行
+        // 这会重新触发新脚本末尾的 window.MobileSettingApp = new MobileSettingApp();
+        const executeScript = new Function(scriptText);
+        executeScript();
+
+        console.log(`🚀 [HotReload] ${appName} 脚本已从内存更新`);
+
+        // 5. 渲染到 UI 容器
+        const container = document.getElementById('app-content');
+        if (container) {
+            // 定义一个局部的激活函数
             const activateApp = () => {
                 if (appName === 'api' && window.MobileSettingApp) {
                     window.MobileSettingApp.init(container);
                     return true;
-                } 
+                }
                 if (appName === 'theme' && window.MobileThemeApp) {
                     window.MobileThemeApp.init(container);
                     return true;
@@ -774,14 +784,14 @@ registerApps() {
                 return false;
             };
 
-            // 【关键小改动】：如果第一次没找到实例，50ms 后再试一次
+            // 如果立即执行没成功（脚本执行可能有微小延迟），50ms 后重试 [cite: 2026-02-26]
             if (!activateApp()) {
-                setTimeout(activateApp, 50); 
+                setTimeout(activateApp, 50);
             }
-            resolve();
-        };
-        document.head.appendChild(script);
-    });
+        }
+    } catch (err) {
+        console.error(`❌ [HotReload] 加载失败:`, err);
+    }
 }
     
     /**
