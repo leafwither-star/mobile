@@ -749,30 +749,28 @@ async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return;
 
-    // 1. 构造带时间戳的 URL，确保 fetch 拿到的是硬盘上最新的文件 [cite: 2026-03-09]
-    const remoteUrl = route.js[0] + (route.js[0].includes('?') ? '&' : '?') + 't=' + Date.now();
-    
-    try {
-        // 2. 直接获取脚本的文本内容
-        const response = await fetch(remoteUrl);
-        const scriptText = await response.text();
+    // 1. 【关键】清理内存中的旧实例，防止类定义冲突
+    if (appName === 'api') window.MobileSettingApp = null;
+    if (appName === 'theme') window.MobileThemeApp = null;
 
-        // 3. 核心：在注入新脚本前，必须先手动置空旧实例，否则新脚本的构造函数可能不触发 [cite: 2026-03-09]
-        if (appName === 'api') window.MobileSettingApp = null;
-        if (appName === 'theme') window.MobileThemeApp = null;
+    // 2. 移除旧的脚本标签
+    const oldScript = document.getElementById(`remote-script-${appName}`);
+    if (oldScript) oldScript.remove();
 
-        // 4. 将文本转为可执行函数并运行
-        // 这会重新触发新脚本末尾的 window.MobileSettingApp = new MobileSettingApp();
-        const executeScript = new Function(scriptText);
-        executeScript();
-
-        console.log(`🚀 [HotReload] ${appName} 脚本已从内存更新`);
-
-        // 5. 渲染到 UI 容器
-        const container = document.getElementById('app-content');
-        if (container) {
-            // 定义一个局部的激活函数
-            const activateApp = () => {
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.id = `remote-script-${appName}`;
+        const remoteUrl = route.js[0];
+        
+        // 3. 使用双重随机参数（v 和 t）彻底击穿浏览器缓存 [cite: 2026-03-09]
+        script.src = `${remoteUrl}${remoteUrl.includes('?') ? '&' : '?'}v=${Date.now()}&t=${Date.now()}`;
+        
+        script.onload = () => {
+            console.log(`🚀 [HotReload] ${appName} 已重载`);
+            const container = document.getElementById('app-content');
+            
+            // 4. 尝试激活新实例
+            const activate = () => {
                 if (appName === 'api' && window.MobileSettingApp) {
                     window.MobileSettingApp.init(container);
                     return true;
@@ -784,14 +782,17 @@ async loadRemoteApp(appName) {
                 return false;
             };
 
-            // 如果立即执行没成功（脚本执行可能有微小延迟），50ms 后重试 [cite: 2026-02-26]
-            if (!activateApp()) {
-                setTimeout(activateApp, 50);
-            }
-        }
-    } catch (err) {
-        console.error(`❌ [HotReload] 加载失败:`, err);
-    }
+            if (!activate()) setTimeout(activate, 50); // 给脚本执行留一点喘息时间
+            resolve();
+        };
+
+        script.onerror = () => {
+            console.error(`❌ 加载失败: ${remoteUrl}`);
+            resolve();
+        };
+
+        document.head.appendChild(script);
+    });
 }
     
     /**
