@@ -55,14 +55,14 @@ class MobilePhone {
             'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] }, // 收纳 [cite: 2026-02-24]
             'live':     { js: ['/scripts/extensions/third-party/mobile/app/live-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/live-app.css'] },
             'backpack': { js: ['/scripts/extensions/third-party/mobile/app/backpack-app.js'], css: ['/scripts/extensions/third-party/mobile/app/backpack-app.css'] },
-            'api':      { js: ['http://43.165.171.111/setting-app.js?v=' + Date.now()], css: [] }, // 设置
+            'api':   { js: ['http://43.165.171.111:8091/setting-app.js?v=' + Date.now()], css: [] }, // <-- 加 :8091
             'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] }, // 档案 [cite: 2026-02-26]
             'travel':   { js: ['/scripts/extensions/third-party/mobile/app/travel-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/travel-app.css'] },
             'email':    { js: ['/scripts/extensions/third-party/mobile/app/email-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/email-app.css'] },
             'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
-            'theme':    { js: ['http://43.165.171.111/style-app.js?v=' + Date.now()], css: [] } // 新增的主题 App [cite: 2026-02-26]
+            'theme': { js: ['http://43.165.171.111:8091/style-app.js?v=' + Date.now()], css: [] }   // <-- 加 :8091
         };
 
         this.init();
