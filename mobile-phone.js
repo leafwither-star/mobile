@@ -255,12 +255,12 @@ class MobilePhone {
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
             // --- 新增：插入进度条结构 ---
-        button.innerHTML = `
-            <span class="ball-icon">📱</span>
-            <div class="ball-progress-container">
-                <div id="ball-progress-inner" class="ball-progress-bar"></div>
-            </div>
-        `;
+       button.innerHTML = `
+    <div class="ball-progress-container">
+        <div id="ball-progress-inner" class="ball-progress-bar"></div>
+    </div>
+    <span class="ball-icon" style="position:relative; z-index:2;">📱</span>
+`;
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";
             button.style.position = "fixed";
