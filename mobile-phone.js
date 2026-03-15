@@ -254,7 +254,13 @@ class MobilePhone {
             const button = document.createElement('button');
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
-            button.innerHTML = '📱';
+            // --- 新增：插入进度条结构 ---
+        button.innerHTML = `
+            <span class="ball-icon">📱</span>
+            <div class="ball-progress-container">
+                <div id="ball-progress-inner" class="ball-progress-bar"></div>
+            </div>
+        `;
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";
             button.style.position = "fixed";
@@ -266,11 +272,33 @@ class MobilePhone {
             }
             document.body.appendChild(button);
             this.initDragForButton(button);
+
+            // === 2. 核心：在这里挂载全局开关 ===
+            // 这样写在 window 上，其他任何脚本直接调用 setMobileBallLoading() 就能控制它
+            window.setMobileBallLoading = (status) => {
+                const inner = document.getElementById('ball-progress-inner');
+                const trigger = document.getElementById('mobile-phone-trigger');
+                if (!inner || !trigger) return;
+
+                if (status === true) {
+                    // 状态为 true：显示加载中，给个 30% 的起始感
+                    trigger.classList.add('is-loading');
+                    inner.style.background = `conic-gradient(#da2e53 30%, transparent 0%)`;
+                } else if (status === false) {
+                    // 状态为 false：瞬间读满，然后 3 秒后重置
+                    inner.style.background = `conic-gradient(#da2e53 100%, transparent 0%)`;
+                    setTimeout(() => {
+                        trigger.classList.remove('is-loading');
+                        inner.style.background = `conic-gradient(#da2e53 0%, transparent 0%)`;
+                    }, 3000);
+                }
+            };
+
         } catch (error) {
             console.error('[Mobile Phone] 创建按钮错误:', error);
         }
     }
-
+       
     initDragForButton(button) {
         const tryInitDrag = () => {
             if (typeof DragHelper !== 'undefined') {
