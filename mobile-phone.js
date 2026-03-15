@@ -2,6 +2,33 @@
  * 手机前端框架
  * 可爱的iOS风格手机界面
  */
+// ==========================================
+// 核心：全局进度条控制开关 (放在文件顶层)
+// ==========================================
+window.setMobileBallLoading = (status) => {
+    const inner = document.getElementById('ball-progress-inner');
+    const trigger = document.getElementById('mobile-phone-trigger');
+    
+    // 如果还没创建出球，先不执行，或者打个日志
+    if (!inner || !trigger) {
+        console.warn("⚠️ [进度条] 悬浮球 DOM 尚未创建，无法显示动画");
+        return;
+    }
+
+    if (status === true) {
+        console.log("🎨 [进度条] 开启红色加载环");
+        trigger.classList.add('is-loading');
+        inner.style.background = `conic-gradient(#da2e53 30%, transparent 0%)`;
+        inner.style.display = 'block'; 
+    } else if (status === false) {
+        console.log("🎨 [进度条] 读满并即将消失");
+        inner.style.background = `conic-gradient(#da2e53 100%, transparent 0%)`;
+        setTimeout(() => {
+            trigger.classList.remove('is-loading');
+            inner.style.background = `conic-gradient(#da2e53 0%, transparent 0%)`;
+        }, 3000);
+    }
+};
 
 class MobilePhone {
     static showToast(message) {
@@ -272,27 +299,6 @@ class MobilePhone {
             }
             document.body.appendChild(button);
             this.initDragForButton(button);
-
-            // === 2. 核心：在这里挂载全局开关 ===
-            // 这样写在 window 上，其他任何脚本直接调用 setMobileBallLoading() 就能控制它
-            window.setMobileBallLoading = (status) => {
-                const inner = document.getElementById('ball-progress-inner');
-                const trigger = document.getElementById('mobile-phone-trigger');
-                if (!inner || !trigger) return;
-
-                if (status === true) {
-                    // 状态为 true：显示加载中，给个 30% 的起始感
-                    trigger.classList.add('is-loading');
-                    inner.style.background = `conic-gradient(#da2e53 30%, transparent 0%)`;
-                } else if (status === false) {
-                    // 状态为 false：瞬间读满，然后 3 秒后重置
-                    inner.style.background = `conic-gradient(#da2e53 100%, transparent 0%)`;
-                    setTimeout(() => {
-                        trigger.classList.remove('is-loading');
-                        inner.style.background = `conic-gradient(#da2e53 0%, transparent 0%)`;
-                    }, 3000);
-                }
-            };
 
         } catch (error) {
             console.error('[Mobile Phone] 创建按钮错误:', error);
