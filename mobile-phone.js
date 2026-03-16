@@ -730,12 +730,21 @@ async openApp(appName) {
     // 3. 【实例激活】确保脚本加载后立即执行 init
     // 即使 loadRemoteApp 内部有 activateApp，这里手动调用一次双保险
     if (container) {
-        if (appName === 'api' && window.MobileSettingApp) {
-            window.MobileSettingApp.init(container);
-        } else if (appName === 'theme' && window.MobileThemeApp) {
-            window.MobileThemeApp.init(container);
-        }
+    // 自动寻找匹配的实例：appName 是 'messages'，就去找 window.MobileMessageApp
+    const instanceName = 'Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App';
+    // 特殊情况处理：如果你的 api 对应的是 MobileSettingApp，我们就保持兼容
+    let instance = window[instanceName];
+    
+    if (appName === 'api') instance = window.MobileSettingApp;
+    if (appName === 'theme') instance = window.MobileThemeApp;
+    if (appName === 'messages') instance = window.MobileMessageApp; // <--- 关键！
+
+    if (instance && typeof instance.init === 'function') {
+        instance.init(container);
+    } else {
+        console.warn(`⚠️ [Mobile] 找不到应用实例或 init 方法: ${instanceName}`);
     }
+}
     
     this.currentApp = appName;
     console.log(`✨ [Mobile] ${appName} 已成功进入`);
@@ -752,6 +761,7 @@ async loadRemoteApp(appName) {
     // 1. 【关键】清理内存中的旧实例，防止类定义冲突
     if (appName === 'api') window.MobileSettingApp = null;
     if (appName === 'theme') window.MobileThemeApp = null;
+    if (appName === 'messages') window.MobileMessageApp = null; // <--- 补充这一行，确保热重载时旧微信实例被释放
 
     // 2. 移除旧的脚本标签
     const oldScript = document.getElementById(`remote-script-${appName}`);
@@ -771,16 +781,22 @@ async loadRemoteApp(appName) {
             
             // 4. 尝试激活新实例
             const activate = () => {
-                if (appName === 'api' && window.MobileSettingApp) {
-                    window.MobileSettingApp.init(container);
-                    return true;
-                }
-                if (appName === 'theme' && window.MobileThemeApp) {
-                    window.MobileThemeApp.init(container);
-                    return true;
-                }
-                return false;
-            };
+    // 逻辑同上
+    let instance = null;
+    if (appName === 'api') instance = window.MobileSettingApp;
+    else if (appName === 'theme') instance = window.MobileThemeApp;
+    else if (appName === 'messages') instance = window.MobileMessageApp; // <--- 关键！
+    else {
+        const instanceName = 'Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App';
+        instance = window[instanceName];
+    }
+
+    if (instance && typeof instance.init === 'function') {
+        instance.init(container);
+        return true;
+    }
+    return false;
+};
 
             if (!activate()) setTimeout(activate, 50); // 给脚本执行留一点喘息时间
             resolve();
