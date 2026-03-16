@@ -3,91 +3,26 @@
 /* 引入Font Awesome */
 @import url('');
  
-/* 1. 全局配置：主要影响 PC 端，或者是所有设备的基准 */
+/* 触发按钮 */
 .mobile-phone-trigger {
-  position: fixed !important;
-  /* 我们把默认位置改到右边，因为酒馆左侧通常有菜单栏，容易遮挡 */
-  bottom: 140px; 
-  right: 20px;   /* 改为 right，避开左侧 UI */
-  left: auto !important; /* 强制取消 left 的影响 */
-  
-  width: 44px;
-  height: 44px;
+  position: absolute;
+  bottom: 140px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(238, 238, 238, 0.9); /* 加点透明度，更像手机浮球 */
-  backdrop-filter: blur(4px); /* 毛玻璃，显得高级 */
-  border: 1.5px solid #da2e53; /* 给它一个红边，丢了也能一眼找着 */
-  
-  font-size: 20px;
+  background: #eee;
+  border: none;
+  font-size: 18px;
   cursor: pointer;
-  z-index: 2147483647 !important; /* 暴力置顶：浏览器允许的最大值 */
-  box-shadow: 0 4px 15px rgba(218, 46, 83, 0.3);
-  transition: transform 0.3s ease;
-  
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible !important;
-  touch-action: none; 
+  z-index: 9999;
+  box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+  transition: all 0.3s ease;
 }
 
-/* 2. 手机端专项补丁：屏幕小于 768px 时，会自动覆盖上面的同名属性 */
-@media screen and (max-width: 768px) {
-  .mobile-phone-trigger {
-    /* 手机端稍微靠下一点，躲开对话框 */
-    bottom: 100px !important; 
-    right: 15px !important;
-    left: auto !important;
-    
-    /* 手机端稍微大一点点，好按 */
-    width: 48px !important; 
-    height: 48px !important;
-    font-size: 22px;
-    
-    /* 增加一个细微的呼吸灯动画，防止它在复杂背景里“隐身” */
-    animation: ball-pulse 2s infinite;
-  }
-}
-
-/* 顺手加个呼吸灯动画，球在动，你就知道它没丢 */
-@keyframes ball-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(218, 46, 83, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(218, 46, 83, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(218, 46, 83, 0); }
-}
-
-/* 3. 悬停效果（PC端） */
 .mobile-phone-trigger:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(255, 154, 158, 0.6);
-}
-
-/* 4. 进度条外壳容器 */
-.ball-progress-container {
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  width: calc(100% + 4px);
-  height: calc(100% + 4px);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-/* 5. 进度条本体：环形遮罩感 */
-.ball-progress-bar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: conic-gradient(#da2e53 0%, transparent 0%);
-  -webkit-mask: radial-gradient(transparent 65%, #000 66%);
-  mask: radial-gradient(transparent 65%, #000 66%);
-  transition: background 0.3s ease;
-  display: none; /* 默认隐藏 */
-}
-
-/* 6. 激活 Loading 状态时显示 */
-.mobile-phone-trigger.is-loading .ball-progress-bar {
-  display: block;
 }
 
 /* 手机容器 */
@@ -1725,6 +1660,12 @@
   .mobile-phone-frame {
     width: 80%;
     max-width: 300px;
+  }
+
+  .mobile-phone-trigger {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
   }
 
   .weather-card {
