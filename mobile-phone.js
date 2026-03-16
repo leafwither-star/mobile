@@ -273,37 +273,81 @@ class MobilePhone {
         }
     }
 
-    createPhoneButton() {
-        try {
-            const existingButton = document.getElementById('mobile-phone-trigger');
-            if (existingButton) existingButton.remove();
-
-            const button = document.createElement('button');
-            button.id = 'mobile-phone-trigger';
-            button.className = 'mobile-phone-trigger';
-            // --- 新增：插入进度条结构 ---
-       button.innerHTML = `
-    <div class="ball-progress-container">
-        <div id="ball-progress-inner" class="ball-progress-bar"></div>
-    </div>
-    <span class="ball-icon" style="position:relative; z-index:2;">📱</span>
-`;
-            // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
-            button.style.zIndex = "99999";
-            button.style.position = "fixed";
-            
-            button.addEventListener('click', () => this.togglePhone());
-            if (!document.body) {
-                setTimeout(() => this.createPhoneButton(), 100);
-                return;
-            }
-            document.body.appendChild(button);
-            this.initDragForButton(button);
-
-        } catch (error) {
-            console.error('[Mobile Phone] 创建按钮错误:', error);
+    // === 在 createPhoneButton 之前，添加一个自动巡检逻辑 ===
+init() {
+    this.loadDragHelper();
+    this.clearPositionCache();
+    
+    // 启动暴力巡检：每2秒检查一次球还在不在，不在就补一个
+    setInterval(() => {
+        const ball = document.getElementById('mobile-phone-trigger');
+        if (!ball && !this.isVisible) { // 手机关闭状态下，如果球丢了就重建
+            console.log('🚨 [守护进程] 发现悬浮球失踪，正在暴力重构...');
+            this.createPhoneButton();
         }
+    }, 2000);
+
+    this.createPhoneContainer();
+    this.registerApps();
+    this.startClock();
+    this.initPageSwipe();
+
+    setTimeout(() => {
+        this.initTextColor();
+    }, 1000);
+}
+
+// === 修改后的 createPhoneButton ===
+createPhoneButton() {
+    try {
+        // 1. 彻底清理旧球
+        const oldBall = document.getElementById('mobile-phone-trigger');
+        if (oldBall) oldBall.remove();
+
+        // 2. 创建新球
+        const button = document.createElement('button');
+        button.id = 'mobile-phone-trigger';
+        button.className = 'mobile-phone-trigger';
+        
+        // 3. 注入结构
+        button.innerHTML = `
+            <div class="ball-progress-container">
+                <div id="ball-progress-inner" class="ball-progress-bar"></div>
+            </div>
+            <span class="ball-icon" style="position:relative; z-index:2;">📱</span>
+        `;
+
+        // 4. 暴力样式压制：直接写行内样式，防止被 CSS 覆盖
+        Object.assign(button.style, {
+            position: 'fixed',
+            zIndex: '2147483647', // 浏览器最大 Z-Index
+            display: 'flex',
+            visibility: 'visible',
+            opacity: '1'
+        });
+        
+        // 5. 点击事件
+        button.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.togglePhone();
+        };
+
+        // 6. 确保挂载到最顶层容器
+        const targetContainer = document.body;
+        if (targetContainer) {
+            targetContainer.appendChild(button);
+            this.initDragForButton(button);
+            console.log('✅ [Mobile Phone] 悬浮球已强行挂载至 body');
+        } else {
+            // 如果 body 还没好，100ms 后再试
+            setTimeout(() => this.createPhoneButton(), 100);
+        }
+
+    } catch (error) {
+        console.error('[Mobile Phone] 创建按钮错误:', error);
     }
+}
        
     initDragForButton(button) {
         const tryInitDrag = () => {
