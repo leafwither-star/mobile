@@ -95,21 +95,6 @@ class MobilePhone {
         this.init();
     }
 
-    init() {
-        this.loadDragHelper();
-        this.clearPositionCache(); // 清理位置缓存
-        this.createPhoneButton();
-        this.createPhoneContainer();
-        this.registerApps();
-        this.startClock();
-        this.initPageSwipe(); // 初始化页面拖拽功能
-
-        // 初始化文字颜色设置
-        setTimeout(() => {
-            this.initTextColor();
-        }, 1000); // 延迟初始化，确保页面加载完成
-    }
-
     // === 核心翻页逻辑：带探针版 ===
    initPageSwipe() {
         const self = this;
@@ -273,29 +258,34 @@ class MobilePhone {
         }
     }
 
-    // === 在 createPhoneButton 之前，添加一个自动巡检逻辑 ===
-init() {
-    this.loadDragHelper();
-    this.clearPositionCache();
-    
-    // 启动暴力巡检：每2秒检查一次球还在不在，不在就补一个
-    setInterval(() => {
-        const ball = document.getElementById('mobile-phone-trigger');
-        if (!ball && !this.isVisible) { // 手机关闭状态下，如果球丢了就重建
-            console.log('🚨 [守护进程] 发现悬浮球失踪，正在暴力重构...');
-            this.createPhoneButton();
+    // 在 class MobilePhone 内部，删除旧的 init，替换为这个唯一的 init
+    init() {
+        console.log('🛠️ [Mobile Phone] 正在执行初始化逻辑...');
+        this.loadDragHelper();
+        this.clearPositionCache(); // 清理位置缓存
+
+        // --- 守护进程：每2秒检查一次球还在不在 ---
+        if (!this._guardTimer) {
+            this._guardTimer = setInterval(() => {
+                const ball = document.getElementById('mobile-phone-trigger');
+                if (!ball && !this.isVisible) {
+                    console.log('🚨 [守护进程] 发现悬浮球失踪，正在重新挂载...');
+                    this.createPhoneButton();
+                }
+            }, 2000);
         }
-    }, 2000);
 
-    this.createPhoneContainer();
-    this.registerApps();
-    this.startClock();
-    this.initPageSwipe();
+        this.createPhoneButton();
+        this.createPhoneContainer();
+        this.registerApps();
+        this.startClock();
+        this.initPageSwipe(); // 初始化页面拖拽功能
 
-    setTimeout(() => {
-        this.initTextColor();
-    }, 1000);
-}
+        // 初始化文字颜色设置
+        setTimeout(() => {
+            this.initTextColor();
+        }, 1000);
+    }
 
 // === 修改后的 createPhoneButton ===
 createPhoneButton() {
