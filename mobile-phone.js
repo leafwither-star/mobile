@@ -2,33 +2,6 @@
  * 手机前端框架
  * 可爱的iOS风格手机界面
  */
-// ==========================================
-// 核心：全局进度条控制开关 (放在文件顶层)
-// ==========================================
-window.setMobileBallLoading = (status) => {
-    const inner = document.getElementById('ball-progress-inner');
-    const trigger = document.getElementById('mobile-phone-trigger');
-    
-    // 如果还没创建出球，先不执行，或者打个日志
-    if (!inner || !trigger) {
-        console.warn("⚠️ [进度条] 悬浮球 DOM 尚未创建，无法显示动画");
-        return;
-    }
-
-    if (status === true) {
-        console.log("🎨 [进度条] 开启红色加载环");
-        trigger.classList.add('is-loading');
-        inner.style.background = `conic-gradient(#da2e53 30%, transparent 0%)`;
-        inner.style.display = 'block'; 
-    } else if (status === false) {
-        console.log("🎨 [进度条] 读满并即将消失");
-        inner.style.background = `conic-gradient(#da2e53 100%, transparent 0%)`;
-        setTimeout(() => {
-            trigger.classList.remove('is-loading');
-            inner.style.background = `conic-gradient(#da2e53 0%, transparent 0%)`;
-        }, 3000);
-    }
-};
 
 class MobilePhone {
     static showToast(message) {
@@ -93,6 +66,21 @@ class MobilePhone {
         };
 
         this.init();
+    }
+
+    init() {
+        this.loadDragHelper();
+        this.clearPositionCache(); // 清理位置缓存
+        this.createPhoneButton();
+        this.createPhoneContainer();
+        this.registerApps();
+        this.startClock();
+        this.initPageSwipe(); // 初始化页面拖拽功能
+
+        // 初始化文字颜色设置
+        setTimeout(() => {
+            this.initTextColor();
+        }, 1000); // 延迟初始化，确保页面加载完成
     }
 
     // === 核心翻页逻辑：带探针版 ===
@@ -258,84 +246,31 @@ class MobilePhone {
         }
     }
 
-    // 在 class MobilePhone 内部，删除旧的 init，替换为这个唯一的 init
-    init() {
-        console.log('🛠️ [Mobile Phone] 正在执行初始化逻辑...');
-        this.loadDragHelper();
-        this.clearPositionCache(); // 清理位置缓存
+    createPhoneButton() {
+        try {
+            const existingButton = document.getElementById('mobile-phone-trigger');
+            if (existingButton) existingButton.remove();
 
-        // --- 守护进程：每2秒检查一次球还在不在 ---
-        if (!this._guardTimer) {
-            this._guardTimer = setInterval(() => {
-                const ball = document.getElementById('mobile-phone-trigger');
-                if (!ball && !this.isVisible) {
-                    console.log('🚨 [守护进程] 发现悬浮球失踪，正在重新挂载...');
-                    this.createPhoneButton();
-                }
-            }, 2000);
+            const button = document.createElement('button');
+            button.id = 'mobile-phone-trigger';
+            button.className = 'mobile-phone-trigger';
+            button.innerHTML = '📱';
+            // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
+            button.style.zIndex = "99999";
+            button.style.position = "fixed";
+            
+            button.addEventListener('click', () => this.togglePhone());
+            if (!document.body) {
+                setTimeout(() => this.createPhoneButton(), 100);
+                return;
+            }
+            document.body.appendChild(button);
+            this.initDragForButton(button);
+        } catch (error) {
+            console.error('[Mobile Phone] 创建按钮错误:', error);
         }
-
-        this.createPhoneButton();
-        this.createPhoneContainer();
-        this.registerApps();
-        this.startClock();
-        this.initPageSwipe(); // 初始化页面拖拽功能
-
-        // 初始化文字颜色设置
-        setTimeout(() => {
-            this.initTextColor();
-        }, 1000);
     }
 
-// === 修改后的 createPhoneButton ===
-createPhoneButton() {
-    try {
-        // 1. 检查 body 是否存在，如果不存在，等 100ms 再试（直到 body 出来为止）
-        if (!document.body) {
-            console.warn('[Mobile Phone] document.body 尚未就绪，100ms 后重试...');
-            setTimeout(() => this.createPhoneButton(), 100);
-            return;
-        }
-
-        // 2. 检查是否已经有球了，有就先删掉
-        const existingButton = document.getElementById('mobile-phone-trigger');
-        if (existingButton) existingButton.remove();
-
-        // 3. 创建按钮
-        const button = document.createElement('button');
-        button.id = 'mobile-phone-trigger';
-        button.className = 'mobile-phone-trigger';
-        
-        // 4. 注入内部 HTML
-        button.innerHTML = `
-            <div class="ball-progress-container">
-                <div id="ball-progress-inner" class="ball-progress-bar"></div>
-            </div>
-            <span class="ball-icon" style="position:relative; z-index:2;">📱</span>
-        `;
-        
-        // 5. 暴力样式压制
-        button.style.zIndex = "2147483647"; 
-        button.style.position = "fixed";
-        button.style.display = "flex"; // 确保可见
-
-        // 6. 挂载到 body
-        document.body.appendChild(button);
-        console.log('✅ [Mobile Phone] 悬浮球挂载成功！ID: mobile-phone-trigger');
-
-        // 7. 绑定点击和拖拽
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.togglePhone();
-        });
-        this.initDragForButton(button);
-
-    } catch (error) {
-        console.error('[Mobile Phone] 创建按钮时发生致命错误:', error);
-    }
-}
-       
     initDragForButton(button) {
         const tryInitDrag = () => {
             if (typeof DragHelper !== 'undefined') {
@@ -990,79 +925,62 @@ async loadRemoteApp(appName) {
     }
 } // <--- 类到此为止完全结束
 
-// --- 终极修复：带容错的初始化逻辑 ---
+// --- 修复后的外部初始化逻辑 ---
 function initMobilePhone() {
-    // 检查是否在 body 就绪后再跑
-    if (!document.body) {
-        setTimeout(initMobilePhone, 100);
-        return;
-    }
-
     if (!window.mobilePhone) {
-        try {
-            // 1. 实例化类
-            window.mobilePhone = new MobilePhone();
-            console.log('🚀 [Mobile Phone] 实例创建成功');
+        // 1. 正常执行手机类实例化
+        window.mobilePhone = new MobilePhone();
+        console.log('[Mobile Phone] 手机界面初始化完成');
 
-            // 2. 安全绑定 Toast
-            if (typeof MobilePhone.showToast === 'function') {
-                window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
-            }
+        // 2. 重新绑定原有的全局工具（确保悬浮窗和 Toast 正常）
+        window.showMobileToast = MobilePhone.showToast ? MobilePhone.showToast.bind(MobilePhone) : null;
 
-            // 3. 云端主题同步 (保持原样)
-            const savedTheme = localStorage.getItem('last-theme-name');
-            if (savedTheme && savedTheme !== 'default') {
-                syncCloudTheme(savedTheme);
-            }
-        } catch (e) {
-            console.error('❌ [Mobile Phone] 初始化过程发生错误:', e);
+        // 3. 核心：云端主题静默激活
+        const savedTheme = localStorage.getItem('last-theme-name');
+        if (savedTheme && savedTheme !== 'default') {
+            console.log(`[Theme] 检测到持久化主题: ${savedTheme}，正在强制同步...`);
+            fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
+            .then(res => res.json())
+            .then(config => {
+                window.themeState = config; // 同步给设置 App 使用
+                
+                // A. 注入全局 CSS 强力样式表
+                let bruteStyle = document.getElementById('brute-force-theme');
+                if (!bruteStyle) {
+                    bruteStyle = document.createElement('style');
+                    bruteStyle.id = 'brute-force-theme';
+                    document.head.appendChild(bruteStyle);
+                }
+                
+                const hex = config.wtrBg || "#ffffff";
+                const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+                
+                bruteStyle.innerHTML = `
+                    #home-screen { background-image: url('${config.bgUrl || ''}') !important; background-position: ${config.bgX || 50}% ${config.bgY || 50}% !important; background-size: cover !important; }
+                    #home-time { color: ${config.timeClr || '#fff'} !important; font-size: ${config.timeSize || 48}px !important; }
+                    #home-date { color: ${config.dateClr || '#fff'} !important; font-size: ${config.dateSize || 16}px !important; }
+                    .weather-info { background-color: rgba(${r},${g},${b},${config.wtrOp || 0.3}) !important; }
+                    .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
+                `;
+
+                // B. 注入图标替换
+                if (config.icons) {
+                    Object.keys(config.icons).forEach(id => {
+                        let iconStyleId = `icon-style-${id}`;
+                        let iconStyle = document.getElementById(iconStyleId);
+                        if (!iconStyle) {
+                            iconStyle = document.createElement('style');
+                            iconStyle.id = iconStyleId;
+                            document.head.appendChild(iconStyle);
+                        }
+                        iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
+                    });
+                }
+            })
+            .catch(e => console.error("[Theme] 开机同步失败:", e));
         }
     }
 }
-
-// 抽取出来的同步函数，避免主逻辑太乱
-function syncCloudTheme(savedTheme) {
-    fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
-    .then(res => res.json())
-    .then(config => {
-        window.themeState = config;
-        let bruteStyle = document.getElementById('brute-force-theme') || document.createElement('style');
-        bruteStyle.id = 'brute-force-theme';
-        if (!bruteStyle.parentElement) document.head.appendChild(bruteStyle);
-        
-        const hex = config.wtrBg || "#ffffff";
-        const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
-        
-        bruteStyle.innerHTML = `
-            #home-screen { background-image: url('${config.bgUrl || ''}') !important; background-position: ${config.bgX || 50}% ${config.bgY || 50}% !important; background-size: cover !important; }
-            #home-time { color: ${config.timeClr || '#fff'} !important; font-size: ${config.timeSize || 48}px !important; }
-            #home-date { color: ${config.dateClr || '#fff'} !important; font-size: ${config.dateSize || 16}px !important; }
-            .weather-info { background-color: rgba(${r},${g},${b},${config.wtrOp || 0.3}) !important; }
-            .weather-desc, .weather-temp, .weather-icon { color: ${config.wtrTxt || '#fff'} !important; }
-        `;
-        if (config.icons) {
-            Object.keys(config.icons).forEach(id => {
-                let iconStyle = document.getElementById(`icon-style-${id}`) || document.createElement('style');
-                iconStyle.id = `icon-style-${id}`;
-                if (!iconStyle.parentElement) document.head.appendChild(iconStyle);
-                iconStyle.innerHTML = `.app-icon[data-app='${id}'] .app-icon-bg { background-image: url('${config.icons[id]}') !important; background-color: transparent !important; }`;
-            });
-        }
-    })
-    .catch(e => console.error("[Theme] 同步失败:", e));
-}
-
-// 关键改动：使用多种手段确保它一定会被启动
-if (document.readyState === 'complete') {
-    initMobilePhone();
-} else {
-    window.addEventListener('load', initMobilePhone);
-}
-
-// 兜底：如果 3 秒后球还没出来，强行再跑一次
-setTimeout(() => {
-    if (!document.getElementById('mobile-phone-trigger')) {
-        console.log("🛡️ [守护进程] 正在进行最后一次强行挂载...");
-        initMobilePhone();
-    }
-}, 3000);
+// 立即执行初始化
+initMobilePhone();
+window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
