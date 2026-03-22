@@ -118,38 +118,53 @@ class MobilePhone {
     }
 
     handleStart(e) {
-        // 1. 识别目标
-        const trigger = e.target.closest('#mobile-phone-trigger');
-        const phone = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
+    // 1. 识别目标
+    const trigger = e.target.closest('#mobile-phone-trigger');
+    const phone = e.target.closest('.mobile-phone-frame') || e.target.closest('#app-pages-wrapper');
 
-        if (!trigger && !phone) return;
+    if (!trigger && !phone) return;
 
-        this.isDragging = true;
-        // 记录起始点
-        this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
-        this.startY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
-        this.currentX = this.startX;
+    // --- 【核心修复逻辑】 ---
+    // 如果点击的是输入框 (input, textarea) 或者 按钮/勾选框，直接退出，不触发拖拽
+    const isInput = e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'TEXTAREA' || 
+                    e.target.tagName === 'BUTTON' ||
+                    e.target.closest('.set-btn'); // 兼容你的自定义按钮类名
+    
+    if (isInput) return; 
 
-        if (trigger) {
-            // === 模式 A：拖拽悬浮球 ===
-            this.dragMode = 'trigger';
-            this.dragTarget = trigger;
-            // 记录按钮当前的初始位置
-            const rect = trigger.getBoundingClientRect();
-            this.initialTriggerX = rect.left;
-            this.initialTriggerY = rect.top;
-            trigger.style.transition = 'none'; // 拖动时禁止动画
-        } else if (phone) {
-            // === 模式 B：内部翻页 ===
-            this.dragMode = 'page';
-            const wrapper = document.getElementById('app-pages-wrapper');
-            if (wrapper) {
-                wrapper.style.transition = 'none';
-                wrapper.style.cursor = 'grabbing';
-            }
+    // 判断是否在 App 内部页面 (通常你的 App 内容会渲染在某个容器里，比如 #full-page-root)
+    const appContent = document.getElementById('full-page-root');
+    const isInApp = appContent && appContent.style.display === 'block';
+
+    // 如果在 App 内部，且不是在拖拽悬浮球，则禁止翻页逻辑
+    if (isInApp && !trigger) {
+        console.log('[Mobile Phone] 检测到已进入 App，禁用桌面翻页干扰');
+        return; 
+    }
+    // --- 【修复结束】 ---
+
+    this.isDragging = true;
+    this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
+    this.startY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
+    this.currentX = this.startX;
+
+    if (trigger) {
+        this.dragMode = 'trigger';
+        this.dragTarget = trigger;
+        const rect = trigger.getBoundingClientRect();
+        this.initialTriggerX = rect.left;
+        this.initialTriggerY = rect.top;
+        trigger.style.transition = 'none';
+    } else if (phone) {
+        this.dragMode = 'page';
+        const wrapper = document.getElementById('app-pages-wrapper');
+        if (wrapper) {
+            wrapper.style.transition = 'none';
+            wrapper.style.cursor = 'grabbing';
         }
     }
-
+}
     handleMove(e) {
         if (!this.isDragging) return;
         
