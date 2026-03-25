@@ -66,6 +66,7 @@ class MobilePhone {
         };
 
         this.init();
+        this.startBackgroundRadar();
     }
 
     init() {
@@ -83,6 +84,131 @@ class MobilePhone {
         }, 1000); // 延迟初始化，确保页面加载完成
     }
 
+    // === [系统服务] 后台消息雷达 ===
+    startBackgroundRadar() {
+        console.log("🛰️ [系统服务] 微信后台消息监听已启动...");
+        this.startGlobalPolling('messages');
+    }
+
+    // 持续轮询 8091 端口
+    startGlobalPolling(appId) {
+        const poll = async () => {
+            try {
+                // 指向你的 8091 后端
+                const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}`);
+                const data = await res.json();
+                
+                if (data.content) {
+                    try {
+                        // 提取最新消息块 {FROM:xxx|DATA:xxx}
+                        const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
+                        if (allBlocks && allBlocks.length > 0) {
+                            const lastBlock = allBlocks[allBlocks.length - 1];
+                            const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
+                            const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
+                            
+                            if (fromMatch && dataMatch) {
+                                const sender = fromMatch[1].trim();
+                                const message = dataMatch[1].trim();
+                                
+                                // 过滤掉“李至中”本人发的，且消息不为空
+                                if (sender !== "李至中" && message) {
+                                    console.log(`🔔 发现来自 ${sender} 的新消息`);
+                                    this.showNotification(sender, message);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error("❌ 消息解析失败:", err);
+                    }
+                }
+                // 无论是否拿到数据，2秒后继续下一轮
+                setTimeout(poll, 2000);
+            } catch (e) {
+                // 如果服务器挂了，10秒后再尝试，避免刷爆报错
+                console.warn("⚠️ 轮询服务器异常，10s后重试...");
+                setTimeout(poll, 10000);
+            }
+        };
+        poll();
+    }
+
+    // 在酒馆主页面绘制弹窗
+    showNotification(sender, content) {
+        // 1. 注入 CSS 样式
+        if (!document.getElementById('mobile-notify-style')) {
+            const style = document.createElement('style');
+            style.id = 'mobile-notify-style';
+            style.innerHTML = `
+                .wechat-notify {
+                    position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+                    width: 320px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+                    border-radius: 14px; padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+                    display: flex; align-items: center; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); 
+                    z-index: 2000000; border: 1px solid rgba(255,255,255,0.2); cursor: pointer;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                }
+                .wechat-notify.show { top: 30px; }
+                .wechat-notify-avatar { width: 42px; height: 42px; border-radius: 8px; margin-right: 12px; }
+                .wechat-notify-body { flex: 1; overflow: hidden; }
+                .wechat-notify-title { font-weight: 600; font-size: 14px; color: #000; display: flex; justify-content: space-between; margin-bottom: 2px; }
+                .wechat-notify-text { font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const div = document.createElement('div');
+        div.className = 'wechat-notify';
+        div.innerHTML = `
+            <img class="wechat-notify-avatar" src="https://pic1.imgdb.cn/item/69b99162df27f3bc58093bcc.png">
+            <div class="wechat-notify-body">
+                <div class="wechat-notify-title"><span>${sender}</span><span style="font-weight:normal;color:#888;font-size:10px;">现在</span></div>
+                <div class="wechat-notify-text">${content}</div>
+            </div>
+        `;
+        document.body.appendChild(div);
+
+        // 动画控制
+        setTimeout(() => div.classList.add('show'), 100);
+
+        let hideTimer = setTimeout(() => {
+            div.classList.remove('show');
+            setTimeout(() => div.remove(), 600);
+        }, 6000);
+
+        // 交互逻辑
+        div.onmouseenter = () => clearTimeout(hideTimer);
+        div.onmouseleave = () => {
+            hideTimer = setTimeout(() => {
+                div.classList.remove('show');
+                setTimeout(() => div.remove(), 600);
+            }, 2000);
+        };
+
+        div.onclick = () => {
+            console.log("👆 点击了通知，正在唤起微信...");
+            
+            // 1. 如果手机界面没打开，先把它弹出来
+            if (!this.isVisible) {
+                this.createPhoneContainer(); // 确保容器存在
+                const container = document.querySelector('.mobile-phone-container');
+                if (container) container.style.display = 'block';
+                this.isVisible = true;
+            }
+
+            // 2. 调用加载微信的逻辑
+            // 确保你类中存在 openApp 方法。按照你之前的逻辑，它会去查 APP_ROUTING
+            if (typeof this.openApp === 'function') {
+                this.openApp('messages');
+            } else {
+                // 如果没有 openApp，回退到你原本的点击图标逻辑
+                const wechatIcon = document.querySelector('.app-icon[data-app="messages"]');
+                if (wechatIcon) wechatIcon.click();
+            }
+
+            div.remove();
+        };
+    }
     // === 核心翻页逻辑：带探针版 ===
    initPageSwipe() {
         const self = this;
