@@ -45,6 +45,9 @@ class MobilePhone {
         this._userNavigationIntent = null; 
         this._loadingStartTime = {}; 
 
+        // 消息指纹记录，用于弹窗去重
+        this._lastMsgFingerprint = "";
+
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
         this.APP_ROUTING = {
@@ -92,49 +95,67 @@ class MobilePhone {
 
     // 持续轮询 8091 端口
     startGlobalPolling(appId) {
-        const poll = async () => {
-            try {
-                // 指向你的 8091 后端
-                const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}`);
-                const data = await res.json();
-                
-                if (data.content) {
-                    try {
-                        // 提取最新消息块 {FROM:xxx|DATA:xxx}
-                        const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
-                        if (allBlocks && allBlocks.length > 0) {
-                            const lastBlock = allBlocks[allBlocks.length - 1];
-                            const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
-                            const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
+    const poll = async () => {
+        try {
+            const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}`);
+            const data = await res.json();
+            
+            if (data && data.content) {
+                try {
+                    const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
+                    if (allBlocks && allBlocks.length > 0) {
+                        const lastBlock = allBlocks[allBlocks.length - 1];
+                        const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
+                        const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
+                        
+                        if (fromMatch && dataMatch) {
+                            const sender = fromMatch[1].trim();
+                            const message = dataMatch[1].trim();
                             
-                            if (fromMatch && dataMatch) {
-                                const sender = fromMatch[1].trim();
-                                const message = dataMatch[1].trim();
-                                
-                                // 过滤掉“李至中”本人发的，且消息不为空
-                                if (sender !== "李至中" && message) {
-                                    console.log(`🔔 发现来自 ${sender} 的新消息`);
-                                    this.showNotification(sender, message);
-                                }
+                            // 【关键修复】：消息指纹比对，防止重复弹窗
+                            const currentFingerprint = sender + message;
+                            if (sender !== "李至中" && message && this._lastMsgFingerprint !== currentFingerprint) {
+                                console.log(`🔔 发现新消息: ${sender}`);
+                                this.showNotification(sender, message);
+                                this._lastMsgFingerprint = currentFingerprint; // 更新指纹
                             }
                         }
-                    } catch (err) {
-                        console.error("❌ 消息解析失败:", err);
                     }
+                } catch (err) {
+                    console.error("❌ 消息解析失败:", err);
                 }
-                // 无论是否拿到数据，2秒后继续下一轮
-                setTimeout(poll, 2000);
-            } catch (e) {
-                // 如果服务器挂了，10秒后再尝试，避免刷爆报错
-                console.warn("⚠️ 轮询服务器异常，10s后重试...");
-                setTimeout(poll, 10000);
             }
-        };
-        poll();
-    }
+        } catch (e) {
+            console.warn("⚠️ 轮询连接异常，正在重试...");
+        }
+        
+        // 保持 2 秒轮询频率
+        setTimeout(poll, 2000);
+    };
+    poll();
+}
 
     // 在酒馆主页面绘制弹窗
     showNotification(sender, content) {
+        // 1. 播放“叮”的声音
+    const playDing = () => {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); 
+            oscillator.frequency.exponentialRampToValueAtTime(880.00, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+        } catch(e) { console.log("声音播放受限，需点击页面激活"); }
+    };
+    playDing();
         // 1. 注入 CSS 样式
         if (!document.getElementById('mobile-notify-style')) {
             const style = document.createElement('style');
