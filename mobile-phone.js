@@ -94,43 +94,40 @@ class MobilePhone {
     }
 
     // 持续轮询 8091 端口
-    startGlobalPolling(appId) {
+    // MobilePhone.js 
+startGlobalPolling(appId) {
+    // 使用独立的锁名，不要跟微信 App 冲突
+    if (this._systemRadarRunning) return; 
+    this._systemRadarRunning = true;
+
     const poll = async () => {
         try {
+            // 注意：系统雷达只负责“看”，不负责“清空”
             const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}`);
             const data = await res.json();
             
             if (data && data.content) {
-                try {
-                    const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
-                    if (allBlocks && allBlocks.length > 0) {
-                        const lastBlock = allBlocks[allBlocks.length - 1];
-                        const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
-                        const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
-                        
-                        if (fromMatch && dataMatch) {
-                            const sender = fromMatch[1].trim();
-                            const message = dataMatch[1].trim();
-                            
-                            // 【关键修复】：消息指纹比对，防止重复弹窗
-                            const currentFingerprint = sender + message;
-                            if (sender !== "李至中" && message && this._lastMsgFingerprint !== currentFingerprint) {
-                                console.log(`🔔 发现新消息: ${sender}`);
-                                this.showNotification(sender, message);
-                                this._lastMsgFingerprint = currentFingerprint; // 更新指纹
-                            }
+                const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
+                if (allBlocks) {
+                    const lastBlock = allBlocks[allBlocks.length - 1];
+                    const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
+                    const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
+                    
+                    if (fromMatch && dataMatch) {
+                        const sender = fromMatch[1].trim();
+                        const message = dataMatch[1].trim();
+                        const finger = sender + message;
+
+                        // 只有非本人发送，且指纹变了，才弹窗
+                        if (sender !== "李至中" && this._lastMsgFingerprint !== finger) {
+                            this.showNotification(sender, message);
+                            this._lastMsgFingerprint = finger; 
                         }
                     }
-                } catch (err) {
-                    console.error("❌ 消息解析失败:", err);
                 }
             }
-        } catch (e) {
-            console.warn("⚠️ 轮询连接异常，正在重试...");
-        }
-        
-        // 保持 2 秒轮询频率
-        setTimeout(poll, 2000);
+        } catch (e) { }
+        setTimeout(poll, 3000); // 系统雷达 3 秒一次
     };
     poll();
 }
