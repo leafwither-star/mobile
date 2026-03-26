@@ -104,7 +104,7 @@ startGlobalPolling(appId) {
     const poll = async () => {
         try {
             // 注意：系统雷达只负责“看”，不负责“清空”
-            const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}`);
+            const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}&source=system`);
             const data = await res.json();
             
             if (data && data.content) {
