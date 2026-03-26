@@ -47,6 +47,7 @@ class MobilePhone {
 
         // 消息指纹记录，用于弹窗去重
         this._lastMsgFingerprint = "";
+        this.startBackgroundRadar();   // 必须在这里点火，雷达才会启动
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
