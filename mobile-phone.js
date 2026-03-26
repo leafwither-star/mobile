@@ -47,7 +47,6 @@ class MobilePhone {
 
         // 消息指纹记录，用于弹窗去重
         this._lastMsgFingerprint = "";
-        this.startBackgroundRadar();   // 必须在这里点火，雷达才会启动
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
@@ -70,7 +69,6 @@ class MobilePhone {
         };
 
         this.init();
-        this.startBackgroundRadar();
     }
 
     init() {
@@ -91,7 +89,6 @@ class MobilePhone {
     // === [系统服务] 后台消息雷达 ===
     startBackgroundRadar() {
         console.log("🛰️ [系统服务] 微信后台消息监听已启动...");
-        this.startGlobalPolling('messages');
     }
 
     // 持续轮询 8091 端口
@@ -139,6 +136,24 @@ startGlobalPolling(appId) {
     poll();
 }
 
+    // === 【新增接口】供微信应用注入成功后调用 ===
+triggerNotificationFromApp(sender, message) {
+    const finger = sender + message;
+
+    // 1. 如果是你自己发的，不弹窗
+    if (sender === "李至中") return;
+
+    // 2. 指纹去重，防止瞬间多次触发同一个弹窗
+    if (this._lastMsgFingerprint === finger) return;
+
+    console.log(`🔔 [系统雷达] 接收到 App 指令，弹出通知: [${sender}]`);
+    
+    // 3. 执行你原本就写好的弹窗逻辑
+    this.showNotification(sender, message);
+    
+    // 4. 更新指纹
+    this._lastMsgFingerprint = finger;
+}
     // 在酒馆主页面绘制弹窗
     showNotification(sender, content) {
         // 1. 播放“叮”的声音
@@ -1163,6 +1178,15 @@ function initMobilePhone() {
         }
     }
 }
-// 立即执行初始化
-initMobilePhone();
+// 【脚本末尾 - 修改版】
+
+// 1. 实例化并挂载到全局，这样微信才能通过 window.MobilePhone 找到它
+const phoneInstance = new MobilePhone();
+window.MobilePhone = phoneInstance;
+
+// 2. 保持你原有的 Toast 绑定
 window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
+
+// 3. 如果你之前有 initMobilePhone() 函数，确保它里面不再重复 new MobilePhone
+// 如果那个函数只是做一些 DOM 初始化，可以继续保留
+// initMobilePhone();
