@@ -108,15 +108,19 @@ startGlobalPolling(appId) {
             const data = await res.json();
             
             if (data && data.content) {
-                const allBlocks = data.content.match(/\{[\s\S]*?\}/g);
-                if (allBlocks) {
-                    const lastBlock = allBlocks[allBlocks.length - 1];
-                    const fromMatch = lastBlock.match(/FROM:\s*([^|]*)/);
-                    const dataMatch = lastBlock.match(/DATA:\s*([^}]*)/);
-                    
-                    if (fromMatch && dataMatch) {
-                        const sender = fromMatch[1].trim();
-                        const message = dataMatch[1].trim();
+    // 统一转成一行处理，防止换行符破坏正则
+    const cleanContent = data.content.replace(/\n/g, " "); 
+    const allBlocks = cleanContent.match(/\{NO:.*?\}/g); // 这里的正则更精准一点
+    
+    if (allBlocks) {
+        const lastBlock = allBlocks[allBlocks.length - 1];
+        // 这里的正则要兼容你消息里的 | 符号
+        const fromMatch = lastBlock.match(/FROM:\s*([^|}]*)/);
+        const dataMatch = lastBlock.match(/DATA:\s*([^|}]*)/);
+        
+        if (fromMatch && dataMatch) {
+            const sender = fromMatch[1].trim();
+            const message = dataMatch[1].trim();
                         const finger = sender + message;
 
                         // 只有非本人发送，且指纹变了，才弹窗
@@ -127,7 +131,9 @@ startGlobalPolling(appId) {
                     }
                 }
             }
-        } catch (e) { }
+        } catch (e) {
+            // console.warn("📡 雷达扫描中...");
+        }
         setTimeout(poll, 3000); // 系统雷达 3 秒一次
     };
     poll();
