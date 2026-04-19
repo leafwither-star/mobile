@@ -79,6 +79,7 @@ class MobilePhone {
         this.registerApps();
         this.startClock();
         this.initPageSwipe(); // 初始化页面拖拽功能
+        this.startGlobalPolling();
 
         // 初始化文字颜色设置
         setTimeout(() => {
@@ -93,45 +94,41 @@ class MobilePhone {
 
     // 持续轮询 8091 端口
     // MobilePhone.js 
-startGlobalPolling(appId) {
-    // 使用独立的锁名，不要跟微信 App 冲突
-    if (this._systemRadarRunning) return; 
+startGlobalPolling() {
+    if (this._systemRadarRunning) return;
     this._systemRadarRunning = true;
 
     const poll = async () => {
         try {
-            // 注意：系统雷达只负责“看”，不负责“清空”
-            const res = await fetch(`http://43.165.171.111:8091/api/get-result?appId=${appId}&source=system`);
+            // 💡 关键点：直接向同步接口要“最新消息状态”
+            const res = await fetch(`http://43.165.171.111:8091/api/chat/sync-init`);
             const data = await res.json();
-            
-            if (data && data.content) {
-    // 统一转成一行处理，防止换行符破坏正则
-    const cleanContent = data.content.replace(/\n/g, " "); 
-    const allBlocks = cleanContent.match(/\{NO:.*?\}/g); // 这里的正则更精准一点
-    
-    if (allBlocks) {
-        const lastBlock = allBlocks[allBlocks.length - 1];
-        // 这里的正则要兼容你消息里的 | 符号
-        const fromMatch = lastBlock.match(/FROM:\s*([^|}]*)/);
-        const dataMatch = lastBlock.match(/DATA:\s*([^|}]*)/);
-        
-        if (fromMatch && dataMatch) {
-            const sender = fromMatch[1].trim();
-            const message = dataMatch[1].trim();
-                        const finger = sender + message;
 
-                        // 只有非本人发送，且指纹变了，才弹窗
-                        if (sender !== "李至中" && this._lastMsgFingerprint !== finger) {
-                            this.showNotification(sender, message);
-                            this._lastMsgFingerprint = finger; 
+            if (data.status === "success" && data.friends) {
+                // 遍历所有好友，看谁有新动静
+                data.friends.forEach(f => {
+                    // 1. 机主发的消息不弹窗
+                    // 2. 消息内容不能为空
+                    // 3. 时间戳必须比上一次记录的大（证明是新消息）
+                    if (f.id !== "李至中" && f.lastMsg && f.lastTimestamp > (this._lastMsgTimestamp || 0)) {
+                        
+                        const finger = f.id + f.lastMsg;
+                        // 指纹双重去重
+                        if (this._lastMsgFingerprint !== finger) {
+                            console.log(`📡 [雷达] 捕捉到新动态: ${f.id} 说 ${f.lastMsg}`);
+                            this.showNotification(f.id, f.lastMsg);
+                            
+                            // 更新记录
+                            this._lastMsgFingerprint = finger;
+                            this._lastMsgTimestamp = f.lastTimestamp;
                         }
                     }
-                }
+                });
             }
         } catch (e) {
-            // console.warn("📡 雷达扫描中...");
+            // 跨域或网络错误，静默重试
         }
-        setTimeout(poll, 3000); // 系统雷达 3 秒一次
+        setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
     };
     poll();
 }
