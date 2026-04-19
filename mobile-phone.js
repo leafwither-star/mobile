@@ -79,7 +79,7 @@ class MobilePhone {
         this.registerApps();
         this.startClock();
         this.initPageSwipe(); // 初始化页面拖拽功能
-        this.startGlobalPolling();
+        this.startSystemNotificationRadar();
 
         // 初始化文字颜色设置
         setTimeout(() => {
@@ -94,7 +94,7 @@ class MobilePhone {
 
     // 持续轮询 8091 端口
     // MobilePhone.js 
-startGlobalPolling() {
+startSystemNotificationRadar() {
     if (this._systemRadarRunning) return;
     this._systemRadarRunning = true;
 
