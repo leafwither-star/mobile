@@ -1124,6 +1124,9 @@ function initMobilePhone() {
     if (!window.mobilePhone) {
         // 1. 正常执行手机类实例化
         window.mobilePhone = new MobilePhone();
+        window.mobilePhone.showToast = MobilePhone.showToast.bind(MobilePhone);
+        window.MobilePhone = window.mobilePhone;
+        window.MobilePhoneClass = MobilePhone;
         console.log('[Mobile Phone] 手机界面初始化完成');
 
         // 2. 重新绑定原有的全局工具（确保悬浮窗和 Toast 正常）
@@ -1175,15 +1178,20 @@ function initMobilePhone() {
         }
     }
 }
-// 【脚本末尾 - 修改版】
+// 【脚本末尾 - 单例启动】
+// 只允许创建一个手机实例，避免刷新或重复加载时按钮/容器互相覆盖。
+const startMobilePhoneOnce = () => {
+    initMobilePhone();
+    if (window.mobilePhone) {
+        window.mobilePhone.showToast = MobilePhone.showToast.bind(MobilePhone);
+        window.MobilePhone = window.mobilePhone;
+        window.MobilePhoneClass = MobilePhone;
+        window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
+    }
+};
 
-// 1. 实例化并挂载到全局，这样微信才能通过 window.MobilePhone 找到它
-const phoneInstance = new MobilePhone();
-window.MobilePhone = phoneInstance;
-
-// 2. 保持你原有的 Toast 绑定
-window.showMobileToast = MobilePhone.showToast.bind(MobilePhone);
-
-// 3. 如果你之前有 initMobilePhone() 函数，确保它里面不再重复 new MobilePhone
-// 如果那个函数只是做一些 DOM 初始化，可以继续保留
-// initMobilePhone();
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startMobilePhoneOnce, { once: true });
+} else {
+    startMobilePhoneOnce();
+}
