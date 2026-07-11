@@ -64,12 +64,45 @@
   transform: scale(1);
 }
 
+.mobile-phone-trigger-busy::before,
+.mobile-phone-trigger-busy::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  right: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.86), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.mobile-phone-trigger-busy::before {
+  top: 4px;
+  background: #d94a66;
+}
+
+.mobile-phone-trigger-busy::after {
+  bottom: 4px;
+  background: #20c997;
+  opacity: 0;
+}
+
+.mobile-phone-trigger[data-sub-state="running"]::after,
+.mobile-phone-trigger[data-sub-state="done"]::after,
+.mobile-phone-trigger[data-sub-state="error"]::after {
+  opacity: 1;
+}
+
 .mobile-phone-trigger[data-main-state="error"] .mobile-trigger-progress.main {
   background: conic-gradient(#ff7675 var(--mobile-main-progress), rgba(255, 118, 117, 0.16) 0);
 }
 
 .mobile-phone-trigger[data-sub-state="error"] .mobile-trigger-progress.sub {
   background: conic-gradient(#ff7675 var(--mobile-sub-progress), rgba(255, 118, 117, 0.16) 0);
+}
+
+.mobile-phone-trigger[data-radar-state="error"] {
+  box-shadow: 0 0 0 3px rgba(255, 118, 117, 0.28), 0 4px 15px rgba(255, 154, 158, 0.4);
 }
 
 /* 手机容器 */

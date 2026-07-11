@@ -102,8 +102,12 @@ startSystemNotificationRadar() {
     const poll = async () => {
         try {
             // 💡 关键点：直接向同步接口要“最新消息状态”
-            const res = await fetch(`http://43.165.171.111:8091/api/chat/sync-init`);
+            const res = await fetch(`http://43.165.171.111:8091/api/chat/sync-init`, {
+                mode: 'cors',
+                cache: 'no-store'
+            });
             const data = await res.json();
+            this._systemRadarErrorCount = 0;
 
             if (data.status === "success" && data.friends) {
                 // 遍历所有好友，看谁有新动静
@@ -127,7 +131,10 @@ startSystemNotificationRadar() {
                 });
             }
         } catch (e) {
-            // 跨域或网络错误，静默重试
+            // 跨域或网络错误，静默重试，同时在入口上留下轻量状态，方便排查。
+            this._systemRadarErrorCount = (this._systemRadarErrorCount || 0) + 1;
+            const trigger = document.getElementById('mobile-phone-trigger');
+            if (trigger) trigger.setAttribute('data-radar-state', this._systemRadarErrorCount > 2 ? 'error' : 'retrying');
         }
         setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
     };
@@ -160,7 +167,10 @@ startGenerationStatusTracker() {
 
     const poll = async () => {
         try {
-            const res = await fetch('http://43.165.171.111:8091/api/generation-status');
+            const res = await fetch('http://43.165.171.111:8091/api/generation-status', {
+                mode: 'cors',
+                cache: 'no-store'
+            });
             const data = await res.json();
             updateProgressUi(data);
         } catch (e) {
