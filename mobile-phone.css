@@ -16,13 +16,73 @@
   font-size: 18px;
   cursor: pointer;
   z-index: 9999;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
   transition: all 0.3s ease;
+  --mobile-main-progress: 0%;
+  --mobile-sub-progress: 0%;
 }
 
 .mobile-phone-trigger:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(255, 154, 158, 0.6);
+}
+
+.mobile-trigger-icon {
+  position: relative;
+  z-index: 2;
+  line-height: 1;
+}
+
+.mobile-trigger-progress {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.mobile-trigger-progress::after {
+  content: "";
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  transition: width .35s ease;
+}
+
+.mobile-trigger-progress.main {
+  bottom: 8px;
+}
+
+.mobile-trigger-progress.sub {
+  bottom: 4px;
+}
+
+.mobile-trigger-progress.main::after {
+  width: var(--mobile-main-progress);
+  background: #d94a66;
+}
+
+.mobile-trigger-progress.sub::after {
+  width: var(--mobile-sub-progress);
+  background: #20c997;
+}
+
+.mobile-phone-trigger-busy .mobile-trigger-progress {
+  opacity: 1;
+}
+
+.mobile-phone-trigger[data-main-state="error"] .mobile-trigger-progress.main::after,
+.mobile-phone-trigger[data-sub-state="error"] .mobile-trigger-progress.sub::after {
+  background: #ff7675;
 }
 
 /* 手机容器 */

@@ -80,6 +80,7 @@ class MobilePhone {
         this.startClock();
         this.initPageSwipe(); // 初始化页面拖拽功能
         this.startSystemNotificationRadar();
+        this.startGenerationStatusTracker();
 
         // 初始化文字颜色设置
         setTimeout(() => {
@@ -130,6 +131,44 @@ startSystemNotificationRadar() {
         }
         setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
     };
+    poll();
+}
+
+    // === 【系统服务】主/副 API 生成进度追踪 ===
+startGenerationStatusTracker() {
+    if (this._generationStatusTrackerRunning) return;
+    this._generationStatusTrackerRunning = true;
+
+    const updateProgressUi = (data) => {
+        const trigger = document.getElementById('mobile-phone-trigger');
+        if (!trigger) return;
+
+        const main = data?.main || { state: 'idle', progress: 0, label: '' };
+        const sub = data?.sub || { state: 'idle', progress: 0, label: '' };
+        const activeMain = ['running', 'done', 'error'].includes(main.state);
+        const activeSub = ['running', 'done', 'error'].includes(sub.state);
+
+        trigger.classList.toggle('mobile-phone-trigger-busy', activeMain || activeSub);
+        trigger.style.setProperty('--mobile-main-progress', `${Math.max(0, Math.min(100, main.progress || 0))}%`);
+        trigger.style.setProperty('--mobile-sub-progress', `${Math.max(0, Math.min(100, sub.progress || 0))}%`);
+        trigger.setAttribute('data-main-state', main.state || 'idle');
+        trigger.setAttribute('data-sub-state', sub.state || 'idle');
+
+        const label = [main.label, sub.label].filter(Boolean).join(' / ');
+        if (label) trigger.title = label;
+    };
+
+    const poll = async () => {
+        try {
+            const res = await fetch('http://43.165.171.111:8091/api/generation-status');
+            const data = await res.json();
+            updateProgressUi(data);
+        } catch (e) {
+            // 后端不可达时保持静默，避免影响酒馆页面。
+        }
+        setTimeout(poll, 1000);
+    };
+
     poll();
 }
 
@@ -432,7 +471,11 @@ triggerNotificationFromApp(sender, message) {
             const button = document.createElement('button');
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
-            button.innerHTML = '📱';
+            button.innerHTML = `
+                <span class="mobile-trigger-icon">📱</span>
+                <span class="mobile-trigger-progress main"></span>
+                <span class="mobile-trigger-progress sub"></span>
+            `;
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";
             button.style.position = "fixed";
