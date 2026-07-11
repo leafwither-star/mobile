@@ -16,7 +16,7 @@
   font-size: 18px;
   cursor: pointer;
   z-index: 9999;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -33,56 +33,43 @@
 
 .mobile-trigger-icon {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   line-height: 1;
 }
 
 .mobile-trigger-progress {
   position: absolute;
-  left: 7px;
-  right: 7px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.65);
-  overflow: hidden;
+  border-radius: 50%;
+  pointer-events: none;
   opacity: 0;
-  transition: opacity .2s ease;
-}
-
-.mobile-trigger-progress::after {
-  content: "";
-  display: block;
-  width: 0;
-  height: 100%;
-  border-radius: inherit;
-  transition: width .35s ease;
+  transition: opacity .2s ease, transform .25s ease;
+  -webkit-mask: radial-gradient(circle, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(circle, transparent calc(100% - 4px), #000 calc(100% - 3px));
 }
 
 .mobile-trigger-progress.main {
-  bottom: 8px;
+  inset: -6px;
+  background: conic-gradient(#d94a66 var(--mobile-main-progress), rgba(217, 74, 102, 0.16) 0);
 }
 
 .mobile-trigger-progress.sub {
-  bottom: 4px;
-}
-
-.mobile-trigger-progress.main::after {
-  width: var(--mobile-main-progress);
-  background: #d94a66;
-}
-
-.mobile-trigger-progress.sub::after {
-  width: var(--mobile-sub-progress);
-  background: #20c997;
+  inset: -12px;
+  background: conic-gradient(#20c997 var(--mobile-sub-progress), rgba(32, 201, 151, 0.14) 0);
+  -webkit-mask: radial-gradient(circle, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(circle, transparent calc(100% - 3px), #000 calc(100% - 2px));
 }
 
 .mobile-phone-trigger-busy .mobile-trigger-progress {
   opacity: 1;
+  transform: scale(1);
 }
 
-.mobile-phone-trigger[data-main-state="error"] .mobile-trigger-progress.main::after,
-.mobile-phone-trigger[data-sub-state="error"] .mobile-trigger-progress.sub::after {
-  background: #ff7675;
+.mobile-phone-trigger[data-main-state="error"] .mobile-trigger-progress.main {
+  background: conic-gradient(#ff7675 var(--mobile-main-progress), rgba(255, 118, 117, 0.16) 0);
+}
+
+.mobile-phone-trigger[data-sub-state="error"] .mobile-trigger-progress.sub {
+  background: conic-gradient(#ff7675 var(--mobile-sub-progress), rgba(255, 118, 117, 0.16) 0);
 }
 
 /* 手机容器 */
