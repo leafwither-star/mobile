@@ -154,12 +154,16 @@ startGenerationStatusTracker() {
         const sub = data?.sub || { state: 'idle', progress: 0, label: '' };
         const activeMain = ['running', 'done', 'error'].includes(main.state);
         const activeSub = ['running', 'done', 'error'].includes(sub.state);
+        const activeChannel = activeSub ? sub : main;
+        const activeProgress = Math.max(0, Math.min(100, activeChannel.progress || 0));
+        const activeState = activeSub ? sub.state : main.state;
 
         trigger.classList.toggle('mobile-phone-trigger-busy', activeMain || activeSub);
-        trigger.style.setProperty('--mobile-main-progress', `${Math.max(0, Math.min(100, main.progress || 0))}%`);
-        trigger.style.setProperty('--mobile-sub-progress', `${Math.max(0, Math.min(100, sub.progress || 0))}%`);
+        trigger.classList.toggle('mobile-phone-trigger-sub', activeSub);
+        trigger.style.setProperty('--mobile-generation-progress', `${activeProgress}%`);
         trigger.setAttribute('data-main-state', main.state || 'idle');
         trigger.setAttribute('data-sub-state', sub.state || 'idle');
+        trigger.setAttribute('data-generation-state', activeState || 'idle');
 
         const label = [main.label, sub.label].filter(Boolean).join(' / ');
         if (label) trigger.title = label;
@@ -483,8 +487,7 @@ triggerNotificationFromApp(sender, message) {
             button.className = 'mobile-phone-trigger';
             button.innerHTML = `
                 <span class="mobile-trigger-icon">📱</span>
-                <span class="mobile-trigger-progress main"></span>
-                <span class="mobile-trigger-progress sub"></span>
+                <span class="mobile-trigger-progress"></span>
             `;
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";

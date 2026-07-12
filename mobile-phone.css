@@ -22,8 +22,9 @@
   justify-content: center;
   box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
   transition: all 0.3s ease;
-  --mobile-main-progress: 0%;
-  --mobile-sub-progress: 0%;
+  --mobile-generation-progress: 0%;
+  --mobile-generation-color: #d94a66;
+  --mobile-generation-bg: rgba(217, 74, 102, 0.16);
 }
 
 .mobile-phone-trigger:hover {
@@ -39,24 +40,14 @@
 
 .mobile-trigger-progress {
   position: absolute;
+  inset: -7px;
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
   transition: opacity .2s ease, transform .25s ease;
   -webkit-mask: radial-gradient(circle, transparent calc(100% - 4px), #000 calc(100% - 3px));
   mask: radial-gradient(circle, transparent calc(100% - 4px), #000 calc(100% - 3px));
-}
-
-.mobile-trigger-progress.main {
-  inset: -6px;
-  background: conic-gradient(#d94a66 var(--mobile-main-progress), rgba(217, 74, 102, 0.16) 0);
-}
-
-.mobile-trigger-progress.sub {
-  inset: -12px;
-  background: conic-gradient(#20c997 var(--mobile-sub-progress), rgba(32, 201, 151, 0.14) 0);
-  -webkit-mask: radial-gradient(circle, transparent calc(100% - 3px), #000 calc(100% - 2px));
-  mask: radial-gradient(circle, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  background: conic-gradient(var(--mobile-generation-color) var(--mobile-generation-progress), var(--mobile-generation-bg) 0);
 }
 
 .mobile-phone-trigger-busy .mobile-trigger-progress {
@@ -64,41 +55,27 @@
   transform: scale(1);
 }
 
-.mobile-phone-trigger-busy::before,
 .mobile-phone-trigger-busy::after {
   content: "";
   position: absolute;
   z-index: 4;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   right: 3px;
+  top: 4px;
+  background: var(--mobile-generation-color);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.86), 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
-.mobile-phone-trigger-busy::before {
-  top: 4px;
-  background: #d94a66;
+.mobile-phone-trigger-sub {
+  --mobile-generation-color: #20c997;
+  --mobile-generation-bg: rgba(32, 201, 151, 0.14);
 }
 
-.mobile-phone-trigger-busy::after {
-  bottom: 4px;
-  background: #20c997;
-  opacity: 0;
-}
-
-.mobile-phone-trigger[data-sub-state="running"]::after,
-.mobile-phone-trigger[data-sub-state="done"]::after,
-.mobile-phone-trigger[data-sub-state="error"]::after {
-  opacity: 1;
-}
-
-.mobile-phone-trigger[data-main-state="error"] .mobile-trigger-progress.main {
-  background: conic-gradient(#ff7675 var(--mobile-main-progress), rgba(255, 118, 117, 0.16) 0);
-}
-
-.mobile-phone-trigger[data-sub-state="error"] .mobile-trigger-progress.sub {
-  background: conic-gradient(#ff7675 var(--mobile-sub-progress), rgba(255, 118, 117, 0.16) 0);
+.mobile-phone-trigger[data-generation-state="error"] {
+  --mobile-generation-color: #ff7675;
+  --mobile-generation-bg: rgba(255, 118, 117, 0.16);
 }
 
 .mobile-phone-trigger[data-radar-state="error"] {
