@@ -98,6 +98,8 @@ class MobilePhone {
 startSystemNotificationRadar() {
     if (this._systemRadarRunning) return;
     this._systemRadarRunning = true;
+    this._friendRadarTimestamps = this._friendRadarTimestamps || {};
+    this._systemRadarBootstrapped = false;
 
     const poll = async () => {
         try {
@@ -110,12 +112,22 @@ startSystemNotificationRadar() {
             this._systemRadarErrorCount = 0;
 
             if (data.status === "success" && data.friends) {
+                const trigger = document.getElementById('mobile-phone-trigger');
+                if (trigger) trigger.setAttribute('data-radar-state', 'ready');
                 // 遍历所有好友，看谁有新动静
                 data.friends.forEach(f => {
+                    const lastTimestamp = Number(f.lastTimestamp || 0);
+                    if (!f.id || f.id === "李至中" || !lastTimestamp) return;
+
+                    if (!this._systemRadarBootstrapped) {
+                        this._friendRadarTimestamps[f.id] = Math.max(Number(this._friendRadarTimestamps[f.id] || 0), lastTimestamp);
+                        return;
+                    }
+
                     // 1. 机主发的消息不弹窗
                     // 2. 消息内容不能为空
-                    // 3. 时间戳必须比上一次记录的大（证明是新消息）
-                    if (f.id !== "李至中" && f.lastMsg && f.lastTimestamp > (this._lastMsgTimestamp || 0)) {
+                    // 3. 时间戳必须比这个联系人的上一次记录大（证明是新消息）
+                    if (f.lastMsg && lastTimestamp > (this._friendRadarTimestamps[f.id] || 0)) {
                         
                         const finger = f.id + f.lastMsg;
                         // 指纹双重去重
@@ -125,10 +137,11 @@ startSystemNotificationRadar() {
                             
                             // 更新记录
                             this._lastMsgFingerprint = finger;
-                            this._lastMsgTimestamp = f.lastTimestamp;
                         }
+                        this._friendRadarTimestamps[f.id] = lastTimestamp;
                     }
                 });
+                this._systemRadarBootstrapped = true;
             }
         } catch (e) {
             // 跨域或网络错误，静默重试，同时在入口上留下轻量状态，方便排查。
