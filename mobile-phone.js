@@ -99,7 +99,6 @@ startSystemNotificationRadar() {
     if (this._systemRadarRunning) return;
     this._systemRadarRunning = true;
     this._friendRadarTimestamps = this._friendRadarTimestamps || {};
-    this._friendRadarFingerprints = this._friendRadarFingerprints || {};
     this._systemRadarBootstrapped = false;
 
     const poll = async () => {
@@ -130,22 +129,14 @@ startSystemNotificationRadar() {
                     // 3. 时间戳必须比这个联系人的上一次记录大（证明是新消息）
                     if (f.lastMsg && lastTimestamp > (this._friendRadarTimestamps[f.id] || 0)) {
                         
-                        const finger = [
-                            f.id,
-                            f.sessionId || '',
-                            f.timelineActive ? `timeline-${f.timelineSegment || 0}-${f.timelineTotal || 0}` : 'latest',
-                            f.lastNo || '',
-                            f.lastTimestamp || '',
-                            f.lastMsg || ''
-                        ].join('|');
+                        const finger = f.id + f.lastMsg;
                         // 指纹双重去重
-                        if (this._friendRadarFingerprints[f.id] !== finger && this._lastMsgFingerprint !== finger) {
+                        if (this._lastMsgFingerprint !== finger) {
                             console.log(`📡 [雷达] 捕捉到新动态: ${f.id} 说 ${f.lastMsg}`);
                             this.showNotification(f.id, f.lastMsg);
                             
                             // 更新记录
                             this._lastMsgFingerprint = finger;
-                            this._friendRadarFingerprints[f.id] = finger;
                         }
                         this._friendRadarTimestamps[f.id] = lastTimestamp;
                     }
