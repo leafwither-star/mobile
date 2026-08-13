@@ -50,22 +50,26 @@ class MobilePhone {
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
+        // 【地址不再带时间戳】原来这里和 loadRemoteApp 里各挂了一个 Date.now()，
+        // 等于每次开 App 都换一个全新 URL，浏览器缓存永远命中不了——
+        // message-app.js 有 705KB，每次进微信都要重新下载一遍。
+        // 现在存裸地址，版本号由 resolveVersionedUrl 按服务端文件的真实修改时间生成。
         this.APP_ROUTING = {
-            'messages': { js: ['http://43.165.171.111:8091/message-app.js?v=' + Date.now()], css: [] },
+            'messages': { js: ['http://43.165.171.111:8091/message-app.js'], css: [] },
             'shop':     { js: ['/scripts/extensions/third-party/mobile/app/shopping-app.js'], css: ['/scripts/extensions/third-party/mobile/app/shopping-app.css'] },
             'task':     { js: ['/scripts/extensions/third-party/mobile/app/profile-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/profile-app.css'] }, // 健康 [cite: 2026-02-26]
             'forum':    { js: ['/scripts/extensions/third-party/mobile/app/forum-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/forum-app.css'] },
             'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] }, // 收纳 [cite: 2026-02-24]
             'live':     { js: ['/scripts/extensions/third-party/mobile/app/live-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/live-app.css'] },
             'backpack': { js: ['/scripts/extensions/third-party/mobile/app/backpack-app.js'], css: ['/scripts/extensions/third-party/mobile/app/backpack-app.css'] },
-            'api':   { js: ['http://43.165.171.111:8091/setting-app.js?v=' + Date.now()], css: [] }, // <-- 加 :8091
+            'api':   { js: ['http://43.165.171.111:8091/setting-app.js'], css: [] }, // <-- 加 :8091
             'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] }, // 档案 [cite: 2026-02-26]
             'travel':   { js: ['/scripts/extensions/third-party/mobile/app/travel-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/travel-app.css'] },
             'email':    { js: ['/scripts/extensions/third-party/mobile/app/email-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/email-app.css'] },
             'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
-            'theme': { js: ['http://43.165.171.111:8091/style-app.js?v=' + Date.now()], css: [] }   // <-- 加 :8091
+            'theme': { js: ['http://43.165.171.111:8091/style-app.js'], css: [] }   // <-- 加 :8091
         };
 
         this.init();
@@ -102,6 +106,12 @@ startSystemNotificationRadar() {
     this._systemRadarBootstrapped = false;
 
     const poll = async () => {
+        // 标签页不在前台时没人看得见弹窗，没必要每 3 秒拉一次全量好友状态。
+        // 放慢到 20 秒，回到前台后 visibilitychange 会立刻补一次。
+        if (document.hidden) {
+            this._systemRadarTimer = setTimeout(poll, 20000);
+            return;
+        }
         try {
             // 💡 关键点：直接向同步接口要“最新消息状态”
             const res = await fetch(`http://43.165.171.111:8091/api/chat/sync-init`, {
@@ -149,8 +159,16 @@ startSystemNotificationRadar() {
             const trigger = document.getElementById('mobile-phone-trigger');
             if (trigger) trigger.setAttribute('data-radar-state', this._systemRadarErrorCount > 2 ? 'error' : 'retrying');
         }
-        setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
+        this._systemRadarTimer = setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
     };
+
+    // 回到前台立刻补一次，别让人等满一个慢周期
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || !this._systemRadarRunning) return;
+        clearTimeout(this._systemRadarTimer);
+        poll();
+    });
+
     poll();
 }
 
@@ -182,19 +200,37 @@ startGenerationStatusTracker() {
         if (label) trigger.title = label;
     };
 
+    // 【按需变频】原来是雷打不动每秒一次，一天下来 8 万多个请求，
+    // 而其中绝大多数时间生成器都是 idle、返回的内容一模一样。
+    // 生成中才需要 1 秒级的进度反馈；空闲时 4 秒足够，后台标签页 15 秒。
     const poll = async () => {
-        try {
-            const res = await fetch('http://43.165.171.111:8091/api/generation-status', {
-                mode: 'cors',
-                cache: 'no-store'
-            });
-            const data = await res.json();
-            updateProgressUi(data);
-        } catch (e) {
-            // 后端不可达时保持静默，避免影响酒馆页面。
+        let delay = 4000;
+        if (document.hidden) {
+            delay = 15000;
+        } else {
+            try {
+                const res = await fetch('http://43.165.171.111:8091/api/generation-status', {
+                    mode: 'cors',
+                    cache: 'no-store'
+                });
+                const data = await res.json();
+                updateProgressUi(data);
+                const busy = data?.main?.state === 'running' || data?.sub?.state === 'running';
+                delay = busy ? 1000 : 4000;
+            } catch (e) {
+                // 后端不可达时保持静默，避免影响酒馆页面。退避到 8 秒，别把控制台刷爆。
+                delay = 8000;
+            }
         }
-        setTimeout(poll, 1000);
+        this._generationStatusTimer = setTimeout(poll, delay);
     };
+
+    // 刚开始生成时用户往往正盯着按钮看，回到前台立刻取一次最新进度
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || !this._generationStatusTrackerRunning) return;
+        clearTimeout(this._generationStatusTimer);
+        poll();
+    });
 
     poll();
 }
@@ -362,14 +398,20 @@ triggerNotificationFromApp(sender, message) {
     
     if (isInput) return; 
 
-    // 判断是否在 App 内部页面 (通常你的 App 内容会渲染在某个容器里，比如 #full-page-root)
-    const appContent = document.getElementById('full-page-root');
-    const isInApp = appContent && appContent.style.display === 'block';
+    // 判断是否在 App 内部页面。
+    //
+    // 【原来判错了对象】原判据是 #full-page-root 是否 display:block，
+    // 而那个节点只在微信"打开了某个聊天窗口"时才显示。结果是：
+    // 停在微信会话列表 / 通讯录 / 朋友圈时，isInApp 为 false，
+    // 于是在 App 里上下滑动列表只要带一点横向分量，就会拖着桌面 wrapper 一起平移，
+    // 松手时横移超过 15% 宽度还会真的翻页——回到桌面才发现自己在第二屏。
+    // 正确判据是"应用层是否正显示"，也就是 #app-screen。
+    const appScreen = document.getElementById('app-screen');
+    const isInApp = !!appScreen && appScreen.style.display !== 'none' && appScreen.offsetParent !== null;
 
     // 如果在 App 内部，且不是在拖拽悬浮球，则禁止翻页逻辑
     if (isInApp && !trigger) {
-        console.log('[Mobile Phone] 检测到已进入 App，禁用桌面翻页干扰');
-        return; 
+        return;
     }
     // --- 【修复结束】 ---
 
@@ -810,7 +852,20 @@ triggerNotificationFromApp(sender, message) {
         if (!atRoot) {
             // 非根页面：通知对应App模块执行“返回主界面”动作
             console.log(`[Mobile Phone] ${currentApp} 正在从二级页面返回...`);
-            this.returnToAppMain(currentApp); 
+            // returnToAppMain 从来没有被定义过——一旦真有 App 用 pushAppState 登记过
+            // 二级页面，这里会直接抛 TypeError，把返回键卡死在二级页。
+            // 优先让 App 自己处理返回，处理不了就退回桌面，总之不能崩。
+            if (typeof this.returnToAppMain === 'function') {
+                this.returnToAppMain(currentApp);
+            } else {
+                const instance = this.resolveAppInstance(currentApp);
+                if (instance && typeof instance.returnToMain === 'function') {
+                    instance.returnToMain();
+                } else {
+                    console.warn(`[Mobile Phone] ${currentApp} 未提供返回主界面的入口，直接回桌面`);
+                    this.goHome();
+                }
+            }
         } else {
             // 已经在App首页：直接退回手机桌面
             this.goHome();
@@ -933,10 +988,10 @@ registerApps() {
             this.restoreAppState(this.currentAppState);
         }
         
-        // 确保样式管理器就绪 (不再使用复杂的异步注入，假定已加载)
-        if (window.StyleConfigManager && !window.styleConfigManager) {
-            window.styleConfigManager = new window.StyleConfigManager();
-        }
+        // 【已移除】原来这里会 new 一个 StyleConfigManager。
+        // 但 app/style-config-manager.js 从来没有被任何地方加载过（无静态路径、无动态拼接），
+        // 所以 window.StyleConfigManager 一直是 undefined，这段代码从第一天起就没执行过。
+        // 该文件已随旧微信实现一并清理，这里不再保留空转的判断。
     }
 
     hidePhone() {
@@ -962,48 +1017,85 @@ async openApp(appName) {
     const appScreen = document.getElementById('app-screen');   // 容器页面 ID
 
     // 1. 【热更新】如果是路由表里的应用，强制拉取内存副本
+    //    注意：loadRemoteApp 的 script.onload 里已经完成了实例激活（init），
+    //    所以这里**不能**再补一次。原来那句"双保险"会让每次开 App 都初始化两遍：
+    //    两份 fetch、两轮渲染，界面开场就闪一下。
+    let remoteHandled = false;
     if (this.APP_ROUTING[appName]) {
         console.log(`[Mobile] 正在热更新应用源码: ${appName}`);
         // 先把容器清空，避免新旧内容重叠
         if (container) container.innerHTML = '<div style="padding:20px;color:#999;text-align:center;">正在加载最新配置...</div>';
-        
-        await this.loadRemoteApp(appName);
+
+        remoteHandled = await this.loadRemoteApp(appName);
     }
 
     // 2. 【UI 切换】隐藏主页，显示应用容器
     if (homeScreen) homeScreen.style.display = 'none';
     if (appScreen) appScreen.style.display = 'block';
 
-    // 3. 【实例激活】确保脚本加载后立即执行 init
-    // 即使 loadRemoteApp 内部有 activateApp，这里手动调用一次双保险
-    if (container) {
-    // 自动寻找匹配的实例：appName 是 'messages'，就去找 window.MobileMessageApp
-    const instanceName = 'Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App';
-    // 特殊情况处理：如果你的 api 对应的是 MobileSettingApp，我们就保持兼容
-    let instance = window[instanceName];
-    
-    if (appName === 'api') instance = window.MobileSettingApp;
-    if (appName === 'theme') instance = window.MobileThemeApp;
-    if (appName === 'messages') instance = window.MobileMessageApp; // <--- 关键！
-
-    if (instance && typeof instance.init === 'function') {
-        instance.init(container);
-    } else {
-        console.warn(`⚠️ [Mobile] 找不到应用实例或 init 方法: ${instanceName}`);
+    // 3. 【实例激活】只负责本地应用，以及远程激活失败时的兜底
+    if (container && !remoteHandled) {
+        const instance = this.resolveAppInstance(appName);
+        if (instance && typeof instance.init === 'function') {
+            instance.init(container);
+        } else {
+            console.warn(`⚠️ [Mobile] 找不到应用实例或 init 方法: ${appName}`);
+        }
     }
-}
-    
+
     this.currentApp = appName;
     console.log(`✨ [Mobile] ${appName} 已成功进入`);
 }
 
-    /**
+/**
+ * 把裸地址换成「带真实版本号」的地址，兼顾缓存与热更新。
+ *
+ * 【为什么不能再用 Date.now()】那样每次都是新 URL，浏览器缓存 100% 落空，
+ * 705KB 的 message-app.js 每进一次微信就重下一次。
+ *
+ * 【为什么也不能直接用裸地址】服务端发的是 Cache-Control: public, max-age=0，
+ * 按规范浏览器每次都该回源复验（拿 304）。但 Chrome 的内存缓存在同一次页面
+ * 会话里可能跳过复验直接复用——那样你在服务器上传了新脚本，退出再进来却看不到
+ * 变化，热更新会**偶发失灵**。构建期最怕的就是这种偶发。
+ *
+ * 【所以先探一次 HEAD】拿服务端文件的 Last-Modified 当版本号：
+ *   · 文件没变 → 版本号不变 → URL 不变 → 走缓存（705KB 变成一个 304，几百字节）
+ *   · 文件变了 → 版本号跟着变 → URL 变 → 强制取新的，热更新照旧生效
+ * HEAD 请求本身只有几百字节，而且 Last-Modified 属于 CORS 安全清单里的响应头，
+ * 跨域可以直接读，服务端一行都不用改。
+ * （下面的 etag 只是个兜底位：ETag 不在安全清单里，跨域其实读不到，
+ *   读不到就退回裸地址，行为不受影响。）
+ */
+async resolveVersionedUrl(baseUrl) {
+    try {
+        const res = await fetch(baseUrl, { method: 'HEAD', cache: 'no-store' });
+        const stamp = res.headers.get('last-modified') || res.headers.get('etag') || '';
+        const token = stamp ? String(Date.parse(stamp) || stamp).replace(/[^a-zA-Z0-9]/g, '') : '';
+        if (!token) return baseUrl;
+        return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}v=${token}`;
+    } catch (e) {
+        // 探测失败（离线、跨域被拦）就用裸地址，交给 ETag 复验兜底，不影响功能
+        console.warn(`[Mobile] 版本探测失败，回退裸地址: ${baseUrl}`, e && e.message);
+        return baseUrl;
+    }
+}
+
+    /** 路由名 → 全局实例。openApp 与 loadRemoteApp 用同一份映射，避免两处各写一遍走岔。 */
+resolveAppInstance(appName) {
+    if (appName === 'api') return window.MobileSettingApp;
+    if (appName === 'theme') return window.MobileThemeApp;
+    if (appName === 'messages') return window.MobileMessageApp;
+    return window['Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App'];
+}
+
+/**
  * 远程脚本加载器 (增强热更新版)
  * 逻辑：fetch源码 -> 清理旧实例 -> 重新执行注入 -> 初始化UI
+ * 返回值：是否已经成功激活实例（openApp 据此决定要不要兜底再 init 一次）
  */
 async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
-    if (!route || !route.js) return;
+    if (!route || !route.js) return false;
 
     // 1. 【关键】清理内存中的旧实例，防止类定义冲突
     if (appName === 'api') window.MobileSettingApp = null;
@@ -1014,44 +1106,40 @@ async loadRemoteApp(appName) {
     const oldScript = document.getElementById(`remote-script-${appName}`);
     if (oldScript) oldScript.remove();
 
+    // 3. 按服务端文件的真实修改时间生成版本号：没改就走缓存，改了才重下。
+    //    （原来这里是 v=Date.now()&t=Date.now() 的"双重随机参数彻底击穿缓存"，
+    //      热更新是保住了，代价是每次开 App 都重下整个脚本。）
+    const versionedUrl = await this.resolveVersionedUrl(route.js[0]);
+
     return new Promise((resolve) => {
         const script = document.createElement('script');
         script.id = `remote-script-${appName}`;
         const remoteUrl = route.js[0];
-        
-        // 3. 使用双重随机参数（v 和 t）彻底击穿浏览器缓存 [cite: 2026-03-09]
-        script.src = `${remoteUrl}${remoteUrl.includes('?') ? '&' : '?'}v=${Date.now()}&t=${Date.now()}`;
-        
+        script.src = versionedUrl;
+
         script.onload = () => {
             console.log(`🚀 [HotReload] ${appName} 已重载`);
             const container = document.getElementById('app-content');
-            
+
             // 4. 尝试激活新实例
             const activate = () => {
-    // 逻辑同上
-    let instance = null;
-    if (appName === 'api') instance = window.MobileSettingApp;
-    else if (appName === 'theme') instance = window.MobileThemeApp;
-    else if (appName === 'messages') instance = window.MobileMessageApp; // <--- 关键！
-    else {
-        const instanceName = 'Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App';
-        instance = window[instanceName];
-    }
+                const instance = this.resolveAppInstance(appName);
+                if (instance && typeof instance.init === 'function') {
+                    instance.init(container);
+                    return true;
+                }
+                return false;
+            };
 
-    if (instance && typeof instance.init === 'function') {
-        instance.init(container);
-        return true;
-    }
-    return false;
-};
-
-            if (!activate()) setTimeout(activate, 50); // 给脚本执行留一点喘息时间
-            resolve();
+            if (activate()) return resolve(true);
+            // 给脚本执行留一点喘息时间；这一次的结果才是最终结论，
+            // 要如实回报给 openApp——它据此决定要不要兜底激活。
+            setTimeout(() => resolve(activate()), 50);
         };
 
         script.onerror = () => {
             console.error(`❌ 加载失败: ${remoteUrl}`);
-            resolve();
+            resolve(false);
         };
 
         document.head.appendChild(script);
@@ -1205,8 +1293,12 @@ function initMobilePhone() {
         const savedTheme = localStorage.getItem('last-theme-name');
         if (savedTheme && savedTheme !== 'default') {
             console.log(`[Theme] 检测到持久化主题: ${savedTheme}，正在强制同步...`);
-            fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`)
-            .then(res => res.json())
+            // 主题服务在另一台机器上（云酒馆 43.133.165.233:8001），跟手机后端 8091 不是同一个进程。
+            // 它挂掉时开机路径不该跟着一起等：给 6 秒硬上限，超时就用默认外观继续启动。
+            const themeAbort = new AbortController();
+            const themeTimeout = setTimeout(() => themeAbort.abort(), 6000);
+            fetch(`http://43.133.165.233:8001/api/theme/get?name=${encodeURIComponent(savedTheme)}`, { signal: themeAbort.signal })
+            .then(res => { clearTimeout(themeTimeout); return res.json(); })
             .then(config => {
                 window.themeState = config; // 同步给设置 App 使用
                 
