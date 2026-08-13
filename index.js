@@ -20,44 +20,54 @@
 // @license      MIT
 
 // 优化：首先加载性能配置和优化加载器
+//
+// 【启动链已拆短】原来是五层 onload 串行：性能配置 → 优化加载器 → 性能测试器 →
+// 诊断工具 → 才开始加载真正的核心模块。其中 performance-test.js 与 diagnostic-tool.js
+// 只做一件事：往 window 上挂几个手动调试命令（runMobilePerformanceTest / diagnoseMobilePlugin），
+// 运行时一行代码都不会自动执行。让它们卡在开机路径上，等于每次进酒馆都白等两个往返。
+// 现在把这两个降级为开机后按需延迟加载，核心模块紧跟在加载器之后启动。
+const MOBILE_BASE = './scripts/extensions/third-party/mobile';
+
+// 需要时手动调用 loadMobileDevTools() 即可拉起调试工具
+window.loadMobileDevTools = () => {
+  return Promise.all(
+    ['performance-test.js', 'diagnostic-tool.js'].map(
+      name =>
+        new Promise(resolve => {
+          if (document.querySelector(`script[data-mobile-devtool="${name}"]`)) return resolve();
+          const s = document.createElement('script');
+          s.src = `${MOBILE_BASE}/${name}`;
+          s.dataset.mobileDevtool = name;
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        }),
+    ),
+  );
+};
+
 const performanceScript = document.createElement('script');
-performanceScript.src = './scripts/extensions/third-party/mobile/performance-config.js';
+performanceScript.src = `${MOBILE_BASE}/performance-config.js`;
 performanceScript.onload = () => {
   console.log('[Mobile Context] 性能配置加载完成');
 
   // 加载优化加载器
   const optimizedLoaderScript = document.createElement('script');
-  optimizedLoaderScript.src = './scripts/extensions/third-party/mobile/optimized-loader.js';
+  optimizedLoaderScript.src = `${MOBILE_BASE}/optimized-loader.js`;
   optimizedLoaderScript.onload = () => {
     console.log('[Mobile Context] 优化加载器加载完成');
-
-    // 加载性能测试器
-    const performanceTestScript = document.createElement('script');
-    performanceTestScript.src = './scripts/extensions/third-party/mobile/performance-test.js';
-    performanceTestScript.onload = () => {
-      console.log('[Mobile Context] 性能测试器加载完成');
-
-      // 加载诊断工具
-      const diagnosticScript = document.createElement('script');
-      diagnosticScript.src = './scripts/extensions/third-party/mobile/diagnostic-tool.js';
-      diagnosticScript.onload = () => {
-        console.log('[Mobile Context] 诊断工具加载完成');
-        // 开始优化加载流程
-        initOptimizedLoading();
-      };
-      diagnosticScript.onerror = () => {
-        console.warn('[Mobile Context] 诊断工具加载失败，继续初始化');
-        initOptimizedLoading();
-      };
-      document.head.appendChild(diagnosticScript);
-    };
-    performanceTestScript.onerror = () => {
-      console.warn('[Mobile Context] 性能测试器加载失败，继续初始化');
-      initOptimizedLoading();
-    };
-    document.head.appendChild(performanceTestScript);
+    // 直接进入核心模块加载，不再等调试工具
+    initOptimizedLoading();
+  };
+  optimizedLoaderScript.onerror = () => {
+    console.warn('[Mobile Context] 优化加载器加载失败，回退传统方式');
+    fallbackToTraditionalLoading();
   };
   document.head.appendChild(optimizedLoaderScript);
+};
+performanceScript.onerror = () => {
+  console.warn('[Mobile Context] 性能配置加载失败，继续初始化');
+  fallbackToTraditionalLoading();
 };
 document.head.appendChild(performanceScript);
 
@@ -89,22 +99,20 @@ async function initOptimizedLoading() {
     ];
 
     // 定义扩展模块（中优先级）
+    //
+    // 【去重】context-editor.js 与 mesid-floor-monitor.js 已在本文件末尾用
+    // 顶层 <script> 注入过一次，这里曾经又列了一遍。optimized-loader 的去重表
+    // 只认它自己加载过的地址，管不到顶层注入的那份，于是这两个模块每次开酒馆
+    // 都会被**完整执行两遍**：
+    //   · mesid-floor-monitor 是 IIFE，第二次执行会拿到全新的 isMonitoring=false，
+    //     内部的"已经在监听中"守卫拦不住跨执行的重复，结果是两个 MutationObserver
+    //     同时盯着整个 document.body 的 subtree——酒馆里任何 DOM 变动都要跑两遍回调。
+    //   · context-editor 有 18 处 $(document) 委托绑定，重复执行会让同一次点击触发两次。
+    // 两者都保留顶层那一份即可。
     const extensionModules = [
-      {
-        src: './scripts/extensions/third-party/mobile/context-editor.js',
-        name: 'context-editor',
-        priority: 'medium',
-        required: false,
-      },
       {
         src: './scripts/extensions/third-party/mobile/custom-api-config.js',
         name: 'custom-api-config',
-        priority: 'medium',
-        required: false,
-      },
-      {
-        src: './scripts/extensions/third-party/mobile/mesid-floor-monitor.js',
-        name: 'mesid-floor-monitor',
         priority: 'medium',
         required: false,
       },
@@ -129,57 +137,22 @@ async function initOptimizedLoading() {
 }
 
 // 回退到传统加载方式
+//
+// 这条路只在优化加载器本身挂掉时才走。原来它漏了 mobile-phone.js——也就是手机本体，
+// 于是"回退"回退出一个没有手机的插件；却顺手把两个纯调试脚本加载了。这里对齐成
+// 与 coreModules 相同的三件套，调试脚本交给 loadMobileDevTools() 按需拉。
 function fallbackToTraditionalLoading() {
+  if (window.__mobileFallbackLoaded) return;
+  window.__mobileFallbackLoaded = true;
   console.log('[Mobile Context] 使用传统加载方式...');
 
-  // 引入上下文监控器
-  const contextScript = document.createElement('script');
-  contextScript.src = './scripts/extensions/third-party/mobile/context-monitor.js';
-  contextScript.onload = () => {
-    console.log('[Mobile Context] 上下文监控器加载完成');
-  };
-  document.head.appendChild(contextScript);
-
-  // 加载移动端上传管理器
-  const uploadScript = document.createElement('script');
-  uploadScript.src = './scripts/extensions/third-party/mobile/mobile-upload.js';
-  uploadScript.onload = () => {
-    console.log('[Mobile Context] 移动端上传管理器加载完成');
-    // 检查上传管理器是否创建成功
-    setTimeout(() => {
-      if (window.mobileUploadManager) {
-        console.log('[Mobile Context] ✅ 移动端上传管理器创建成功');
-      } else {
-        console.error('[Mobile Context] ❌ 移动端上传管理器创建失败');
-      }
-    }, 100);
-  };
-  uploadScript.onerror = () => {
-    console.error('[Mobile Context] 移动端上传管理器加载失败');
-  };
-  document.head.appendChild(uploadScript);
-
-  // 加载性能测试器（传统方式）
-  const performanceTestScript = document.createElement('script');
-  performanceTestScript.src = './scripts/extensions/third-party/mobile/performance-test.js';
-  performanceTestScript.onload = () => {
-    console.log('[Mobile Context] 性能测试器加载完成（传统方式）');
-
-    // 加载诊断工具（传统方式）
-    const diagnosticScript = document.createElement('script');
-    diagnosticScript.src = './scripts/extensions/third-party/mobile/diagnostic-tool.js';
-    diagnosticScript.onload = () => {
-      console.log('[Mobile Context] 诊断工具加载完成（传统方式）');
-    };
-    diagnosticScript.onerror = () => {
-      console.warn('[Mobile Context] 诊断工具加载失败（传统方式）');
-    };
-    document.head.appendChild(diagnosticScript);
-  };
-  performanceTestScript.onerror = () => {
-    console.warn('[Mobile Context] 性能测试器加载失败（传统方式）');
-  };
-  document.head.appendChild(performanceTestScript);
+  ['context-monitor.js', 'mobile-upload.js', 'mobile-phone.js'].forEach(name => {
+    const s = document.createElement('script');
+    s.src = `${MOBILE_BASE}/${name}`;
+    s.onload = () => console.log(`[Mobile Context] ${name} 加载完成（传统方式）`);
+    s.onerror = () => console.error(`[Mobile Context] ${name} 加载失败（传统方式）`);
+    document.head.appendChild(s);
+  });
 }
 
 // 加载移动端上下文编辑器
