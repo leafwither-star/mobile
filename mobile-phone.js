@@ -50,22 +50,26 @@ class MobilePhone {
 
         // === 【新增】中央应用路由映射表 ===
         // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
+        // 【地址不再带时间戳】原来这里和 loadRemoteApp 里各挂了一个 Date.now()，
+        // 等于每次开 App 都换一个全新 URL，浏览器缓存永远命中不了——
+        // message-app.js 有 705KB，每次进微信都要重新下载一遍。
+        // 现在存裸地址，版本号由 resolveVersionedUrl 按服务端文件的真实修改时间生成。
         this.APP_ROUTING = {
-            'messages': { js: ['http://43.165.171.111:8091/message-app.js?v=' + Date.now()], css: [] },
+            'messages': { js: ['http://43.165.171.111:8091/message-app.js'], css: [] },
             'shop':     { js: ['/scripts/extensions/third-party/mobile/app/shopping-app.js'], css: ['/scripts/extensions/third-party/mobile/app/shopping-app.css'] },
             'task':     { js: ['/scripts/extensions/third-party/mobile/app/profile-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/profile-app.css'] }, // 健康 [cite: 2026-02-26]
             'forum':    { js: ['/scripts/extensions/third-party/mobile/app/forum-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/forum-app.css'] },
             'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] }, // 收纳 [cite: 2026-02-24]
             'live':     { js: ['/scripts/extensions/third-party/mobile/app/live-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/live-app.css'] },
             'backpack': { js: ['/scripts/extensions/third-party/mobile/app/backpack-app.js'], css: ['/scripts/extensions/third-party/mobile/app/backpack-app.css'] },
-            'api':   { js: ['http://43.165.171.111:8091/setting-app.js?v=' + Date.now()], css: [] }, // <-- 加 :8091
+            'api':   { js: ['http://43.165.171.111:8091/setting-app.js'], css: [] }, // <-- 加 :8091
             'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] }, // 档案 [cite: 2026-02-26]
             'travel':   { js: ['/scripts/extensions/third-party/mobile/app/travel-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/travel-app.css'] },
             'email':    { js: ['/scripts/extensions/third-party/mobile/app/email-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/email-app.css'] },
             'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
             'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
             'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
-            'theme': { js: ['http://43.165.171.111:8091/style-app.js?v=' + Date.now()], css: [] }   // <-- 加 :8091
+            'theme': { js: ['http://43.165.171.111:8091/style-app.js'], css: [] }   // <-- 加 :8091
         };
 
         this.init();
@@ -1043,6 +1047,39 @@ async openApp(appName) {
     console.log(`✨ [Mobile] ${appName} 已成功进入`);
 }
 
+/**
+ * 把裸地址换成「带真实版本号」的地址，兼顾缓存与热更新。
+ *
+ * 【为什么不能再用 Date.now()】那样每次都是新 URL，浏览器缓存 100% 落空，
+ * 705KB 的 message-app.js 每进一次微信就重下一次。
+ *
+ * 【为什么也不能直接用裸地址】服务端发的是 Cache-Control: public, max-age=0，
+ * 按规范浏览器每次都该回源复验（拿 304）。但 Chrome 的内存缓存在同一次页面
+ * 会话里可能跳过复验直接复用——那样你在服务器上传了新脚本，退出再进来却看不到
+ * 变化，热更新会**偶发失灵**。构建期最怕的就是这种偶发。
+ *
+ * 【所以先探一次 HEAD】拿服务端文件的 Last-Modified 当版本号：
+ *   · 文件没变 → 版本号不变 → URL 不变 → 走缓存（705KB 变成一个 304，几百字节）
+ *   · 文件变了 → 版本号跟着变 → URL 变 → 强制取新的，热更新照旧生效
+ * HEAD 请求本身只有几百字节，而且 Last-Modified 属于 CORS 安全清单里的响应头，
+ * 跨域可以直接读，服务端一行都不用改。
+ * （下面的 etag 只是个兜底位：ETag 不在安全清单里，跨域其实读不到，
+ *   读不到就退回裸地址，行为不受影响。）
+ */
+async resolveVersionedUrl(baseUrl) {
+    try {
+        const res = await fetch(baseUrl, { method: 'HEAD', cache: 'no-store' });
+        const stamp = res.headers.get('last-modified') || res.headers.get('etag') || '';
+        const token = stamp ? String(Date.parse(stamp) || stamp).replace(/[^a-zA-Z0-9]/g, '') : '';
+        if (!token) return baseUrl;
+        return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}v=${token}`;
+    } catch (e) {
+        // 探测失败（离线、跨域被拦）就用裸地址，交给 ETag 复验兜底，不影响功能
+        console.warn(`[Mobile] 版本探测失败，回退裸地址: ${baseUrl}`, e && e.message);
+        return baseUrl;
+    }
+}
+
     /** 路由名 → 全局实例。openApp 与 loadRemoteApp 用同一份映射，避免两处各写一遍走岔。 */
 resolveAppInstance(appName) {
     if (appName === 'api') return window.MobileSettingApp;
@@ -1069,14 +1106,17 @@ async loadRemoteApp(appName) {
     const oldScript = document.getElementById(`remote-script-${appName}`);
     if (oldScript) oldScript.remove();
 
+    // 3. 按服务端文件的真实修改时间生成版本号：没改就走缓存，改了才重下。
+    //    （原来这里是 v=Date.now()&t=Date.now() 的"双重随机参数彻底击穿缓存"，
+    //      热更新是保住了，代价是每次开 App 都重下整个脚本。）
+    const versionedUrl = await this.resolveVersionedUrl(route.js[0]);
+
     return new Promise((resolve) => {
         const script = document.createElement('script');
         script.id = `remote-script-${appName}`;
         const remoteUrl = route.js[0];
-        
-        // 3. 使用双重随机参数（v 和 t）彻底击穿浏览器缓存 [cite: 2026-03-09]
-        script.src = `${remoteUrl}${remoteUrl.includes('?') ? '&' : '?'}v=${Date.now()}&t=${Date.now()}`;
-        
+        script.src = versionedUrl;
+
         script.onload = () => {
             console.log(`🚀 [HotReload] ${appName} 已重载`);
             const container = document.getElementById('app-content');
