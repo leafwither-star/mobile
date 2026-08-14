@@ -1,134 +1,19 @@
-/* Mobile插件主样式文件 */
-
-/* Mobile Context Monitor Plugin Styles */
-
-#mobile_context_settings {
-  margin: 10px 0;
-}
-inputP {
-  color: #333 !important;
-}
-#mobile_context_settings .inline-drawer {
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 5px;
-  background: var(--SmartThemeBlurTintColor);
-}
-
-#mobile_context_settings .inline-drawer-header {
-  padding: 10px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--SmartThemeBorderColor);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-#mobile_context_settings .inline-drawer-content {
-  padding: 15px;
-}
-
-#mobile_context_settings .flex-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-#mobile_context_settings .checkbox_label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* SillyTavern 手机容器的宿主兼容层。业务 App 样式由远程模块自行提供。 */
 .home-screen {
   display: flex !important;
 }
-#mobile_context_settings .checkbox_label input {
-  margin: 0;
+
+.mobile-phone-screen input,
+.mobile-phone-screen textarea,
+.mobile-phone-screen select {
+  background: #f3f3f3 !important;
+  color: #333 !important;
 }
 
-#mobile_context_settings .flex {
-  display: flex;
-  gap: 10px;
+.mobile-content .tab-btn {
+  border-radius: 0;
 }
 
-#mobile_context_settings .m-t-1 {
-  margin-top: 10px;
+.message-content img {
+  max-width: 100%;
 }
-
-#mobile_context_settings .menu_button {
-  padding: 5px 10px;
-  border: 1px solid var(--SmartThemeBorderColor);
-  background: var(--SmartThemeBodyColor);
-  color: var(--SmartThemeEmColor);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-#mobile_context_settings .menu_button:hover {
-  background: var(--SmartThemeQuoteColor);
-}
-
-#mobile_context_settings select,
-#mobile_context_settings input[type='number'] {
-  padding: 5px;
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 3px;
-  background: var(--SmartThemeBodyColor);
-  color: var(--SmartThemeEmColor);
-}
-
-#mobile_context_settings label {
-  color: var(--SmartThemeEmColor);
-  font-weight: bold;
-}
-
-/* 兼容深色主题 */
-@media (prefers-color-scheme: dark) {
-  #mobile_context_settings {
-    color: #fff;
-  }
-
-  #mobile_context_settings .inline-drawer {
-    border-color: #555;
-    background: rgba(0, 0, 0, 0.5);
-  }
-
-  #mobile_context_settings .inline-drawer-header {
-    border-bottom-color: #555;
-  }
-
-  #mobile_context_settings .menu_button {
-    border-color: #555;
-    background: #333;
-    color: #fff;
-  }
-
-  #mobile_context_settings .menu_button:hover {
-    background: #444;
-  }
-}
-
-#mobile-api-config-trigger,
-#mobile-upload-trigger,
-#mobile-context-editor-btn {
-  display: none !important;
-}
-
-.style-config-settings .tab-content {
-  display: block !important;
-}
-[force_avatar="false"][is_user="true"] .mes_text{padding:10px;border-radius: 10px;border:1px solid rgba(255,255,255,0.6)}
-.mobile-phone-screen input,.mobile-phone-screen textarea,.mobile-phone-screen select{background:#eee !important;color:#333 !important}
-.unified-api-settings .toggle-label{background-color: unset;}
-.m-tab-content{background: #fff;}
-.mobile-content input ,.mobile-content select,.mobile-content textarea{background: #f3f3f3 !important;}
-.mobile-content .tab-btn{border-radius: 0;}
-button.app-header-btn[title="保存"]{display: none;}
-.mobile-content .tab-navigation{margin-bottom: 10px;}
-.message-item{border-bottom:1px solid #f6f6f6}
-.product-grid img,.backpack-grid img{margin-top: 10px;}
-.product-name,.product-description{text-align: left;}
-#test-api-connection{display: none !important;}
-.config-list-actions{display: flex;margin-top: 10px;padding: 0 10px; box-sizing:border-box;}
-.config-list-actions > button{width: 33.33%;}
-.delete-group-content{padding-top: 10px;}
-.message-content img{width:100%}
