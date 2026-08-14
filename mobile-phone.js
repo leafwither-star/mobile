@@ -48,28 +48,11 @@ class MobilePhone {
         // 消息指纹记录，用于弹窗去重
         this._lastMsgFingerprint = "";
 
-        // === 【新增】中央应用路由映射表 ===
-        // 在这里统一管理所有 App 的脚本路径，改这里就行！ [cite: 2026-02-26]
-        // 【地址不再带时间戳】原来这里和 loadRemoteApp 里各挂了一个 Date.now()，
-        // 等于每次开 App 都换一个全新 URL，浏览器缓存永远命中不了——
-        // message-app.js 有 705KB，每次进微信都要重新下载一遍。
-        // 现在存裸地址，版本号由 resolveVersionedUrl 按服务端文件的真实修改时间生成。
+        // GitHub 只保留容器。所有已上线 App 都从手机服务器按需加载。
         this.APP_ROUTING = {
             'messages': { js: ['http://43.165.171.111:8091/message-app.js'], css: [] },
-            'shop':     { js: ['/scripts/extensions/third-party/mobile/app/shopping-app.js'], css: ['/scripts/extensions/third-party/mobile/app/shopping-app.css'] },
-            'task':     { js: ['/scripts/extensions/third-party/mobile/app/profile-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/profile-app.css'] }, // 健康 [cite: 2026-02-26]
-            'forum':    { js: ['/scripts/extensions/third-party/mobile/app/forum-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/forum-app.css'] },
-            'weibo':    { js: ['/scripts/extensions/third-party/mobile/app/storage-app.js'],  css: ['/scripts/extensions/third-party/mobile/app/storage-app.css'] }, // 收纳 [cite: 2026-02-24]
-            'live':     { js: ['/scripts/extensions/third-party/mobile/app/live-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/live-app.css'] },
-            'backpack': { js: ['/scripts/extensions/third-party/mobile/app/backpack-app.js'], css: ['/scripts/extensions/third-party/mobile/app/backpack-app.css'] },
-            'api':   { js: ['http://43.165.171.111:8091/setting-app.js'], css: [] }, // <-- 加 :8091
-            'profile':  { js: ['/scripts/extensions/third-party/mobile/app/diary-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/diary-app.css'] }, // 档案 [cite: 2026-02-26]
-            'travel':   { js: ['/scripts/extensions/third-party/mobile/app/travel-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/travel-app.css'] },
-            'email':    { js: ['/scripts/extensions/third-party/mobile/app/email-app.js'],    css: ['/scripts/extensions/third-party/mobile/app/email-app.css'] },
-            'bill':     { js: ['/scripts/extensions/third-party/mobile/app/bill-app.js'],     css: ['/scripts/extensions/third-party/mobile/app/bill-app.css'] }, // 账单 [cite: 2026-02-24]
-            'gemini':   { js: ['/scripts/extensions/third-party/mobile/app/gemini-app.js'],   css: ['/scripts/extensions/third-party/mobile/app/gemini-app.css'] },
-            'fanfic':   { js: ['/scripts/extensions/third-party/mobile/app/watch-live.js'],   css: ['/scripts/extensions/third-party/mobile/app/watch-live.css'] }, // <--- 注意这里的逗号！[cite: 2026-02-26]
-            'theme': { js: ['http://43.165.171.111:8091/style-app.js'], css: [] }   // <-- 加 :8091
+            'api': { js: ['http://43.165.171.111:8091/setting-app.js'], css: [] },
+            'theme': { js: ['http://43.165.171.111:8091/style-app.js'], css: [] }
         };
 
         this.init();
@@ -79,10 +62,10 @@ class MobilePhone {
         this.loadDragHelper();
         this.clearPositionCache(); // 清理位置缓存
         this.createPhoneButton();
+        this.installPhoneButtonGuard();
         this.createPhoneContainer();
         this.registerApps();
         this.startClock();
-        this.initPageSwipe(); // 初始化页面拖拽功能
         this.startSystemNotificationRadar();
         this.startGenerationStatusTracker();
 
@@ -97,6 +80,22 @@ class MobilePhone {
         console.log("🛰️ [系统服务] 微信后台消息监听已启动...");
     }
 
+    async fetchJsonWithTimeout(url, timeout = 8000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, {
+                mode: 'cors',
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
     // 持续轮询 8091 端口
     // MobilePhone.js 
 startSystemNotificationRadar() {
@@ -106,6 +105,7 @@ startSystemNotificationRadar() {
     this._systemRadarBootstrapped = false;
 
     const poll = async () => {
+        let delay = 5000;
         // 标签页不在前台时没人看得见弹窗，没必要每 3 秒拉一次全量好友状态。
         // 放慢到 20 秒，回到前台后 visibilitychange 会立刻补一次。
         if (document.hidden) {
@@ -113,12 +113,7 @@ startSystemNotificationRadar() {
             return;
         }
         try {
-            // 💡 关键点：直接向同步接口要“最新消息状态”
-            const res = await fetch(`http://43.165.171.111:8091/api/chat/sync-init`, {
-                mode: 'cors',
-                cache: 'no-store'
-            });
-            const data = await res.json();
+            const data = await this.fetchJsonWithTimeout('http://43.165.171.111:8091/api/chat/sync-init');
             this._systemRadarErrorCount = 0;
 
             if (data.status === "success" && data.friends) {
@@ -156,10 +151,11 @@ startSystemNotificationRadar() {
         } catch (e) {
             // 跨域或网络错误，静默重试，同时在入口上留下轻量状态，方便排查。
             this._systemRadarErrorCount = (this._systemRadarErrorCount || 0) + 1;
+            delay = Math.min(30000, 3000 * (2 ** Math.min(this._systemRadarErrorCount, 4)));
             const trigger = document.getElementById('mobile-phone-trigger');
             if (trigger) trigger.setAttribute('data-radar-state', this._systemRadarErrorCount > 2 ? 'error' : 'retrying');
         }
-        this._systemRadarTimer = setTimeout(poll, 3000); // 3秒看一次，不占用太多资源
+        this._systemRadarTimer = setTimeout(poll, delay);
     };
 
     // 回到前台立刻补一次，别让人等满一个慢周期
@@ -209,11 +205,7 @@ startGenerationStatusTracker() {
             delay = 15000;
         } else {
             try {
-                const res = await fetch('http://43.165.171.111:8091/api/generation-status', {
-                    mode: 'cors',
-                    cache: 'no-store'
-                });
-                const data = await res.json();
+                const data = await this.fetchJsonWithTimeout('http://43.165.171.111:8091/api/generation-status');
                 updateProgressUi(data);
                 const busy = data?.main?.state === 'running' || data?.sub?.state === 'running';
                 delay = busy ? 1000 : 4000;
@@ -534,10 +526,21 @@ triggerNotificationFromApp(sender, message) {
 
     createPhoneButton() {
         try {
+            if (!document.body) {
+                setTimeout(() => this.createPhoneButton(), 100);
+                return null;
+            }
+
             const existingButton = document.getElementById('mobile-phone-trigger');
-            if (existingButton) existingButton.remove();
+            if (existingButton) {
+                existingButton.style.setProperty('display', 'flex', 'important');
+                existingButton.style.setProperty('visibility', 'visible', 'important');
+                existingButton.style.setProperty('opacity', '1', 'important');
+                return existingButton;
+            }
 
             const button = document.createElement('button');
+            button.type = 'button';
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
             button.innerHTML = `
@@ -547,17 +550,43 @@ triggerNotificationFromApp(sender, message) {
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";
             button.style.position = "fixed";
+            button.style.setProperty('display', 'flex', 'important');
+            button.style.setProperty('visibility', 'visible', 'important');
+            button.style.setProperty('opacity', '1', 'important');
             
             button.addEventListener('click', () => this.togglePhone());
-            if (!document.body) {
-                setTimeout(() => this.createPhoneButton(), 100);
-                return;
-            }
             document.body.appendChild(button);
             this.initDragForButton(button);
+            return button;
         } catch (error) {
             console.error('[Mobile Phone] 创建按钮错误:', error);
+            return null;
         }
+    }
+
+    installPhoneButtonGuard() {
+        if (this._phoneButtonGuardInstalled || !document.body) return;
+        this._phoneButtonGuardInstalled = true;
+
+        let restoreQueued = false;
+        const ensureButton = () => {
+            if (restoreQueued) return;
+            restoreQueued = true;
+            queueMicrotask(() => {
+                restoreQueued = false;
+                this.createPhoneButton();
+            });
+        };
+
+        this._phoneButtonObserver = new MutationObserver(() => {
+            if (!document.getElementById('mobile-phone-trigger')) ensureButton();
+        });
+        this._phoneButtonObserver.observe(document.body, { childList: true });
+
+        window.addEventListener('pageshow', ensureButton);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) ensureButton();
+        });
     }
 
     initDragForButton(button) {
@@ -653,101 +682,27 @@ triggerNotificationFromApp(sender, message) {
                                 </div>
 
 
-                                <!-- 应用页面容器 -->
+                                <!-- 仅保留已迁移到服务器的应用入口 -->
                                 <div class="app-pages-container">
                                     <div class="app-pages-wrapper" id="app-pages-wrapper">
-                                        <!-- 第一页 -->
                                         <div class="app-page">
                                             <div class="app-grid">
-                                                <!-- 第一行：信息，购物，任务 -->
                                                 <div class="app-row">
                                                     <div class="app-icon" data-app="messages">
                                                         <div class="app-icon-bg pink">💬</div>
                                                         <span class="app-label">微信</span>
                                                     </div>
-                                                    <div class="app-icon" data-app="shop">
-                                                        <div class="app-icon-bg purple">购</div>
-                                                        <span class="app-label">购物</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="task">
-                                                        <div class="app-icon-bg purple">📰</div>
-                                                        <span class="app-label">健康</span>
-                                                    </div>
-                                                </div>
-                                                <!-- 第二行：论坛，微博，直播 -->
-                                                <div class="app-row">
-                                                    <div class="app-icon" data-app="forum">
-                                                        <div class="app-icon-bg red">📰</div>
-                                                        <span class="app-label">论坛</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="weibo">
-                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
-                                                        <span class="app-label">收纳</span>
-                                                    </div>
-                                                    <div class="app-icon" data-app="live">
-                                                        <div class="app-icon-bg red">🎬</div>
-                                                        <span class="app-label">直播</span>
-                                                    </div>
-                                                </div>
-                                                <!-- 第三行：背包，API，设置 -->
-                                                <div class="app-row">
-                                                    <div class="app-icon" data-app="backpack">
-                                                        <div class="app-icon-bg orange">🎒</div>
-                                                        <span class="app-label">背包</span>
-                                                    </div>
                                                     <div class="app-icon" data-app="api">
-                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
+                                                        <div class="app-icon-bg orange">⚙️</div>
                                                         <span class="app-label">设置</span>
                                                     </div>
-                                                    <div class="app-icon" data-app="profile">
-                                                        <div class="app-icon-bg green">📋</div>
-                                                        <span class="app-label">档案</span>
+                                                    <div class="app-icon" data-app="theme">
+                                                        <div class="app-icon-bg purple">🎨</div>
+                                                        <span class="app-label">主题</span>
                                                     </div>
                                                 </div>
-
                                             </div>
                                         </div>
-
-                                        <!-- 第二页 -->
-                                       <div class="app-page">
-    <div class="app-grid">
-        <div class="app-row">
-            <div class="app-icon" data-app="travel">
-                <div class="app-icon-bg">✈️</div>
-                <span class="app-label">出行</span>
-            </div>
-            <div class="app-icon" data-app="email">
-                <div class="app-icon-bg">📧</div>
-                <span class="app-label">邮箱</span>
-            </div>
-            <div class="app-icon" data-app="bill">
-                <div class="app-icon-bg">💰</div>
-                <span class="app-label">账单</span>
-            </div>
-        </div>
-
-        <div class="app-row">
-            <div class="app-icon" data-app="gemini">
-                <div class="app-icon-bg">✨</div>
-                <span class="app-label">AI</span>
-            </div>
-            <div class="app-icon" data-app="fanfic">
-                <div class="app-icon-bg">📚</div>
-                <span class="app-label">AO3</span>
-            </div>
-            <div class="app-icon" data-app="theme">
-                <div class="app-icon-bg">🎨</div>
-                <span class="app-label">主题</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-                                    <!-- 页面指示器 -->
-                                    <div class="page-indicators" id="page-indicators">
-                                        <div class="indicator active"></div>
-                                        <div class="indicator"></div>
-                                    </div>
                                 </div>
 
                             </div>
@@ -944,26 +899,14 @@ pushAppState(state) {
 // 2. 彻底删除所有 refreshMessages, showMessageList, generateFriendsCircleContent 等具体方法
 // 因为这些现在都通过 state.buttons 的 action 动态执行了。
 
-// 3. 极简的应用注册表（只定义名称，内容由 App 自己注入）
+// 极简应用注册表：内容全部由服务器脚本注入。
 registerApps() {
         this.apps = {
-            'messages': { name: '微信', isCustomApp: true }, // [cite: 2026-02-26]
-            'shop':     { name: '购物', isCustomApp: true }, // [cite: 2026-02-24]
-            'task':     { name: '健康', isCustomApp: true }, // [cite: 2026-02-26]
-            'forum':    { name: '论坛', isCustomApp: true }, // [cite: 2026-02-26]
-            'weibo':    { name: '收纳', isCustomApp: true }, // [cite: 2026-02-24]
-            'live':     { name: '直播', isCustomApp: true }, // [cite: 2026-02-26]
-            'backpack': { name: '背包', isCustomApp: true }, // [cite: 2026-02-24]
+            'messages': { name: '微信', isCustomApp: true },
             'api':      { name: '设置', isCustomApp: true },
-            'profile':  { name: '档案', isCustomApp: true }, // [cite: 2026-02-26]
-            'travel':   { name: '出行', isCustomApp: true },
-            'email':    { name: '邮箱', isCustomApp: true }, // [cite: 2026-02-26]
-            'bill':     { name: '账单', isCustomApp: true }, // [cite: 2026-02-24]
-            'gemini':   { name: 'AI', isCustomApp: true },
-            'fanfic':   { name: 'AO3', isCustomApp: true }, // [cite: 2026-02-26]
-            'theme':    { name: '主题', isCustomApp: true }  // [cite: 2026-02-26]
-        }; // <-- 这一行必须存在，用来闭合 this.apps
-    } // <-- 这一行必须存在，用来闭合 registerApps 函数
+            'theme':    { name: '主题', isCustomApp: true }
+        };
+    }
 
    /**
  * 极简重构版：手机生命周期与导航管理器
@@ -987,11 +930,6 @@ registerApps() {
         if (this.currentAppState) {
             this.restoreAppState(this.currentAppState);
         }
-        
-        // 【已移除】原来这里会 new 一个 StyleConfigManager。
-        // 但 app/style-config-manager.js 从来没有被任何地方加载过（无静态路径、无动态拼接），
-        // 所以 window.StyleConfigManager 一直是 undefined，这段代码从第一天起就没执行过。
-        // 该文件已随旧微信实现一并清理，这里不再保留空转的判断。
     }
 
     hidePhone() {
@@ -1090,25 +1028,19 @@ resolveAppInstance(appName) {
 
 /**
  * 远程脚本加载器 (增强热更新版)
- * 逻辑：fetch源码 -> 清理旧实例 -> 重新执行注入 -> 初始化UI
- * 返回值：是否已经成功激活实例（openApp 据此决定要不要兜底再 init 一次）
+ * 保留主分支已有行为：释放旧实例、重新执行服务端脚本并激活新实例。
  */
 async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return false;
 
-    // 1. 【关键】清理内存中的旧实例，防止类定义冲突
     if (appName === 'api') window.MobileSettingApp = null;
     if (appName === 'theme') window.MobileThemeApp = null;
-    if (appName === 'messages') window.MobileMessageApp = null; // <--- 补充这一行，确保热重载时旧微信实例被释放
+    if (appName === 'messages') window.MobileMessageApp = null;
 
-    // 2. 移除旧的脚本标签
     const oldScript = document.getElementById(`remote-script-${appName}`);
     if (oldScript) oldScript.remove();
 
-    // 3. 按服务端文件的真实修改时间生成版本号：没改就走缓存，改了才重下。
-    //    （原来这里是 v=Date.now()&t=Date.now() 的"双重随机参数彻底击穿缓存"，
-    //      热更新是保住了，代价是每次开 App 都重下整个脚本。）
     const versionedUrl = await this.resolveVersionedUrl(route.js[0]);
 
     return new Promise((resolve) => {
@@ -1120,8 +1052,6 @@ async loadRemoteApp(appName) {
         script.onload = () => {
             console.log(`🚀 [HotReload] ${appName} 已重载`);
             const container = document.getElementById('app-content');
-
-            // 4. 尝试激活新实例
             const activate = () => {
                 const instance = this.resolveAppInstance(appName);
                 if (instance && typeof instance.init === 'function') {
@@ -1132,8 +1062,6 @@ async loadRemoteApp(appName) {
             };
 
             if (activate()) return resolve(true);
-            // 给脚本执行留一点喘息时间；这一次的结果才是最终结论，
-            // 要如实回报给 openApp——它据此决定要不要兜底激活。
             setTimeout(() => resolve(activate()), 50);
         };
 
