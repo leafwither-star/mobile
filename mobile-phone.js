@@ -48,11 +48,24 @@ class MobilePhone {
         // 消息指纹记录，用于弹窗去重
         this._lastMsgFingerprint = "";
 
-        // GitHub 只保留容器。所有已上线 App 都从手机服务器按需加载。
+        // GitHub 只保留容器和完整桌面入口；业务脚本统一从手机服务器按需加载。
+        const appServer = 'http://43.165.171.111:8091';
         this.APP_ROUTING = {
-            'messages': { js: ['http://43.165.171.111:8091/message-app.js'], css: [] },
-            'api': { js: ['http://43.165.171.111:8091/setting-app.js'], css: [] },
-            'theme': { js: ['http://43.165.171.111:8091/style-app.js'], css: [] }
+            'messages': { js: [`${appServer}/message-app.js`], css: [] },
+            'shop':     { js: [`${appServer}/shopping-app.js`], css: [] },
+            'task':     { js: [`${appServer}/profile-app.js`], css: [] },
+            'forum':    { js: [`${appServer}/forum-app.js`], css: [] },
+            'weibo':    { js: [`${appServer}/storage-app.js`], css: [] },
+            'live':     { js: [`${appServer}/live-app.js`], css: [] },
+            'backpack': { js: [`${appServer}/backpack-app.js`], css: [] },
+            'api':      { js: [`${appServer}/setting-app.js`], css: [] },
+            'profile':  { js: [`${appServer}/diary-app.js`], css: [] },
+            'travel':   { js: [`${appServer}/travel-app.js`], css: [] },
+            'email':    { js: [`${appServer}/email-app.js`], css: [] },
+            'bill':     { js: [`${appServer}/bill-app.js`], css: [] },
+            'gemini':   { js: [`${appServer}/gemini-app.js`], css: [] },
+            'fanfic':   { js: [`${appServer}/watch-live.js`], css: [] },
+            'theme':    { js: [`${appServer}/style-app.js`], css: [] }
         };
 
         this.init();
@@ -66,6 +79,7 @@ class MobilePhone {
         this.createPhoneContainer();
         this.registerApps();
         this.startClock();
+        this.initPageSwipe();
         this.startSystemNotificationRadar();
         this.startGenerationStatusTracker();
 
@@ -682,9 +696,10 @@ triggerNotificationFromApp(sender, message) {
                                 </div>
 
 
-                                <!-- 仅保留已迁移到服务器的应用入口 -->
+                                <!-- 完整应用入口：业务脚本均从手机服务器按需加载 -->
                                 <div class="app-pages-container">
                                     <div class="app-pages-wrapper" id="app-pages-wrapper">
+                                        <!-- 第一页 -->
                                         <div class="app-page">
                                             <div class="app-grid">
                                                 <div class="app-row">
@@ -692,17 +707,85 @@ triggerNotificationFromApp(sender, message) {
                                                         <div class="app-icon-bg pink">💬</div>
                                                         <span class="app-label">微信</span>
                                                     </div>
+                                                    <div class="app-icon" data-app="shop">
+                                                        <div class="app-icon-bg purple">购</div>
+                                                        <span class="app-label">购物</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="task">
+                                                        <div class="app-icon-bg purple">📰</div>
+                                                        <span class="app-label">健康</span>
+                                                    </div>
+                                                </div>
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="forum">
+                                                        <div class="app-icon-bg red">📰</div>
+                                                        <span class="app-label">论坛</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="weibo">
+                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
+                                                        <span class="app-label">收纳</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="live">
+                                                        <div class="app-icon-bg red">🎬</div>
+                                                        <span class="app-label">直播</span>
+                                                    </div>
+                                                </div>
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="backpack">
+                                                        <div class="app-icon-bg orange">🎒</div>
+                                                        <span class="app-label">背包</span>
+                                                    </div>
                                                     <div class="app-icon" data-app="api">
-                                                        <div class="app-icon-bg orange">⚙️</div>
+                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
                                                         <span class="app-label">设置</span>
                                                     </div>
+                                                    <div class="app-icon" data-app="profile">
+                                                        <div class="app-icon-bg green">📋</div>
+                                                        <span class="app-label">档案</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 第二页 -->
+                                        <div class="app-page">
+                                            <div class="app-grid">
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="travel">
+                                                        <div class="app-icon-bg">✈️</div>
+                                                        <span class="app-label">出行</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="email">
+                                                        <div class="app-icon-bg">📧</div>
+                                                        <span class="app-label">邮箱</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="bill">
+                                                        <div class="app-icon-bg">💰</div>
+                                                        <span class="app-label">账单</span>
+                                                    </div>
+                                                </div>
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="gemini">
+                                                        <div class="app-icon-bg">✨</div>
+                                                        <span class="app-label">AI</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="fanfic">
+                                                        <div class="app-icon-bg">📚</div>
+                                                        <span class="app-label">AO3</span>
+                                                    </div>
                                                     <div class="app-icon" data-app="theme">
-                                                        <div class="app-icon-bg purple">🎨</div>
+                                                        <div class="app-icon-bg">🎨</div>
                                                         <span class="app-label">主题</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div class="page-indicators" id="page-indicators">
+                                        <div class="indicator active"></div>
+                                        <div class="indicator"></div>
+                                    </div>
                                 </div>
 
                             </div>
@@ -899,11 +982,23 @@ pushAppState(state) {
 // 2. 彻底删除所有 refreshMessages, showMessageList, generateFriendsCircleContent 等具体方法
 // 因为这些现在都通过 state.buttons 的 action 动态执行了。
 
-// 极简应用注册表：内容全部由服务器脚本注入。
+// 完整应用注册表：内容全部由服务器脚本注入。
 registerApps() {
         this.apps = {
             'messages': { name: '微信', isCustomApp: true },
+            'shop':     { name: '购物', isCustomApp: true },
+            'task':     { name: '健康', isCustomApp: true },
+            'forum':    { name: '论坛', isCustomApp: true },
+            'weibo':    { name: '收纳', isCustomApp: true },
+            'live':     { name: '直播', isCustomApp: true },
+            'backpack': { name: '背包', isCustomApp: true },
             'api':      { name: '设置', isCustomApp: true },
+            'profile':  { name: '档案', isCustomApp: true },
+            'travel':   { name: '出行', isCustomApp: true },
+            'email':    { name: '邮箱', isCustomApp: true },
+            'bill':     { name: '账单', isCustomApp: true },
+            'gemini':   { name: 'AI', isCustomApp: true },
+            'fanfic':   { name: 'AO3', isCustomApp: true },
             'theme':    { name: '主题', isCustomApp: true }
         };
     }
