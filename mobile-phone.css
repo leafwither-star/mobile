@@ -2461,7 +2461,7 @@
     font-weight: 500 !important;
 }
 
-/* 已迁移到服务器的三个入口图标。 */
+/* --- 完整桌面图标：入口留在 GitHub，业务脚本从服务器加载 --- */
 html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
     background-image: url('../mobile/images/weixin.png') !important;
     background-size: 100% !important;
@@ -2469,9 +2469,93 @@ html body .mobile-phone-frame .app-icon[data-app='messages'] .app-icon-bg {
     background-repeat: no-repeat !important;
 }
 
+html body .mobile-phone-frame .app-icon[data-app='shop'] .app-icon-bg {
+    background-image: url('../mobile/images/shop.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='task'] .app-icon-bg {
+    background-image: url('../mobile/images/jiankang.png') !important;
+    background-size: 100% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='forum'] .app-icon-bg {
+    background-image: url('../mobile/images/forum2.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='weibo'] .app-icon-bg {
+    background-image: url('../mobile/images/shouna.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='live'] .app-icon-bg {
+    background-image: url('../mobile/images/live3.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='backpack'] .app-icon-bg {
+    background-image: url('../mobile/images/backpack.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
 html body .mobile-phone-frame .app-icon[data-app='api'] .app-icon-bg {
     background-image: url('../mobile/images/setting2.png') !important;
     background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='profile'] .app-icon-bg {
+    background-image: url('../mobile/images/profile3.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='travel'] .app-icon-bg {
+    background-image: url('../mobile/images/travel2.png') !important;
+    background-size: 100% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='email'] .app-icon-bg {
+    background-image: url('../mobile/images/email2.png') !important;
+    background-size: 110% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='bill'] .app-icon-bg {
+    background-image: url('../mobile/images/bill2.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='gemini'] .app-icon-bg {
+    background-image: url('../mobile/images/AI2.png') !important;
+    background-size: 95% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+html body .mobile-phone-frame .app-icon[data-app='fanfic'] .app-icon-bg {
+    background-image: url('../mobile/images/AO3.png') !important;
+    background-size: 80% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
