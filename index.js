@@ -9,22 +9,16 @@
   const BASE = './scripts/extensions/third-party/mobile';
 
   function loadStyle(name) {
-    return new Promise((resolve, reject) => {
-      const href = `${BASE}/${name}`;
-      const existing = document.querySelector(`link[data-mobile-entry="${name}"]`);
-      if (existing) return resolve();
+    const href = `${BASE}/${name}`;
+    const existing = document.querySelector(`link[data-mobile-entry="${name}"]`);
+    if (existing) return;
 
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.dataset.mobileEntry = name;
-      link.onload = resolve;
-      link.onerror = () => {
-        link.remove();
-        reject(new Error(`样式加载失败: ${href}`));
-      };
-      document.head.appendChild(link);
-    });
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset.mobileEntry = name;
+    link.onerror = () => console.warn(`[Mobile Entry] 样式加载失败，容器脚本继续启动: ${href}`);
+    document.head.appendChild(link);
   }
 
   function loadScript(name, attempts = 3) {
@@ -63,11 +57,12 @@
     return run(1);
   }
 
-  Promise.all([
-    loadStyle('mobile-phone.css'),
-    loadStyle('drag-helper.css'),
-  ])
-    .then(() => loadScript('drag-helper.js'))
+  // 样式表与脚本并行启动。移动端 WebView 偶尔不会为动态 link 触发 load，
+  // 入口不能因此永远卡住，导致手机缩略图必须刷新数次才出现。
+  loadStyle('mobile-phone.css');
+  loadStyle('drag-helper.css');
+
+  loadScript('drag-helper.js')
     .then(() => loadScript('mobile-phone.js'))
     .then(() => console.log('[Mobile Entry] 手机容器启动完成'))
     .catch(error => {

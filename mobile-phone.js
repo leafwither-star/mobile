@@ -44,7 +44,6 @@ class MobilePhone {
         this._loadingApps = new Set(); 
         this._userNavigationIntent = null; 
         this._loadingStartTime = {}; 
-        this._appLoadPromises = new Map();
 
         // 消息指纹记录，用于弹窗去重
         this._lastMsgFingerprint = "";
@@ -63,6 +62,7 @@ class MobilePhone {
         this.loadDragHelper();
         this.clearPositionCache(); // 清理位置缓存
         this.createPhoneButton();
+        this.installPhoneButtonGuard();
         this.createPhoneContainer();
         this.registerApps();
         this.startClock();
@@ -526,10 +526,21 @@ triggerNotificationFromApp(sender, message) {
 
     createPhoneButton() {
         try {
+            if (!document.body) {
+                setTimeout(() => this.createPhoneButton(), 100);
+                return null;
+            }
+
             const existingButton = document.getElementById('mobile-phone-trigger');
-            if (existingButton) existingButton.remove();
+            if (existingButton) {
+                existingButton.style.setProperty('display', 'flex', 'important');
+                existingButton.style.setProperty('visibility', 'visible', 'important');
+                existingButton.style.setProperty('opacity', '1', 'important');
+                return existingButton;
+            }
 
             const button = document.createElement('button');
+            button.type = 'button';
             button.id = 'mobile-phone-trigger';
             button.className = 'mobile-phone-trigger';
             button.innerHTML = `
@@ -539,17 +550,43 @@ triggerNotificationFromApp(sender, message) {
             // 【关键】强制提升悬浮球层级，防止被主题 App 遮挡
             button.style.zIndex = "99999";
             button.style.position = "fixed";
+            button.style.setProperty('display', 'flex', 'important');
+            button.style.setProperty('visibility', 'visible', 'important');
+            button.style.setProperty('opacity', '1', 'important');
             
             button.addEventListener('click', () => this.togglePhone());
-            if (!document.body) {
-                setTimeout(() => this.createPhoneButton(), 100);
-                return;
-            }
             document.body.appendChild(button);
             this.initDragForButton(button);
+            return button;
         } catch (error) {
             console.error('[Mobile Phone] 创建按钮错误:', error);
+            return null;
         }
+    }
+
+    installPhoneButtonGuard() {
+        if (this._phoneButtonGuardInstalled || !document.body) return;
+        this._phoneButtonGuardInstalled = true;
+
+        let restoreQueued = false;
+        const ensureButton = () => {
+            if (restoreQueued) return;
+            restoreQueued = true;
+            queueMicrotask(() => {
+                restoreQueued = false;
+                this.createPhoneButton();
+            });
+        };
+
+        this._phoneButtonObserver = new MutationObserver(() => {
+            if (!document.getElementById('mobile-phone-trigger')) ensureButton();
+        });
+        this._phoneButtonObserver.observe(document.body, { childList: true });
+
+        window.addEventListener('pageshow', ensureButton);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) ensureButton();
+        });
     }
 
     initDragForButton(button) {
@@ -968,25 +1005,16 @@ async openApp(appName) {
  *   读不到就退回裸地址，行为不受影响。）
  */
 async resolveVersionedUrl(baseUrl) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
     try {
-        const res = await fetch(baseUrl, {
-            method: 'HEAD',
-            cache: 'no-store',
-            mode: 'cors',
-            signal: controller.signal
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(baseUrl, { method: 'HEAD', cache: 'no-store' });
         const stamp = res.headers.get('last-modified') || res.headers.get('etag') || '';
         const token = stamp ? String(Date.parse(stamp) || stamp).replace(/[^a-zA-Z0-9]/g, '') : '';
         if (!token) return baseUrl;
         return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}v=${token}`;
     } catch (e) {
+        // 探测失败（离线、跨域被拦）就用裸地址，交给 ETag 复验兜底，不影响功能
         console.warn(`[Mobile] 版本探测失败，回退裸地址: ${baseUrl}`, e && e.message);
         return baseUrl;
-    } finally {
-        clearTimeout(timeout);
     }
 }
 
@@ -998,79 +1026,52 @@ resolveAppInstance(appName) {
     return window['Mobile' + appName.charAt(0).toUpperCase() + appName.slice(1) + 'App'];
 }
 
-/** 远程脚本加载器：缓存友好、并发去重、超时重试，并保留可用旧实例。 */
+/**
+ * 远程脚本加载器 (增强热更新版)
+ * 保留主分支已有行为：释放旧实例、重新执行服务端脚本并激活新实例。
+ */
 async loadRemoteApp(appName) {
     const route = this.APP_ROUTING[appName];
     if (!route || !route.js) return false;
-    if (this._appLoadPromises.has(appName)) return this._appLoadPromises.get(appName);
 
-    const task = (async () => {
-        const previousInstance = this.resolveAppInstance(appName);
-        const baseUrl = await this.resolveVersionedUrl(route.js[0]);
-        const maxAttempts = 3;
+    if (appName === 'api') window.MobileSettingApp = null;
+    if (appName === 'theme') window.MobileThemeApp = null;
+    if (appName === 'messages') window.MobileMessageApp = null;
 
-        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-            const attemptUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}retry=${attempt}`;
-            const loaded = await new Promise(resolve => {
-                const script = document.createElement('script');
-                const id = `remote-script-${appName}`;
-                const oldScript = document.getElementById(id);
-                if (oldScript) oldScript.remove();
+    const oldScript = document.getElementById(`remote-script-${appName}`);
+    if (oldScript) oldScript.remove();
 
-                script.id = id;
-                script.src = attemptUrl;
-                script.async = true;
+    const versionedUrl = await this.resolveVersionedUrl(route.js[0]);
 
-                const timer = setTimeout(() => {
-                    script.remove();
-                    resolve(false);
-                }, 60000);
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.id = `remote-script-${appName}`;
+        const remoteUrl = route.js[0];
+        script.src = versionedUrl;
 
-                script.onload = () => {
-                    clearTimeout(timer);
-                    resolve(true);
-                };
-                script.onerror = () => {
-                    clearTimeout(timer);
-                    script.remove();
-                    resolve(false);
-                };
-                document.head.appendChild(script);
-            });
+        script.onload = () => {
+            console.log(`🚀 [HotReload] ${appName} 已重载`);
+            const container = document.getElementById('app-content');
+            const activate = () => {
+                const instance = this.resolveAppInstance(appName);
+                if (instance && typeof instance.init === 'function') {
+                    instance.init(container);
+                    return true;
+                }
+                return false;
+            };
 
-            const instance = this.resolveAppInstance(appName);
-            if (loaded && instance && instance !== previousInstance && typeof instance.init === 'function') {
-                instance.init(document.getElementById('app-content'));
-                console.log(`[Mobile] ${appName} 远程模块加载成功（第 ${attempt} 次）`);
-                return true;
-            }
+            if (activate()) return resolve(true);
+            setTimeout(() => resolve(activate()), 50);
+        };
 
-            if (attempt < maxAttempts) {
-                const delay = 1000 * (2 ** (attempt - 1)) + Math.floor(Math.random() * 400);
-                console.warn(`[Mobile] ${appName} 加载未完成，${delay}ms 后重试`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
+        script.onerror = () => {
+            console.error(`❌ 加载失败: ${remoteUrl}`);
+            resolve(false);
+        };
 
-        // 热更新失败时不要销毁已经可用的旧实例。
-        if (previousInstance && typeof previousInstance.init === 'function') {
-            previousInstance.init(document.getElementById('app-content'));
-            console.warn(`[Mobile] ${appName} 网络加载失败，已回退到当前会话缓存`);
-            return true;
-        }
-
-        const container = document.getElementById('app-content');
-        if (container) {
-            container.innerHTML = `<div class="mobile-load-error">
-                <p>应用加载失败，请检查网络后重试。</p>
-                <button type="button" onclick="window.mobilePhone.openApp('${appName}')">重新加载</button>
-            </div>`;
-        }
-        return false;
-    })().finally(() => this._appLoadPromises.delete(appName));
-
-    this._appLoadPromises.set(appName, task);
-    return task;
+        document.head.appendChild(script);
+    });
 }
     
     /**
